@@ -1,6 +1,8 @@
 package dev.sebastiano.camerasync
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.os.Build
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.work.Configuration
@@ -12,6 +14,7 @@ import dev.sebastiano.camerasync.devicesync.registerNotificationChannel
 import dev.sebastiano.camerasync.di.AppGraph
 import dev.sebastiano.camerasync.firmware.FirmwareUpdateCheckWorkerFactory
 import dev.sebastiano.camerasync.firmware.FirmwareUpdateScheduler
+import dev.sebastiano.camerasync.usb.UsbSyncService
 import dev.sebastiano.camerasync.widget.SyncWidgetReceiver
 import dev.zacsweers.metro.createGraphFactory
 import kotlin.getValue
@@ -43,6 +46,7 @@ class CameraSyncApp : Application(), Provider {
         // Register notification channels early so they're available before any service tries to use
         // them
         registerNotificationChannel(this)
+        registerUsbSyncChannel()
 
         // Heavy initialization and WorkManager scheduling are moved to the background to avoid
         // main thread jank during startup.
@@ -90,6 +94,18 @@ class CameraSyncApp : Application(), Provider {
      * to ensure appGraph is initialized before accessing it.
      */
     @Suppress("TooGenericExceptionCaught")
+    private fun registerUsbSyncChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = getSystemService(NotificationManager::class.java)
+            val channel = NotificationChannel(
+                UsbSyncService.USB_SYNC_CHANNEL_ID,
+                "USB 同步",
+                NotificationManager.IMPORTANCE_LOW,
+            )
+            nm.createNotificationChannel(channel)
+        }
+    }
+
     override val workManagerConfiguration: Configuration
         get() =
             try {

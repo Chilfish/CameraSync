@@ -44,6 +44,8 @@ import dev.sebastiano.camerasync.pairing.PairingScreen
 import dev.sebastiano.camerasync.pairing.PairingViewModel
 import dev.sebastiano.camerasync.permissions.PermissionsScreen
 import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
+import dev.sebastiano.camerasync.usb.UsbSyncScreen
+import dev.sebastiano.camerasync.usb.UsbSyncViewModel
 import dev.zacsweers.metro.Inject
 
 @Inject
@@ -184,6 +186,7 @@ private fun RootComposable(
                             viewModel = devicesListViewModel,
                             onAddDeviceClick = { backStack.add(NavRoute.Pairing) },
                             onViewLogsClick = { backStack.add(NavRoute.LogViewer) },
+                            onUsbSyncClick = { backStack.add(NavRoute.UsbSync) },
                         )
                     }
 
@@ -224,6 +227,16 @@ private fun RootComposable(
                                     context,
                                     MultiDeviceSyncService.createRefreshIntent(context),
                                 )
+                            },
+                        )
+                    }
+
+                    NavRoute.UsbSync -> {
+                        val usbSyncViewModel: UsbSyncViewModel = viewModel()
+                        UsbSyncScreen(
+                            viewModel = usbSyncViewModel,
+                            onNavigateBack = {
+                                if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
                             },
                         )
                     }

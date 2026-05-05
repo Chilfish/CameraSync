@@ -53,6 +53,7 @@ fun DevicesListScreen(
     viewModel: DevicesListViewModel,
     onAddDeviceClick: () -> Unit,
     onViewLogsClick: () -> Unit,
+    onUsbSyncClick: () -> Unit = {},
 ) {
     val state by viewModel.state
     var deviceToUnpair by remember { mutableStateOf<PairedDeviceWithState?>(null) }
@@ -79,6 +80,7 @@ fun DevicesListScreen(
                 onRefreshClick = viewModel::refreshConnections,
                 onViewLogsClick = onViewLogsClick,
                 onSendFeedbackClick = viewModel::sendFeedback,
+                onUsbSyncClick = onUsbSyncClick,
             )
         },
         floatingActionButton = {
@@ -133,6 +135,7 @@ private fun DevicesListTopAppBar(
     onRefreshClick: () -> Unit,
     onViewLogsClick: () -> Unit,
     onSendFeedbackClick: () -> Unit,
+    onUsbSyncClick: () -> Unit = {},
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -184,6 +187,13 @@ private fun DevicesListTopAppBar(
                         onClick = {
                             showMenu = false
                             onSendFeedbackClick()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("USB 同步") },
+                        onClick = {
+                            showMenu = false
+                            onUsbSyncClick()
                         },
                     )
                 }

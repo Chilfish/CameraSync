@@ -18,4 +18,7 @@ sealed interface NavRoute : Parcelable {
 
     /** Log viewer screen. */
     @Parcelize @Serializable data object LogViewer : NavRoute
+
+    /** USB photo sync screen. */
+    @Parcelize @Serializable data object UsbSync : NavRoute
 }

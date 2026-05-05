@@ -6,6 +6,10 @@
         android:name="android.hardware.bluetooth_le"
         android:required="true" />
 
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
+
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
@@ -93,6 +97,11 @@
             tools:ignore="Instantiatable" />
 
         <service
+            android:name=".usb.UsbSyncService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <service
             android:name=".devicesync.SyncTileService"
             android:exported="true"
             android:icon="@drawable/ic_sync"
@@ -141,6 +150,12 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/nikon_usb_device_filter" />
         </activity>
 
         <provider

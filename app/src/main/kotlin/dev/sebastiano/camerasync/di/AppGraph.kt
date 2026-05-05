@@ -40,6 +40,7 @@ import dev.sebastiano.camerasync.util.AndroidBatteryOptimizationChecker
 import dev.sebastiano.camerasync.util.AndroidDeviceNameProvider
 import dev.sebastiano.camerasync.util.BatteryOptimizationChecker
 import dev.sebastiano.camerasync.util.DeviceNameProvider
+import dev.sebastiano.camerasync.vendors.nikon.NikonCameraVendor
 import dev.sebastiano.camerasync.vendors.ricoh.RicohCameraVendor
 import dev.sebastiano.camerasync.vendors.sony.SonyCameraVendor
 import dev.sebastiano.camerasync.widget.GlanceWidgetUpdateHelper
@@ -111,6 +112,7 @@ interface AppGraph {
      * Currently supports:
      * - Ricoh cameras (GR IIIx, GR III, etc.)
      * - Sony Alpha cameras (via DI Remote Control protocol)
+     * - Nikon cameras (Z series, DSLR — POC, SnapBridge UUIDs TBD)
      *
      * To add support for additional camera vendors:
      * 1. Create a new vendor package (e.g., vendors/canon/)
@@ -121,14 +123,7 @@ interface AppGraph {
     @SingleIn(AppGraph::class)
     fun provideVendorRegistry(): CameraVendorRegistry =
         DefaultCameraVendorRegistry(
-            vendors =
-                listOf(
-                    RicohCameraVendor,
-                    SonyCameraVendor,
-                    // Add more vendors here:
-                    // CanonCameraVendor,
-                    // NikonCameraVendor,
-                )
+            vendors = listOf(RicohCameraVendor, SonyCameraVendor, NikonCameraVendor)
         )
 
     @Provides

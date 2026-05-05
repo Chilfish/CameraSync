@@ -124,17 +124,30 @@ class PairingViewModel(
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @Suppress("DEPRECATION")
     private fun extractCameraFromIntent(data: Intent): Camera? {
         return try {
-            val scanResult =
-                data.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE, ScanResult::class.java)
-            scanResult?.toCamera()
-                ?: data
-                    .getParcelableExtra(
-                        CompanionDeviceManager.EXTRA_DEVICE,
-                        BluetoothDevice::class.java,
-                    )
-                    ?.toCamera()
+            // CompanionDeviceManager may return either ScanResult or BluetoothDevice depending on
+            // the OEM and Android version. Don't type-check at the Bundle level — fetch the raw
+            // parcelable and branch on its runtime type.
+            val raw: Any? = data.getParcelableExtra(CompanionDeviceManager.EXTRA_DEVICE)
+            Log.debug(tag = TAG) { "CompanionDevice raw type: ${raw?.let { it::class.java.name }}" }
+            if (raw != null) {
+                Log.debug(tag = TAG) { "CompanionDevice raw toString: $raw" }
+            }
+
+            when (raw) {
+                is ScanResult -> raw.toCamera()
+                is BluetoothDevice -> raw.toCamera()
+                else -> {
+                    Log.warn(tag = TAG) {
+                        "Unexpected companion device type: ${raw?.let { it::class.java.name }} " +
+                            "(is ScanResult=${raw is ScanResult}, " +
+                            "is BluetoothDevice=${raw is BluetoothDevice})"
+                    }
+                    null
+                }
+            }
         } catch (e: IllegalArgumentException) {
             Log.warn(tag = TAG, throwable = e) { "Could not extract device from Intent" }
             null
