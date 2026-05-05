@@ -10,7 +10,10 @@ sealed interface NavRoute : Parcelable {
     /** Permissions need to be requested. */
     @Parcelize @Serializable data object NeedsPermissions : NavRoute
 
-    /** Main screen showing paired devices list. */
+    /** Gallery — primary screen (USB photo grid). */
+    @Parcelize @Serializable data object Gallery : NavRoute
+
+    /** Main screen showing paired BLE devices. */
     @Parcelize @Serializable data object DevicesList : NavRoute
 
     /** Pairing screen for adding new devices. */
@@ -18,7 +21,4 @@ sealed interface NavRoute : Parcelable {
 
     /** Log viewer screen. */
     @Parcelize @Serializable data object LogViewer : NavRoute
-
-    /** USB photo sync screen. */
-    @Parcelize @Serializable data object UsbSync : NavRoute
 }

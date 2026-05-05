@@ -1,6 +1,6 @@
 # CameraSync — Nikon Z30 Support: Task Plan & Progress Log
 
-> Branch: `nikon-feature` | Started: 2026-05-05 | Updated: 2026-05-05
+> Branch: `nikon-feature` | Started: 2026-05-05 | Updated: 2026-05-07
 
 ---
 
@@ -133,8 +133,39 @@
 ## Deprecated: Wi‑Fi / PTP‑IP Approach (Phases 2–4)
 
 > ❌ Abandoned — Z30 lacks Infrastructure Wi‑Fi mode (flagship-only feature).
-> PTP/IP code in `ptp/` package is kept for reference but is not functional on Z30.
-> See [docs/nikon/USB_SYNC.md](nikon/USB_SYNC.md) for the working USB approach.
+> PTP/IP code was **deleted** (commit ef45a34).
+
+---
+
+## Phase 8: Deep Integration — USB as First-Class Transport 🔧 IN PROGRESS
+
+> **Goal**: USB is currently a standalone feature (hint card → separate photo screen).
+> It must integrate into the existing device-centric architecture: reactive hot-plug
+> detection, unified device card on the home screen, and parity with BLE-connected
+> camera capabilities where applicable.
+
+### 8.1 USB Hot-Plug Detection
+- [x] `rememberUsbDeviceEntry()` registers BroadcastReceiver for real-time attach/detach
+- [x] Compose state drives UI reactively — card updates without navigation or restart
+- [x] USB card shows in Loading / Empty / HasDevices states
+
+### 8.2 Unified Device Card
+- [x] USB camera appears as a proper device card alongside BLE devices
+- [x] Reuses existing UI patterns (Card, expandable details, status icon)
+- [x] Connection status, camera model ("Nikon Z30"), expandable details
+- [x] "管理照片" button in expanded view → navigates to UsbPhotoScreen
+
+### 8.3 Gallery Screen (Phase 9)
+- [x] GalleryScreen as primary UI (replaces DevicesList as default)
+- [x] LazyVerticalGrid 3-column layout with MTP thumbnails
+- [x] Client-side pagination (pageSize=30, load on scroll-to-bottom)
+- [x] RAW+JPEG grouping by base filename
+- [x] Transfer with progress indicator
+- [x] All states: Disconnected/Connecting/Loading/Browsing/Empty/Error/Transferring/Done
+- [x] BLE FAB removed from DevicesListScreen
+- [x] DevicesListScreen accessible as secondary route for BLE features
+- [ ] Pull-to-refresh
+- [ ] Transfer dedup integration (PhotoSyncManager)
 
 ---
 
@@ -147,17 +178,19 @@
 | BLE GATT | `vendors/nikon/NikonGattSpec.kt` | ✅ |
 | BLE delegate | `vendors/nikon/NikonConnectionDelegate.kt` | ✅ POC |
 | USB MTP core | `usb/NikonUsbManager.kt` | ✅ |
-| USB ViewModel | `usb/UsbSyncViewModel.kt` | ✅ |
-| USB Screen | `usb/UsbSyncScreen.kt` | ✅ Production |
-| USB filter | `res/xml/nikon_usb_device_filter.xml` | ✅ |
-| USB icon | `res/drawable/ic_usb_24dp.xml` | ✅ |
-| USB strings | `res/values/strings.xml` | ✅ |
-| **Phase 7 additions** | | |
+| Gallery Screen | `usb/GalleryScreen.kt` | ✅ Primary UI (Phase 9) |
+| Gallery ViewModel | `usb/GalleryViewModel.kt` | ✅ Pagination + transfer |
 | USB Service | `usb/UsbSyncService.kt` | ✅ |
 | USB Coordinator | `usb/UsbSyncCoordinator.kt` | ✅ |
 | Photo Sync Mgr | `usb/PhotoSyncManager.kt` | ✅ |
 | USB Preferences | `usb/UsbSyncPreferences.kt` | ✅ |
+| USB filter | `res/xml/nikon_usb_device_filter.xml` | ✅ |
+| USB icon | `res/drawable/ic_usb_24dp.xml` | ✅ |
+| USB strings | `res/values/strings.xml` | ✅ |
 | Navigation | `NavRoute.kt` | ✅ |
 | Wiring | `MainActivity.kt` | ✅ |
 | Manifest | `AndroidManifest.xml` | ✅ |
-| PTP/IP (deprecated) | `ptp/PtpIpSession.kt` + others | ⚠️ Archived |
+| **Deleted** | | |
+| PTP/IP debug | `ptp/*` (8 files) | ❌ Deleted |
+| Old USB debug | `usb/UsbSyncScreen.kt`, `UsbSyncViewModel.kt` | ❌ Deleted |
+| Old USB photo | `usb/UsbPhotoScreen.kt` | ❌ Deleted (replaced by Gallery) |

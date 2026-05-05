@@ -1,18 +1,36 @@
 package dev.sebastiano.camerasync.devices
 
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Button
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,15 +53,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.sebastiano.camerasync.R
+import dev.sebastiano.camerasync.domain.model.DeviceConnectionState
+import dev.sebastiano.camerasync.domain.model.PairedDevice
 import dev.sebastiano.camerasync.domain.model.PairedDeviceWithState
 import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
 
@@ -53,7 +76,6 @@ fun DevicesListScreen(
     viewModel: DevicesListViewModel,
     onAddDeviceClick: () -> Unit,
     onViewLogsClick: () -> Unit,
-    onUsbSyncClick: () -> Unit = {},
 ) {
     val state by viewModel.state
     var deviceToUnpair by remember { mutableStateOf<PairedDeviceWithState?>(null) }
@@ -80,13 +102,6 @@ fun DevicesListScreen(
                 onRefreshClick = viewModel::refreshConnections,
                 onViewLogsClick = onViewLogsClick,
                 onSendFeedbackClick = viewModel::sendFeedback,
-                onUsbSyncClick = onUsbSyncClick,
-            )
-        },
-        floatingActionButton = {
-            DevicesListFloatingActionButton(
-                isSyncEnabled = state.isSyncEnabled,
-                onClick = onAddDeviceClick,
             )
         },
     ) { innerPadding ->
@@ -135,7 +150,6 @@ private fun DevicesListTopAppBar(
     onRefreshClick: () -> Unit,
     onViewLogsClick: () -> Unit,
     onSendFeedbackClick: () -> Unit,
-    onUsbSyncClick: () -> Unit = {},
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -187,13 +201,6 @@ private fun DevicesListTopAppBar(
                         onClick = {
                             showMenu = false
                             onSendFeedbackClick()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("USB 同步") },
-                        onClick = {
-                            showMenu = false
-                            onUsbSyncClick()
                         },
                     )
                 }
@@ -250,24 +257,14 @@ private fun DevicesListContent(
     modifier: Modifier = Modifier,
 ) {
     when (state) {
-        is DevicesListState.Loading -> {
-            LoadingContent(modifier)
-        }
-
-        is DevicesListState.Empty -> {
-            EmptyContent(modifier)
-        }
-
+        is DevicesListState.Loading -> LoadingContent(modifier)
+        is DevicesListState.Empty -> EmptyContent(modifier)
         is DevicesListState.HasDevices -> {
             Box(modifier = modifier) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    LocationCard(
-                        location = state.currentLocation,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    )
 
                     if (!state.isIgnoringBatteryOptimizations) {
                         BatteryOptimizationWarning(
@@ -301,6 +298,7 @@ private fun DevicesListContent(
         }
     }
 }
+
 
 @Preview(name = "Top App Bar - Sync Enabled", showBackground = true)
 @Composable

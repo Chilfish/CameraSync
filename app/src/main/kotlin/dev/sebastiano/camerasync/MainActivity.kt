@@ -44,8 +44,7 @@ import dev.sebastiano.camerasync.pairing.PairingScreen
 import dev.sebastiano.camerasync.pairing.PairingViewModel
 import dev.sebastiano.camerasync.permissions.PermissionsScreen
 import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
-import dev.sebastiano.camerasync.usb.UsbSyncScreen
-import dev.sebastiano.camerasync.usb.UsbSyncViewModel
+import dev.sebastiano.camerasync.usb.GalleryScreen
 import dev.zacsweers.metro.Inject
 
 @Inject
@@ -119,8 +118,8 @@ private fun RootComposable(
                 backStack.clear()
                 backStack.add(NavRoute.NeedsPermissions)
             } else if (allPermissionsGranted && currentRoute == NavRoute.NeedsPermissions) {
-                // All permissions granted - navigate to DevicesList
-                backStack[0] = NavRoute.DevicesList
+                // All permissions granted - navigate to Gallery
+                backStack[0] = NavRoute.Gallery
             }
         }
 
@@ -147,7 +146,7 @@ private fun RootComposable(
             if (allPermissionsGranted && backStack.contains(NavRoute.NeedsPermissions)) {
                 // Replace NeedsPermissions with DevicesList
                 val needsPermissionsIndex = backStack.indexOf(NavRoute.NeedsPermissions)
-                backStack[needsPermissionsIndex] = NavRoute.DevicesList
+                backStack[needsPermissionsIndex] = NavRoute.Gallery
             }
         }
 
@@ -172,10 +171,14 @@ private fun RootComposable(
                     NavRoute.NeedsPermissions -> {
                         PermissionsScreen(
                             onPermissionsGranted = {
-                                backStack.add(NavRoute.DevicesList)
+                                backStack.add(NavRoute.Gallery)
                                 backStack.remove(NavRoute.NeedsPermissions)
                             }
                         )
+                    }
+
+                    NavRoute.Gallery -> {
+                        GalleryScreen()
                     }
 
                     NavRoute.DevicesList -> {
@@ -186,7 +189,6 @@ private fun RootComposable(
                             viewModel = devicesListViewModel,
                             onAddDeviceClick = { backStack.add(NavRoute.Pairing) },
                             onViewLogsClick = { backStack.add(NavRoute.LogViewer) },
-                            onUsbSyncClick = { backStack.add(NavRoute.UsbSync) },
                         )
                     }
 
@@ -231,15 +233,6 @@ private fun RootComposable(
                         )
                     }
 
-                    NavRoute.UsbSync -> {
-                        val usbSyncViewModel: UsbSyncViewModel = viewModel()
-                        UsbSyncScreen(
-                            viewModel = usbSyncViewModel,
-                            onNavigateBack = {
-                                if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
-                            },
-                        )
-                    }
                 }
             }
         }

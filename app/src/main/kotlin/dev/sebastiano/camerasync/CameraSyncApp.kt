@@ -39,6 +39,15 @@ class CameraSyncApp : Application(), Provider {
         // Initialize Khronicle logging early in application lifecycle
         initializeLogging()
 
+        // Capture uncaught exceptions into Khronicle log so crashes are visible
+        // in the in-app LogViewer (Settings → View Logs) without USB debugging.
+        val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.error("Crash", throwable = throwable) { "FATAL: ${throwable.message}" }
+            // Flush then delegate to the original handler (which will kill the process)
+            originalHandler?.uncaughtException(thread, throwable)
+        }
+
         Log.info(javaClass.simpleName) {
             "-------------------- CAMERASYNC STARTED --------------------"
         }
