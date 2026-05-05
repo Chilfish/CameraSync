@@ -1,5 +1,6 @@
 package dev.sebastiano.camerasync
 
+import android.app.Application
 import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.Manifest.permission.BLUETOOTH_CONNECT
@@ -21,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -44,7 +46,9 @@ import dev.sebastiano.camerasync.pairing.PairingScreen
 import dev.sebastiano.camerasync.pairing.PairingViewModel
 import dev.sebastiano.camerasync.permissions.PermissionsScreen
 import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
+import dev.sebastiano.camerasync.usb.GalleryFolderScreen
 import dev.sebastiano.camerasync.usb.GalleryScreen
+import dev.sebastiano.camerasync.usb.GalleryViewModel
 import dev.zacsweers.metro.Inject
 
 @Inject
@@ -86,6 +90,12 @@ private fun RootComposable(
     shouldShowPermissions: Boolean = false,
 ) {
     CameraSyncTheme {
+        // Shared GalleryViewModel — lives at Activity scope so it survives
+        // folder navigation pushes/pops without reconnecting MTP.
+        val ctx = LocalContext.current
+        val app = ctx.applicationContext as Application
+        val galleryViewModel = remember { GalleryViewModel(app) }
+
         val basePermissions =
             listOf(ACCESS_FINE_LOCATION, BLUETOOTH_SCAN, BLUETOOTH_CONNECT, POST_NOTIFICATIONS)
         val multiplePermissionsState =
@@ -178,7 +188,32 @@ private fun RootComposable(
                     }
 
                     NavRoute.Gallery -> {
-                        GalleryScreen()
+                        GalleryScreen(
+                            viewModel = galleryViewModel,
+                            onNavigateToLogs = { backStack.add(NavRoute.LogViewer) },
+                            onFolderClick = { folder ->
+                                backStack.add(
+                                    NavRoute.GalleryFolder(folder.storageId, folder.info.handle, folder.info.name)
+                                )
+                            },
+                        )
+                    }
+
+                    is NavRoute.GalleryFolder -> {
+                        GalleryFolderScreen(
+                            viewModel = galleryViewModel,
+                            storageId = key.storageId,
+                            folderHandle = key.folderHandle,
+                            folderName = key.folderName,
+                            onNavigateBack = {
+                                if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+                            },
+                            onFolderClick = { folder ->
+                                backStack.add(
+                                    NavRoute.GalleryFolder(folder.storageId, folder.info.handle, folder.info.name)
+                                )
+                            },
+                        )
                     }
 
                     NavRoute.DevicesList -> {

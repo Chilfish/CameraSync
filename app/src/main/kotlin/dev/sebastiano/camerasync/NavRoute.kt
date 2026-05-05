@@ -10,8 +10,15 @@ sealed interface NavRoute : Parcelable {
     /** Permissions need to be requested. */
     @Parcelize @Serializable data object NeedsPermissions : NavRoute
 
-    /** Gallery — primary screen (USB photo grid). */
+    /** Gallery — primary screen (USB storage / folder list). */
     @Parcelize @Serializable data object Gallery : NavRoute
+
+    /** Gallery folder — photos inside a specific MTP folder. */
+    @Parcelize @Serializable data class GalleryFolder(
+        val storageId: Int,
+        val folderHandle: Int,
+        val folderName: String,
+    ) : NavRoute
 
     /** Main screen showing paired BLE devices. */
     @Parcelize @Serializable data object DevicesList : NavRoute

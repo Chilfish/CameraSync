@@ -44,6 +44,9 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         val size: Long,
         val dateModified: Long,
         val formatName: String,
+        /** Thumbnail pixel dimensions from MtpObjectInfo — may be 0 if unavailable. */
+        val thumbPixWidth: Int = 0,
+        val thumbPixHeight: Int = 0,
     )
 
     private var mtpDevice: MtpDevice? = null
@@ -189,6 +192,8 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                             size = compressedSizeLong(info),
                             dateModified = info.dateCreated * 1000L,
                             formatName = fmtName,
+                            thumbPixWidth = info.thumbPixWidth,
+                            thumbPixHeight = info.thumbPixHeight,
                         )
                     )
                 }
@@ -200,6 +205,58 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         }
         photos.sortByDescending { it.dateModified }
         return photos
+    }
+
+    data class FolderInfo(
+        val handle: Int,
+        val name: String,
+        val dateCreated: Long,
+    )
+
+    /**
+     * Lists only folders (FORMAT_ASSOCIATION) directly under [parentHandle].
+     * Use this for folder-based navigation instead of recursive flattening.
+     */
+    fun listFolders(
+        mtpDevice: MtpDevice,
+        storageId: Int,
+        parentHandle: Int = 0,
+    ): List<FolderInfo> {
+        val handles = mtpDevice.getObjectHandles(
+            storageId, MtpConstants.FORMAT_ASSOCIATION, parentHandle,
+        ) ?: return emptyList()
+
+        return handles.toList().mapNotNull { h ->
+            val info = mtpDevice.getObjectInfo(h) ?: return@mapNotNull null
+            FolderInfo(handle = h, name = info.name, dateCreated = info.dateCreated * 1000L)
+        }.sortedByDescending { it.dateCreated }
+    }
+
+    /**
+     * Lists only photo files (non-folders) directly under [parentHandle].
+     * Does NOT recurse — this is for folder-based browsing.
+     */
+    fun listPhotosInFolder(
+        mtpDevice: MtpDevice,
+        storageId: Int,
+        parentHandle: Int = 0,
+    ): List<PhotoInfo> {
+        val handles = mtpDevice.getObjectHandles(storageId, ALL_FORMATS, parentHandle)
+            ?: return emptyList()
+
+        return handles.toList().mapNotNull { h ->
+            val info = mtpDevice.getObjectInfo(h) ?: return@mapNotNull null
+            if (info.format == MtpConstants.FORMAT_ASSOCIATION) return@mapNotNull null
+            PhotoInfo(
+                handle = h,
+                name = info.name,
+                size = compressedSizeLong(info),
+                dateModified = info.dateCreated * 1000L,
+                formatName = formatName(info.format),
+                thumbPixWidth = info.thumbPixWidth,
+                thumbPixHeight = info.thumbPixHeight,
+            )
+        }.sortedByDescending { it.dateModified }
     }
 
     suspend fun downloadPhoto(

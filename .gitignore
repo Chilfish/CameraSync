@@ -116,3 +116,4 @@ deploy/
 scripts/.venv/
 
 /dumps/
+.alma-snapshots

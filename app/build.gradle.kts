@@ -118,6 +118,8 @@ dependencies {
     implementation(libs.maplibre.spatialk)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.protobuf.kotlin.lite)
+    implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.exifinterface)
 
     debugImplementation(libs.androidx.ui.test.manifest)
     debugImplementation(libs.androidx.ui.tooling)

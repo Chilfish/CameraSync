@@ -155,7 +155,7 @@
 - [x] Connection status, camera model ("Nikon Z30"), expandable details
 - [x] "管理照片" button in expanded view → navigates to UsbPhotoScreen
 
-### 8.3 Gallery Screen (Phase 9)
+### 8.3 Gallery Screen (Phase 9–10)
 - [x] GalleryScreen as primary UI (replaces DevicesList as default)
 - [x] LazyVerticalGrid 3-column layout with MTP thumbnails
 - [x] Client-side pagination (pageSize=30, load on scroll-to-bottom)
@@ -164,8 +164,20 @@
 - [x] All states: Disconnected/Connecting/Loading/Browsing/Empty/Error/Transferring/Done
 - [x] BLE FAB removed from DevicesListScreen
 - [x] DevicesListScreen accessible as secondary route for BLE features
-- [ ] Pull-to-refresh
-- [ ] Transfer dedup integration (PhotoSyncManager)
+- [x] Folder-based browsing (tap folder → enter, back → parent)
+- [x] Device info collapsible card (model, storage, serial, firmware)
+- [x] Long-press selection mode + bottom transfer bar
+- [x] Subtle RAW indicator (not colored badge)
+- [x] Pull-to-refresh
+- [x] Transfer dedup integration (PhotoSyncManager)
+- [x] Thumbnail preloading (first 30 after load)
+- [ ] EXIF metadata extraction and display (shutter speed, aperture, ISO, focal length)
+- [x] Haptic feedback for selection
+- [ ] Photo grouping configurable (by folder / by date / flat)
+- [ ] Photo sorting configurable (by name / by date / by size)
+- [ ] Grid columns configurable (2/3/4)
+- [ ] Download format preference (RAW+NEF / RAW only / JPEG only)
+- [ ] Auto-delete from camera after transfer (optional)
 
 ---
 

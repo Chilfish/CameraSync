@@ -1,10 +1,17 @@
 package dev.sebastiano.camerasync.usb
 
-import android.app.Application
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import androidx.compose.animation.AnimatedVisibility
+import java.io.ByteArrayInputStream
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,12 +25,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,73 +43,152 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.exifinterface.media.ExifInterface
 import dev.sebastiano.camerasync.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// ── Screen ─────────────────────────────────────────────────────────────────
+// ── Root Gallery Screen ────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GalleryScreen(onNavigateBack: (() -> Unit)? = null) {
-    val ctx = LocalContext.current
-    val app = ctx.applicationContext as Application
-    val vm = remember { GalleryViewModel(app) }
+fun GalleryScreen(
+    viewModel: GalleryViewModel,
+    onNavigateToLogs: () -> Unit,
+    onFolderClick: (GalleryEntry.Folder) -> Unit = {},
+) {
+    DisposableEffect(Unit) { viewModel.start(); onDispose { viewModel.stop() } }
 
-    DisposableEffect(Unit) {
-        vm.start()
-        onDispose { vm.stop() }
-    }
+    val s = viewModel.state.value
+    val selectionCount = viewModel.selectedCount
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            val s = vm.state.value
-            GalleryTopBar(s, vm.selectedCount, vm::deselectAll, vm::selectAll)
+            GalleryTopBar(
+                title = "USB 照片同步",
+                hasBack = false,
+                showLogs = true,
+                selectionCount = selectionCount,
+                onBackClick = {},
+                onLogsClick = onNavigateToLogs,
+                onDeselectAll = viewModel::deselectAll,
+            )
         },
         bottomBar = {
-            val s = vm.state.value
-            if (s is GalleryState.Browsing && vm.selectedCount > 0) {
-                TransferBottomBar(vm)
+            AnimatedVisibility(
+                visible = s is GalleryState.Browsing && selectionCount > 0,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it },
+            ) {
+                BottomAppBar {
+                    Button(
+                        onClick = { viewModel.startTransfer() },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    ) { Text("传输 $selectionCount 张照片") }
+                }
             }
         },
     ) { innerPadding ->
-        val s = vm.state.value
         Box(Modifier.padding(innerPadding).fillMaxSize()) {
             when (s) {
                 is GalleryState.Disconnected -> DisconnectedContent()
-                is GalleryState.RequestingPermission -> RequestingPermissionContent()
                 is GalleryState.Connecting -> ConnectingContent()
-                is GalleryState.Loading -> LoadingContent(s)
-                is GalleryState.Browsing -> BrowsingContent(s, vm)
+                is GalleryState.Loading -> LoadingContent(s.message)
+                is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = true, onFolderClick)
                 is GalleryState.Empty -> EmptyCameraContent()
-                is GalleryState.Error -> ErrorContent(s, vm::start)
+                is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
                 is GalleryState.Transferring -> TransferringContent(s)
-                is GalleryState.TransferDone -> TransferDoneContent(s, vm::dismissTransferDone)
+                is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone)
+            }
+        }
+    }
+}
+
+// ── Folder Gallery Screen ──────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GalleryFolderScreen(
+    viewModel: GalleryViewModel,
+    storageId: Int,
+    folderHandle: Int,
+    folderName: String,
+    onNavigateBack: () -> Unit,
+    onFolderClick: (GalleryEntry.Folder) -> Unit = {},
+) {
+    LaunchedEffect(storageId, folderHandle) {
+        viewModel.loadFolder(storageId, folderHandle)
+    }
+
+    val s = viewModel.state.value
+    val selectionCount = viewModel.selectedCount
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            GalleryTopBar(
+                title = folderName,
+                hasBack = true,
+                showLogs = false,
+                selectionCount = selectionCount,
+                onBackClick = { viewModel.deselectAll(); onNavigateBack() },
+                onLogsClick = {},
+                onDeselectAll = viewModel::deselectAll,
+            )
+        },
+        bottomBar = {
+            AnimatedVisibility(
+                visible = s is GalleryState.Browsing && selectionCount > 0,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it },
+            ) {
+                BottomAppBar {
+                    Button(
+                        onClick = { viewModel.startTransfer() },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    ) { Text("传输 $selectionCount 张照片") }
+                }
+            }
+        },
+    ) { innerPadding ->
+        Box(Modifier.padding(innerPadding).fillMaxSize()) {
+            when (s) {
+                is GalleryState.Disconnected -> {
+                    LaunchedEffect(Unit) { onNavigateBack() }
+                }
+                is GalleryState.Loading -> LoadingContent(s.message)
+                is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = false, onFolderClick)
+                is GalleryState.Empty -> EmptyCameraContent()
+                is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
+                is GalleryState.Transferring -> TransferringContent(s)
+                is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone)
+                else -> {}
             }
         }
     }
@@ -112,70 +199,56 @@ fun GalleryScreen(onNavigateBack: (() -> Unit)? = null) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GalleryTopBar(
-    state: GalleryState,
-    selectedCount: Int,
+    title: String,
+    hasBack: Boolean,
+    showLogs: Boolean,
+    selectionCount: Int,
+    onBackClick: () -> Unit,
+    onLogsClick: () -> Unit,
     onDeselectAll: () -> Unit,
-    onSelectAll: () -> Unit,
 ) {
     TopAppBar(
         title = {
-            val title = when (state) {
-                is GalleryState.Browsing -> {
-                    val model = state.cameraInfo.model
-                    if (selectedCount > 0) "已选 $selectedCount 张" else model
+            if (selectionCount > 0) Text("已选 $selectionCount 张", fontWeight = FontWeight.Bold)
+            else Text(title, fontWeight = FontWeight.Bold)
+        },
+        navigationIcon = {
+            if (hasBack) {
+                IconButton(onClick = onBackClick) {
+                    Icon(painterResource(R.drawable.ic_arrow_back_24dp), "返回")
                 }
-                is GalleryState.Transferring -> "正在传输"
-                is GalleryState.TransferDone -> "传输完成"
-                else -> "USB 照片同步"
             }
-            Text(title, fontWeight = FontWeight.Bold)
         },
         actions = {
-            if (state is GalleryState.Browsing) {
-                if (selectedCount > 0) {
-                    TextButton(onClick = onDeselectAll) { Text("取消") }
-                } else {
-                    TextButton(onClick = onSelectAll) { Text("全选") }
+            if (selectionCount > 0) {
+                androidx.compose.material3.TextButton(onClick = onDeselectAll) {
+                    Text("取消")
                 }
             }
-            if (state is GalleryState.TransferDone) {
-                TextButton(onClick = onDeselectAll) { Text("") }
+            if (showLogs) {
+                IconButton(onClick = onLogsClick) {
+                    Icon(painterResource(R.drawable.ic_settings_24dp), "设置")
+                }
             }
         },
     )
 }
 
-// ── Disconnected ───────────────────────────────────────────────────────────
+// ── Disconnected / Connecting / Loading ────────────────────────────────────
 
 @Composable
 private fun DisconnectedContent() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                painterResource(R.drawable.ic_usb_24dp), null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.size(80.dp),
-            )
+            Icon(painterResource(R.drawable.ic_usb_24dp), null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                modifier = Modifier.size(72.dp))
             Spacer(Modifier.height(16.dp))
-            Text("连接相机", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "通过 USB-C 数据线连接 Nikon Z30\n插入后将自动识别",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
-}
-
-@Composable
-private fun RequestingPermissionContent() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator()
-            Spacer(Modifier.height(16.dp))
-            Text("请在系统对话框中授权 USB 访问", fontSize = 15.sp)
+            Text("连接 Nikon Z30", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("通过 USB-C 数据线连接\n插入后将自动识别",
+                fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center)
         }
     }
 }
@@ -192,53 +265,346 @@ private fun ConnectingContent() {
 }
 
 @Composable
-private fun LoadingContent(state: GalleryState.Loading) {
+private fun LoadingContent(message: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp))
-            Text("正在读取照片列表…", fontSize = 15.sp)
-            Text(
-                "已发现 ${state.total} 张",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text(message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
+
+// ── Browsing ───────────────────────────────────────────────────────────────
+
+@Composable
+private fun BrowsingContent(
+    state: GalleryState.Browsing,
+    vm: GalleryViewModel,
+    isRoot: Boolean,
+    onFolderClick: (GalleryEntry.Folder) -> Unit = {},
+) {
+    val entries = state.entries
+    val photos = entries.filterIsInstance<GalleryEntry.PhotoGroup>()
+    val folders = entries.filterIsInstance<GalleryEntry.Folder>()
+
+    if (entries.isEmpty()) { EmptyCameraContent(); return }
+
+    val haptic = LocalHapticFeedback.current
+
+    PullToRefreshBox(
+        isRefreshing = false,
+        onRefresh = { vm.refresh() },
+    ) {
+        LazyVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Fixed(3),
+            contentPadding = PaddingValues(bottom = 80.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalItemSpacing = 4.dp,
+        ) {
+        // Device info — full width (root only)
+        if (isRoot) {
+            state.cameraInfo?.let { info ->
+                item(span = StaggeredGridItemSpan.FullLine) {
+                    DeviceInfoCard(info, state.storages)
+                }
+            }
+        }
+
+        // Folders section — full width
+        if (folders.isNotEmpty()) {
+            item(span = StaggeredGridItemSpan.FullLine) {
+                Text("文件夹", fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
+            for (i in folders.indices) {
+                val folder = folders[i]
+                item(key = "f_${folder.storageId}_${folder.info.handle}",
+                    span = StaggeredGridItemSpan.FullLine) {
+                    FolderRow(folder, onClick = { onFolderClick(folder) })
+                }
+            }
+        }
+
+        // Photos header — full width
+        if (photos.isNotEmpty()) {
+            item(span = StaggeredGridItemSpan.FullLine) {
+                Text("照片 (${photos.size})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
+        }
+
+        // Photos — 3-column grid (automatic)
+        items(photos, key = { it.baseName }) { group ->
+            PhotoCell(
+                group = group,
+                isSelected = vm.isGroupSelected(group),
+                onToggle = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    vm.toggleSelection(group)
+                },
+                getThumbnail = vm::getThumbnail,
+                getOrientation = vm::getOrientation,
+            )
+        }
+    }
+    } // PullToRefreshBox
+}
+
+// ── Device Info Card ───────────────────────────────────────────────────────
+
+@Composable
+private fun DeviceInfoCard(
+    info: NikonUsbManager.CameraInfo,
+    storages: List<NikonUsbManager.StorageInfo>,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable { expanded = !expanded },
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(0.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_photo_camera_48dp), null,
+                    Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("${info.manufacturer} ${info.model}",
+                        fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    val storageLine = storages.joinToString("  ") {
+                        "${it.description}  ${formatFileSize(it.freeSpace)} / ${formatFileSize(it.maxCapacity)}"
+                    }
+                    Text(storageLine, fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Icon(
+                    painterResource(if (expanded) R.drawable.ic_collapse_24dp
+                        else R.drawable.ic_expand_24dp),
+                    null, Modifier.size(20.dp).padding(top = 4.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                )
+            }
+            AnimatedVisibility(expanded) {
+                Column(Modifier.padding(top = 8.dp)) {
+                    info.serialNumber?.let { DetailRow("序列号", it) }
+                    info.deviceVersion?.let { DetailRow("固件版本", it) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(Modifier.padding(vertical = 2.dp)) {
+        Text("$label  ", fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+// ── Folder Row ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun FolderRow(folder: GalleryEntry.Folder, onClick: () -> Unit) {
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(0.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(R.drawable.ic_filter_list_24dp), null,
+                Modifier.size(22.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+            Spacer(Modifier.width(12.dp))
+            Text(folder.info.name, fontWeight = FontWeight.Medium, fontSize = 15.sp,
+                modifier = Modifier.weight(1f))
+            Icon(painterResource(R.drawable.ic_arrow_back_24dp), null,
+                Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+        }
+    }
+}
+
+// ── Photo Cell ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun PhotoCell(
+    group: GalleryEntry.PhotoGroup,
+    isSelected: Boolean,
+    onToggle: () -> Unit,
+    getThumbnail: suspend (Int) -> ByteArray?,
+    getOrientation: (Int) -> Int?,
+) {
+    val handle = group.previewHandle
+    val cachedOri = getOrientation(handle)
+
+    // Compute initial aspect ratio from available info so the staggered
+    // grid measures the cell correctly before the thumbnail loads.
+    val photoInfo = group.jpg ?: group.raw
+    val thumbPixW = photoInfo?.thumbPixWidth ?: 0
+    val thumbPixH = photoInfo?.thumbPixHeight ?: 0
+    val baseAspect = when {
+        cachedOri != null -> orientationToAspect(cachedOri, thumbPixW, thumbPixH)
+        thumbPixW > 0 && thumbPixH > 0 -> thumbPixW.toFloat() / thumbPixH.toFloat()
+        else -> 3f / 2f
+    }
+
+    var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
+
+    // cellAspect: initially computed from orientation cache / thumbPix dimensions.
+    // Once the real thumbnail loads and is rotated, the actual bitmap dimensions
+    // take over (stored in loadedAspect). This avoids the staggered grid measuring
+    // the cell at a wrong default ratio.
+    var loadedAspect by remember { mutableStateOf<Float?>(null) }
+    val cellAspect = loadedAspect ?: baseAspect
+
+    LaunchedEffect(handle) {
+        val bytes = withContext(Dispatchers.IO) { getThumbnail(handle) }
+        if (bytes == null) return@LaunchedEffect
+
+        val raw = withContext(Dispatchers.IO) {
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } ?: return@LaunchedEffect
+
+        // Use orientation from cache as authoritative source;
+        // falls back to the thumbnail's own EXIF if cache is empty.
+        val fallback = getOrientation(handle)
+        val rotated = withContext(Dispatchers.IO) { rotateByExif(raw, bytes, fallback) }
+        thumb = rotated.asImageBitmap()
+        loadedAspect = rotated.width.toFloat() / rotated.height.toFloat()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(cellAspect)
+            .clip(RoundedCornerShape(8.dp))
+            .combinedClickable { onToggle() },
+    ) {
+        if (thumb != null) {
+            Image(
+                bitmap = thumb!!,
+                contentDescription = group.baseName,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Box(Modifier.fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+                Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+        }
+
+        if (isSelected) {
+            Box(Modifier.fillMaxSize()
+                .border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            )
+
+            Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(22.dp)
+                .background(MaterialTheme.colorScheme.primary, CircleShape),
+                Alignment.Center) {
+                Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
+ * Rotates [bitmap] according to EXIF orientation in [jpegBytes].
+ * If the thumbnail's own EXIF says NORMAL (or is missing) but we have
+ * [fallbackOrientation] (e.g. extracted earlier from the JPEG counterpart),
+ * the fallback is used instead.
+ */
+private fun rotateByExif(
+    bitmap: Bitmap,
+    jpegBytes: ByteArray,
+    fallbackOrientation: Int? = null,
+): Bitmap = try {
+    val exif = ExifInterface(ByteArrayInputStream(jpegBytes))
+    var orientation = exif.getAttributeInt(
+        ExifInterface.TAG_ORIENTATION,
+        ExifInterface.ORIENTATION_NORMAL,
+    )
+    // If the thumbnail doesn't specify a rotation but we have prior knowledge
+    // that the original photo IS rotated, use the fallback.
+    if (orientation == ExifInterface.ORIENTATION_NORMAL && fallbackOrientation != null &&
+        fallbackOrientation != ExifInterface.ORIENTATION_NORMAL) {
+        orientation = fallbackOrientation
+    }
+    val degrees = when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        else -> 0f
+    }
+    if (degrees == 0f) bitmap
+    else Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height,
+        Matrix().apply { postRotate(degrees) }, true)
+} catch (_: Exception) { bitmap }
+
+/** Converts an EXIF orientation to an aspect ratio (width/height). */
+private fun orientationToAspect(
+    orientation: Int,
+    thumbPixW: Int,
+    thumbPixH: Int,
+): Float {
+    // If we have real thumbnail dimensions, swap them for rotated orientations
+    if (thumbPixW > 0 && thumbPixH > 0) {
+        return when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90,
+            ExifInterface.ORIENTATION_ROTATE_270 -> thumbPixH.toFloat() / thumbPixW.toFloat()
+            else -> thumbPixW.toFloat() / thumbPixH.toFloat()
+        }
+    }
+    // Fallback: 3:2 landscape or 2:3 portrait
+    return when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90,
+        ExifInterface.ORIENTATION_ROTATE_270 -> 2f / 3f
+        else -> 3f / 2f
+    }
+}
+
+// ── Empty / Error / Transfer ───────────────────────────────────────────────
 
 @Composable
 private fun EmptyCameraContent() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                painterResource(R.drawable.ic_photo_camera_24dp), null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.size(80.dp),
-            )
-            Spacer(Modifier.height(16.dp))
-            Text("相机中无照片", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "拍摄照片后会自动出现在这里",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Icon(painterResource(R.drawable.ic_photo_camera_24dp), null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                modifier = Modifier.size(64.dp))
+            Spacer(Modifier.height(12.dp))
+            Text("相机中无照片", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("拍摄照片后会自动出现在这里", fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun ErrorContent(state: GalleryState.Error, onRetry: () -> Unit) {
+private fun ErrorContent(message: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                painterResource(R.drawable.ic_error_24dp), null,
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(64.dp),
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(state.message, fontSize = 15.sp, textAlign = TextAlign.Center,
+            Icon(painterResource(R.drawable.ic_error_24dp), null,
+                tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(56.dp))
+            Spacer(Modifier.height(12.dp))
+            Text(message, fontSize = 14.sp, textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
             Button(onClick = onRetry) { Text("重试") }
@@ -246,139 +612,17 @@ private fun ErrorContent(state: GalleryState.Error, onRetry: () -> Unit) {
     }
 }
 
-// ── Browsing (grid) ────────────────────────────────────────────────────────
-
-@Composable
-private fun BrowsingContent(state: GalleryState.Browsing, vm: GalleryViewModel) {
-    val groups = state.groups
-    val gridState = rememberLazyGridState()
-
-    // Detect scroll-to-bottom for pagination
-    LaunchedEffect(gridState) {
-        snapshotFlow {
-            val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            lastVisible >= gridState.layoutInfo.totalItemsCount - 6
-        }.collect { nearEnd ->
-            if (nearEnd) vm.loadNextPage()
-        }
-    }
-
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        state = gridState,
-        contentPadding = PaddingValues(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        itemsIndexed(groups, key = { _, g -> g.baseName }) { _, group ->
-            GridCell(group, vm.isSelected(group.previewHandle), vm::getThumbnail) {
-                vm.toggleSelection(group.previewHandle)
-                // Also toggle RAW if present
-                group.raw?.let { vm.toggleSelection(it.handle) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GridCell(
-    group: PhotoGroup,
-    isSelected: Boolean,
-    getThumbnail: suspend (Int) -> ByteArray?,
-    onClick: () -> Unit,
-) {
-    var thumb by remember { androidx.compose.runtime.mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(group.previewHandle) {
-        thumb = withContext(Dispatchers.IO) {
-            getThumbnail(group.previewHandle)?.let { bytes ->
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-            }
-        }
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .clickable { onClick() }
-            .then(
-                if (isSelected)
-                    Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
-                else Modifier
-            ),
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            // Thumbnail or placeholder
-            if (thumb != null) {
-                androidx.compose.foundation.Image(
-                    bitmap = thumb!!,
-                    contentDescription = group.displayName,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
-                Box(Modifier.fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                    Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                }
-            }
-
-            // Format badge
-            val badgeText = if (group.raw != null) "RAW" else "JPG"
-            val badgeColor = if (group.raw != null) Color(0xFFE65100) else Color(0xFF1565C0)
-            Box(
-                Modifier.align(Alignment.TopStart).padding(4.dp)
-                    .background(badgeColor.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(badgeText, fontSize = 9.sp, color = Color.White,
-                    fontWeight = FontWeight.Bold)
-            }
-
-            // Selection overlay
-            if (isSelected) {
-                Box(
-                    Modifier.align(Alignment.TopEnd).padding(4.dp)
-                        .size(22.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                    Alignment.Center,
-                ) {
-                    Text("✓", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-// ── Transfer ───────────────────────────────────────────────────────────────
-
-@Composable
-private fun TransferBottomBar(vm: GalleryViewModel) {
-    androidx.compose.material3.BottomAppBar(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Button(
-            onClick = { vm.startTransfer() },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        ) {
-            Text("传输 ${vm.selectedCount} 张照片")
-        }
-    }
-}
-
 @Composable
 private fun TransferringContent(state: GalleryState.Transferring) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)) {
             LinearProgressIndicator(
                 progress = { state.synced.toFloat() / state.total },
-                modifier = Modifier.fillMaxWidth(),
-            )
+                modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp))
-            Text("正在传输 ${state.synced}/${state.total}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("正在传输 ${state.synced}/${state.total}",
+                fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(Modifier.height(4.dp))
             Text(state.currentFile, fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -391,21 +635,15 @@ private fun TransferringContent(state: GalleryState.Transferring) {
 private fun TransferDoneContent(state: GalleryState.TransferDone, onDismiss: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                painterResource(R.drawable.ic_check_circle_24dp), null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(64.dp),
-            )
+            Icon(painterResource(R.drawable.ic_check_circle_24dp), null,
+                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
             Spacer(Modifier.height(16.dp))
             Text("传输完成", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "已传输 ${state.synced} 张照片",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Spacer(Modifier.height(6.dp))
+            Text("已传输 ${state.synced} 张照片",
+                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp))
-            Button(onClick = onDismiss) { Text("返回浏览") }
+            Button(onClick = onDismiss) { Text("完成") }
         }
     }
 }
