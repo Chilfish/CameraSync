@@ -44,6 +44,8 @@ import dev.sebastiano.camerasync.logging.LogViewerScreen
 import dev.sebastiano.camerasync.logging.LogViewerViewModel
 import dev.sebastiano.camerasync.pairing.PairingScreen
 import dev.sebastiano.camerasync.pairing.PairingViewModel
+import dev.sebastiano.camerasync.onboarding.OnboardingScreen
+import dev.sebastiano.camerasync.onboarding.OnboardingViewModel
 import dev.sebastiano.camerasync.permissions.PermissionsScreen
 import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
 import dev.sebastiano.camerasync.usb.GalleryFolderScreen
@@ -96,6 +98,10 @@ private fun RootComposable(
         val app = ctx.applicationContext as Application
         val galleryViewModel = remember { GalleryViewModel(app) }
 
+        // Onboarding — only shown on first launch
+        val onboardingVm = remember { OnboardingViewModel(ctx) }
+        val showOnboarding = !onboardingVm.hasCompleted
+
         val basePermissions =
             listOf(ACCESS_FINE_LOCATION, BLUETOOTH_SCAN, BLUETOOTH_CONNECT, POST_NOTIFICATIONS)
         val multiplePermissionsState =
@@ -108,7 +114,9 @@ private fun RootComposable(
             rememberSaveable(
                 saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() })
             ) {
-                mutableStateListOf<NavRoute>(NavRoute.NeedsPermissions)
+                mutableStateListOf<NavRoute>(
+                    if (showOnboarding) NavRoute.Onboarding else NavRoute.NeedsPermissions
+                )
             }
 
         // Validate saved backStack state: if we saved DevicesList but permissions are now missing,
@@ -178,6 +186,14 @@ private fun RootComposable(
         ) { key ->
             NavEntry(key) {
                 when (key) {
+                    NavRoute.Onboarding -> {
+                        OnboardingScreen(onDone = {
+                            onboardingVm.markCompleted()
+                            backStack.clear()
+                            backStack.add(NavRoute.NeedsPermissions)
+                        })
+                    }
+
                     NavRoute.NeedsPermissions -> {
                         PermissionsScreen(
                             onPermissionsGranted = {

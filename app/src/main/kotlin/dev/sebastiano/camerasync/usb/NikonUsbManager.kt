@@ -260,6 +260,26 @@ class NikonUsbManager(private val usbManager: UsbManager) {
     }
 
     /**
+     * Deletes a photo from the camera via MTP.
+     * Returns true if deletion was successful.
+     * WARNING: Irreversible. Only call after successful transfer to phone.
+     */
+    fun deletePhoto(mtpDevice: MtpDevice, handle: Int): Boolean {
+        return try {
+            val ok = mtpDevice.deleteObject(handle)
+            if (ok) {
+                Log.info(tag = TAG) { "Deleted handle $handle from camera" }
+            } else {
+                Log.warn(tag = TAG) { "deleteObject($handle) returned false" }
+            }
+            ok
+        } catch (e: Exception) {
+            Log.error(tag = TAG, throwable = e) { "deleteObject($handle) failed" }
+            false
+        }
+    }
+
+    /**
      * Downloads a photo from the MTP device to [outputStream], using [cacheDir]
      * as a temporary staging area.
      *

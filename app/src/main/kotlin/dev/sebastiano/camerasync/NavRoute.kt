@@ -7,6 +7,9 @@ import kotlinx.serialization.Serializable
 /** Navigation routes for the application. */
 sealed interface NavRoute : Parcelable {
 
+    /** Onboarding flow — shown on first launch. */
+    @Parcelize @Serializable data object Onboarding : NavRoute
+
     /** Permissions need to be requested. */
     @Parcelize @Serializable data object NeedsPermissions : NavRoute
 

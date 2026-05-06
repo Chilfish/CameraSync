@@ -26,6 +26,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -112,6 +113,14 @@ class GalleryViewModel(private val app: Application) {
     // recomposes when the list is modified (no manual trigger needed).
     private val _selected = mutableStateListOf<Int>()
     val selectedCount get() = _selected.size
+
+    /** Handles that were successfully transferred in the last [startTransfer] call. */
+    var lastTransferredHandles: List<Int> = emptyList()
+        private set
+
+    /** Current grid column count (2, 3, or 4). */
+    var gridColumns: Int = 3
+        private set
 
     private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     var mtp: MtpDevice? = null; private set
@@ -372,6 +381,7 @@ class GalleryViewModel(private val app: Application) {
         val totalBytes = toTransfer.sumOf { it.first.size }
         val startTime = System.currentTimeMillis()
         val savedUris = mutableListOf<Uri>()
+        val transferredHandles = mutableListOf<Int>()
 
         syncJob?.cancel()
         syncJob = scope.launch {
@@ -394,9 +404,11 @@ class GalleryViewModel(private val app: Application) {
                     ok++; _selected.remove(p.second)
                     bytesAcc += p.first.size
                     savedUris.add(uri)
+                    transferredHandles.add(p.second)
                     photoSyncManager.markAsImported(0, p.first.handle)
                 }
             }
+            lastTransferredHandles = transferredHandles.toList()
             _state.value = GalleryState.TransferDone(ok, savedUris.toList())
         }
     }
@@ -410,6 +422,27 @@ class GalleryViewModel(private val app: Application) {
     }
 
     fun dismissTransferDone() { scope.launch { loadRoot() } }
+
+    /**
+     * Deletes the given photo handles from the camera via MTP.
+     * Returns the number of successfully deleted photos.
+     */
+    fun deletePhotos(handles: List<Int>): Int {
+        val m = mtp ?: return 0
+        return handles.count { handle -> nikon.deletePhoto(m, handle) }
+    }
+
+    /**
+     * Deletes photos that were just transferred (using saved handles from TransferDone).
+     * Returns the number of deleted photos.
+     */
+    suspend fun deleteTransferredPhotos(handles: List<Int>): Int = withContext(Dispatchers.IO) {
+        deletePhotos(handles)
+    }
+
+    fun setGridColumns(cols: Int) {
+        gridColumns = cols
+    }
 
     fun closeMtp() { nikon.closeMtpDevice(); mtp = null }
 

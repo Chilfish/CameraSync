@@ -235,4 +235,33 @@
     <string name="transfer_eta_seconds">还剩 %1$ds</string>
     <string name="transfer_eta_minutes_seconds">还剩 %1$dm %2$ds</string>
     <string name="transfer_progress_format">正在传输 %1$d/%2$d</string>
+
+    <!-- Sprint 2: EXIF Detail -->
+    <string name="usb_exif_title">EXIF 信息</string>
+    <string name="usb_exif_shutter">快门速度</string>
+    <string name="usb_exif_aperture">光圈</string>
+    <string name="usb_exif_iso">ISO</string>
+    <string name="usb_exif_focal_length">焦距</string>
+    <string name="usb_exif_datetime">拍摄时间</string>
+    <string name="usb_exif_model">相机型号</string>
+    <string name="usb_exif_flash">闪光灯</string>
+    <string name="usb_exif_close">关闭</string>
+
+    <!-- Sprint 2: Onboarding -->
+    <string name="onboarding_skip">跳过</string>
+    <string name="onboarding_next">下一步</string>
+    <string name="onboarding_done">开始使用</string>
+    <string name="onboarding_title_1">连接你的尼康相机</string>
+    <string name="onboarding_desc_1">使用 USB-C 数据线连接相机和手机\n请将相机设置为 MTP/PTP 模式</string>
+    <string name="onboarding_title_2">浏览与选择</string>
+    <string name="onboarding_desc_2">在手机上直接浏览相机中的照片\n支持 RAW+JPEG 分组显示\n长按即可多选</string>
+    <string name="onboarding_title_3">一键传输</string>
+    <string name="onboarding_desc_3">选择照片后轻点传输\n自动保存到手机相册\n已传过的照片不会重复导入</string>
+
+    <!-- Sprint 2: Delete from Camera -->
+    <string name="usb_delete_confirm_title">确认删除</string>
+    <string name="usb_delete_confirm_body">这些照片已安全保存到手机。\n从相机删除后无法恢复。\n\n确定要删除 %d 张照片吗？</string>
+    <string name="usb_delete_confirm_yes">删除</string>
+    <string name="usb_delete_confirm_no">取消</string>
+    <string name="usb_delete_success">已删除 %d 张</string>
 </resources>

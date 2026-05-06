@@ -48,6 +48,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.TopAppBar
@@ -59,6 +61,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,6 +82,7 @@ import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import dev.sebastiano.camerasync.R
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // ── Root Gallery Screen ────────────────────────────────────────────────────
@@ -94,6 +98,8 @@ fun GalleryScreen(
 
     val s = viewModel.state.value
     val selectionCount = viewModel.selectedCount
+    val context = LocalContext.current
+    val prefs = remember { UsbSyncPreferences(context) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -106,6 +112,8 @@ fun GalleryScreen(
                 onBackClick = {},
                 onLogsClick = onNavigateToLogs,
                 onDeselectAll = viewModel::deselectAll,
+                gridColumns = viewModel.gridColumns,
+                onGridChange = { viewModel.setGridColumns(it); prefs.setGridColumns(it) },
             )
         },
         bottomBar = {
@@ -132,7 +140,7 @@ fun GalleryScreen(
                 is GalleryState.Empty -> EmptyCameraContent()
                 is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
                 is GalleryState.Transferring -> TransferringContent(s)
-                is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone)
+                is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
             }
         }
     }
@@ -156,6 +164,8 @@ fun GalleryFolderScreen(
 
     val s = viewModel.state.value
     val selectionCount = viewModel.selectedCount
+    val context = LocalContext.current
+    val prefs = remember { UsbSyncPreferences(context) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -168,6 +178,8 @@ fun GalleryFolderScreen(
                 onBackClick = { viewModel.deselectAll(); onNavigateBack() },
                 onLogsClick = {},
                 onDeselectAll = viewModel::deselectAll,
+                gridColumns = viewModel.gridColumns,
+                onGridChange = { viewModel.setGridColumns(it); prefs.setGridColumns(it) },
             )
         },
         bottomBar = {
@@ -195,7 +207,7 @@ fun GalleryFolderScreen(
                 is GalleryState.Empty -> EmptyCameraContent()
                 is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
                 is GalleryState.Transferring -> TransferringContent(s)
-                is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone)
+                is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
                 else -> {}
             }
         }
@@ -214,6 +226,8 @@ private fun GalleryTopBar(
     onBackClick: () -> Unit,
     onLogsClick: () -> Unit,
     onDeselectAll: () -> Unit,
+    gridColumns: Int = 3,
+    onGridChange: (Int) -> Unit = {},
 ) {
     TopAppBar(
         title = {
@@ -228,6 +242,12 @@ private fun GalleryTopBar(
             }
         },
         actions = {
+            IconButton(onClick = {
+                val next = when (gridColumns) { 2 -> 3; 3 -> 4; else -> 2 }
+                onGridChange(next)
+            }) {
+                Icon(painterResource(android.R.drawable.ic_menu_view), "列数: $gridColumns")
+            }
             if (selectionCount > 0) {
                 androidx.compose.material3.TextButton(onClick = onDeselectAll) {
                     Text("取消")
@@ -305,6 +325,9 @@ private fun BrowsingContent(
     val newCount = vm.getNewPhotoCount()
     val filteredPhotos = vm.getFilteredGroups()
 
+    var detailGroup by remember { mutableStateOf<GalleryEntry.PhotoGroup?>(null) }
+    var detailThumbBytes by remember { mutableStateOf<ByteArray?>(null) }
+
     // Storage & filter UI above the grid
     Column {
         StorageStatusBar(state.storages)
@@ -322,7 +345,7 @@ private fun BrowsingContent(
         onRefresh = { vm.refresh() },
     ) {
         LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Fixed(3),
+            columns = StaggeredGridCells.Fixed(vm.gridColumns),
             contentPadding = PaddingValues(bottom = 80.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalItemSpacing = 4.dp,
@@ -372,10 +395,20 @@ private fun BrowsingContent(
                 },
                 getThumbnail = vm::getThumbnail,
                 getOrientation = vm::getOrientation,
+                onPhotoClick = { detailGroup = group; detailThumbBytes = vm.getThumbnail(group.previewHandle) },
             )
         }
     }
     } // PullToRefreshBox
+
+    detailGroup?.let { group ->
+        val photo = group.jpg ?: group.raw ?: return@let
+        PhotoDetailSheet(
+            thumbnailBytes = detailThumbBytes,
+            photoInfo = photo,
+            onDismiss = { detailGroup = null; detailThumbBytes = null },
+        )
+    }
 }
 
 // ── Device Info Card ───────────────────────────────────────────────────────
@@ -471,6 +504,7 @@ private fun PhotoCell(
     onToggle: () -> Unit,
     getThumbnail: suspend (Int) -> ByteArray?,
     getOrientation: (Int) -> Int?,
+    onPhotoClick: (() -> Unit)? = null,
 ) {
     val handle = group.previewHandle
     val cachedOri = getOrientation(handle)
@@ -516,7 +550,10 @@ private fun PhotoCell(
             .fillMaxWidth()
             .aspectRatio(cellAspect)
             .clip(RoundedCornerShape(8.dp))
-            .combinedClickable { onToggle() },
+            .combinedClickable(
+                onClick = { onPhotoClick?.invoke() },
+                onLongClick = { onToggle() },
+            ),
     ) {
         if (thumb != null) {
             Image(
@@ -757,10 +794,13 @@ private fun TransferringContent(s: GalleryState.Transferring) {
 private fun TransferDoneContent(
     s: GalleryState.TransferDone,
     onDismiss: () -> Unit,
+    viewModel: GalleryViewModel,
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -820,12 +860,8 @@ private fun TransferDoneContent(
                     Spacer(Modifier.height(8.dp))
 
                     OutlinedButton(
-                        onClick = {
-                            Toast.makeText(context, "即将支持",
-                                Toast.LENGTH_SHORT).show()
-                        },
+                        onClick = { showDeleteConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = false,
                     ) {
                         Icon(painterResource(android.R.drawable.ic_menu_delete), null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
@@ -839,5 +875,33 @@ private fun TransferDoneContent(
                 }
             }
         }
+    }
+
+    // Confirmation dialog
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("确认删除", fontWeight = FontWeight.Bold) },
+            text = { Text("这些照片已安全保存到手机。\n从相机删除后无法恢复。\n\n确定要删除 ${s.synced} 张照片吗？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        scope.launch {
+                            val deleted = viewModel.deleteTransferredPhotos(viewModel.lastTransferredHandles)
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "已删除 $deleted 张", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                ) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+            },
+        )
     }
 }

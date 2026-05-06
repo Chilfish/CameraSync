@@ -42,9 +42,14 @@ class UsbSyncPreferences(context: Context) {
         RAW_ONLY,
     }
 
+    /** Grid column count for photo gallery (2, 3, or 4). */
+    fun getGridColumns(): Int = prefs.getInt("grid_columns", GRID_COLUMNS_DEFAULT)
+    fun setGridColumns(columns: Int) { prefs.edit().putInt("grid_columns", columns).apply() }
+
     companion object {
         private const val PREFS_NAME = "camera_sync_usb_prefs"
         private const val KEY_AUTO_SYNC = "auto_sync"
         private const val KEY_FORMAT = "download_format"
+        const val GRID_COLUMNS_DEFAULT = 3
     }
 }
