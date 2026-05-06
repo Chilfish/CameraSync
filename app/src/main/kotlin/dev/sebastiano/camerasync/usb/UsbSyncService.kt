@@ -7,13 +7,17 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.hardware.usb.UsbManager
+import android.net.Uri
 import android.os.Binder
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.juul.khronicle.Log
+import dev.sebastiano.camerasync.R
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -102,7 +106,7 @@ class UsbSyncService : Service(), CoroutineScope {
                 if (result.isSuccess) {
                     if (result.synced > 0) {
                         Log.info(tag = TAG) { "Sync complete: ${result.synced} photos imported" }
-                        updateNotification(result.synced, result.total, complete = true)
+                        showCompletionNotification(result)
                         // Keep the service alive briefly so the user sees the completion
                         delay(3000)
                     } else {
@@ -174,6 +178,52 @@ class UsbSyncService : Service(), CoroutineScope {
             ongoing = false,
         )
         NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun showCompletionNotification(result: SyncResult) {
+        val thumbnail: Bitmap? = result.savedUris.firstOrNull()?.let { uri ->
+            decodeThumbnail(this, uri)
+        }
+
+        val title = getString(R.string.usb_notif_sync_complete_title)
+        val body = getString(R.string.usb_notif_sync_complete_body, result.synced)
+
+        val builder = NotificationCompat.Builder(this, USB_SYNC_CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+
+        if (thumbnail != null) {
+            builder.setStyle(
+                NotificationCompat.BigPictureStyle()
+                    .bigPicture(thumbnail)
+                    .bigLargeIcon(null as Bitmap?)
+            )
+        }
+
+        NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, builder.build())
+    }
+
+    private fun decodeThumbnail(context: Context, uri: Uri, maxSize: Int = 512): Bitmap? {
+        return try {
+            var scale = 1
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeStream(input, null, options)
+                scale = maxOf(
+                    (options.outWidth / maxSize).coerceAtLeast(1),
+                    (options.outHeight / maxSize).coerceAtLeast(1),
+                )
+            }
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val opts = BitmapFactory.Options().apply { inSampleSize = scale }
+                BitmapFactory.decodeStream(input, null, opts)
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun buildNotification(

@@ -1,8 +1,10 @@
 package dev.sebastiano.camerasync.usb
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import java.io.ByteArrayInputStream
 import androidx.compose.animation.slideInVertically
@@ -37,12 +39,17 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -61,6 +68,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -292,6 +300,22 @@ private fun BrowsingContent(
     if (entries.isEmpty()) { EmptyCameraContent(); return }
 
     val haptic = LocalHapticFeedback.current
+    val rawCount = photos.count { it.hasRaw }
+    val jpgCount = photos.count { it.jpg != null }
+    val newCount = vm.getNewPhotoCount()
+    val filteredPhotos = vm.getFilteredGroups()
+
+    // Storage & filter UI above the grid
+    Column {
+        StorageStatusBar(state.storages)
+        FilterChipsRow(
+            currentFilter = vm.filterMode,
+            newCount = newCount,
+            rawCount = rawCount,
+            jpgCount = jpgCount,
+            onFilterChange = vm::setFilter,
+        )
+    }
 
     PullToRefreshBox(
         isRefreshing = false,
@@ -329,16 +353,16 @@ private fun BrowsingContent(
         }
 
         // Photos header — full width
-        if (photos.isNotEmpty()) {
+        if (filteredPhotos.isNotEmpty()) {
             item(span = StaggeredGridItemSpan.FullLine) {
-                Text("照片 (${photos.size})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                Text("照片 (${filteredPhotos.size})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
         }
 
         // Photos — 3-column grid (automatic)
-        items(photos, key = { it.baseName }) { group ->
+        items(filteredPhotos, key = { it.baseName }) { group ->
             PhotoCell(
                 group = group,
                 isSelected = vm.isGroupSelected(group),
@@ -612,38 +636,208 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
     }
 }
 
+// ── Storage Status Bar ─────────────────────────────────────────────────────
+
 @Composable
-private fun TransferringContent(state: GalleryState.Transferring) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp)) {
-            LinearProgressIndicator(
-                progress = { state.synced.toFloat() / state.total },
-                modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(12.dp))
-            Text("正在传输 ${state.synced}/${state.total}",
-                fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(state.currentFile, fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+private fun StorageStatusBar(storages: List<NikonUsbManager.StorageInfo>) {
+    if (storages.isEmpty()) return
+    val totalBytes = storages.sumOf { it.maxCapacity }
+    val freeBytes = storages.sumOf { it.freeSpace }
+    if (totalBytes <= 0) return
+
+    val usedBytes = totalBytes - freeBytes
+    val ratio = usedBytes.toFloat() / totalBytes
+    val color = when {
+        ratio < 0.8f -> MaterialTheme.colorScheme.primary
+        ratio < 0.9f -> Color(0xFFFFA000) // amber
+        else -> MaterialTheme.colorScheme.error
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(android.R.drawable.ic_menu_save), null,
+            modifier = Modifier.size(14.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(6.dp))
+        Text(
+            "已用 ${formatFileSize(usedBytes)} / ${formatFileSize(totalBytes)}",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (ratio > 0.9f) {
+            Spacer(Modifier.width(6.dp))
+            Text("⚠️ 空间不足", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+        }
+        Spacer(Modifier.weight(1f))
+        LinearProgressIndicator(
+            progress = { ratio },
+            modifier = Modifier.width(80.dp).height(4.dp).clip(RoundedCornerShape(2.dp)),
+            color = color,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+    }
+}
+
+// ── Filter Chips Row ───────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterChipsRow(
+    currentFilter: PhotoFilter,
+    newCount: Int,
+    rawCount: Int,
+    jpgCount: Int,
+    onFilterChange: (PhotoFilter) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        FilterChip(
+            selected = currentFilter == PhotoFilter.ALL,
+            onClick = { onFilterChange(PhotoFilter.ALL) },
+            label = { Text("全部", fontSize = 13.sp) },
+        )
+        FilterChip(
+            selected = currentFilter == PhotoFilter.NEW,
+            onClick = { onFilterChange(PhotoFilter.NEW) },
+            label = { Text("新照片 ($newCount)", fontSize = 13.sp) },
+        )
+        if (rawCount > 0) {
+            FilterChip(
+                selected = currentFilter == PhotoFilter.RAW_ONLY,
+                onClick = { onFilterChange(PhotoFilter.RAW_ONLY) },
+                label = { Text("RAW ($rawCount)", fontSize = 13.sp) },
+            )
+        }
+        if (jpgCount > 0) {
+            FilterChip(
+                selected = currentFilter == PhotoFilter.JPEG_ONLY,
+                onClick = { onFilterChange(PhotoFilter.JPEG_ONLY) },
+                label = { Text("JPEG ($jpgCount)", fontSize = 13.sp) },
+            )
         }
     }
 }
 
 @Composable
-private fun TransferDoneContent(state: GalleryState.TransferDone, onDismiss: () -> Unit) {
+private fun TransferringContent(s: GalleryState.Transferring) {
+    val p = s.progress
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(painterResource(R.drawable.ic_check_circle_24dp), null,
-                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
-            Spacer(Modifier.height(16.dp))
-            Text("传输完成", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            Text("已传输 ${state.synced} 张照片",
-                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(horizontalAlignment = Alignment.CenterHorizontally,
+               modifier = Modifier.padding(32.dp).fillMaxWidth()) {
+            CircularProgressIndicator()
             Spacer(Modifier.height(24.dp))
-            Button(onClick = onDismiss) { Text("完成") }
+            Text("正在传输 ${p.currentFile}", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { if (p.total > 0) p.synced.toFloat() / p.total else 0f },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("${p.synced} / ${p.total}", fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (p.speedBps > 0) {
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(p.speedFormatted, fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(p.etaFormatted, fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TransferDoneContent(
+    s: GalleryState.TransferDone,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    LaunchedEffect(Unit) {
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        sheetState.show()
+    }
+
+    if (sheetState.isVisible) {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("✨", fontSize = 40.sp)
+                Spacer(Modifier.height(12.dp))
+                Text("同步完成", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("已保存 ${s.synced} 张照片", fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(24.dp))
+
+                if (s.savedUris.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(s.savedUris.first(), "image/*")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(painterResource(android.R.drawable.ic_menu_gallery), null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("在相册中查看")
+                    }
+                    Spacer(Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                type = "image/*"
+                                putParcelableArrayListExtra(Intent.EXTRA_STREAM,
+                                    ArrayList(s.savedUris))
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(intent, "分享照片"))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(painterResource(android.R.drawable.ic_menu_share), null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("分享")
+                    }
+                    Spacer(Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            Toast.makeText(context, "即将支持",
+                                Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = false,
+                    ) {
+                        Icon(painterResource(android.R.drawable.ic_menu_delete), null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("从相机删除")
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = onDismiss) {
+                    Text("继续浏览")
+                }
+            }
         }
     }
 }

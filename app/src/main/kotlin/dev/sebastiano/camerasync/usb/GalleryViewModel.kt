@@ -11,6 +11,7 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.mtp.MtpDevice
 import android.os.Build
+import android.net.Uri
 import android.provider.MediaStore
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
@@ -46,8 +47,41 @@ sealed interface GalleryState {
     ) : GalleryState
     data object Empty : GalleryState
     data class Error(val message: String) : GalleryState
-    data class Transferring(val synced: Int, val total: Int, val currentFile: String) : GalleryState
-    data class TransferDone(val synced: Int) : GalleryState
+    data class Transferring(val progress: TransferProgress) : GalleryState
+    data class TransferDone(val synced: Int, val savedUris: List<android.net.Uri> = emptyList()) : GalleryState
+}
+
+data class TransferProgress(
+    val synced: Int,
+    val total: Int,
+    val currentFile: String,
+    val bytesTransferred: Long,
+    val totalBytes: Long,
+    val startTimeMillis: Long,
+) {
+    val speedBps: Double
+        get() {
+            val elapsed = (System.currentTimeMillis() - startTimeMillis) / 1000.0
+            return if (elapsed > 2 && bytesTransferred > 0) bytesTransferred / elapsed else 0.0
+        }
+    val speedFormatted: String
+        get() = when {
+            speedBps >= 1_000_000 -> "%.1f MB/s".format(speedBps / 1_000_000)
+            speedBps >= 1_000 -> "%d KB/s".format((speedBps / 1_000).toInt())
+            speedBps > 0 -> "%.0f B/s".format(speedBps)
+            else -> "计算中…"
+        }
+    val etaSeconds: Long
+        get() {
+            val remaining = totalBytes - bytesTransferred
+            return if (speedBps > 0) (remaining / speedBps).toLong() else -1
+        }
+    val etaFormatted: String
+        get() = when {
+            etaSeconds < 0 -> "计算中…"
+            etaSeconds < 60 -> "还剩 ${etaSeconds}s"
+            else -> "还剩 ${etaSeconds / 60}m ${etaSeconds % 60}s"
+        }
 }
 
 sealed interface GalleryEntry {
@@ -61,6 +95,8 @@ sealed interface GalleryEntry {
         val hasRaw: Boolean get() = raw != null
     }
 }
+
+enum class PhotoFilter { ALL, NEW, RAW_ONLY, JPEG_ONLY }
 
 // ── ViewModel ──────────────────────────────────────────────────────────────
 
@@ -288,6 +324,34 @@ class GalleryViewModel(private val app: Application) {
         return handles.isNotEmpty() && handles.any { it in _selected }
     }
 
+    // ── Filtering ──────────────────────────────────────────────────────────
+
+    var filterMode: PhotoFilter = PhotoFilter.ALL
+        private set
+
+    fun setFilter(mode: PhotoFilter) {
+        filterMode = mode
+    }
+
+    fun getFilteredGroups(): List<GalleryEntry.PhotoGroup> {
+        return when (filterMode) {
+            PhotoFilter.ALL -> currentPhotos
+            PhotoFilter.NEW -> currentPhotos.filter { group ->
+                val handles = listOfNotNull(group.raw?.handle, group.jpg?.handle)
+                handles.any { !photoSyncManager.isAlreadyImported(0, it) }
+            }
+            PhotoFilter.RAW_ONLY -> currentPhotos.filter { it.hasRaw }
+            PhotoFilter.JPEG_ONLY -> currentPhotos.filter { it.jpg != null }
+        }
+    }
+
+    fun getNewPhotoCount(): Int {
+        return currentPhotos.count { group ->
+            val handles = listOfNotNull(group.raw?.handle, group.jpg?.handle)
+            handles.any { !photoSyncManager.isAlreadyImported(0, it) }
+        }
+    }
+
     // ── Transfer ────────────────────────────────────────────────────────────
 
     fun startTransfer() {
@@ -305,18 +369,35 @@ class GalleryViewModel(private val app: Application) {
         }
         if (toTransfer.isEmpty()) { _state.value = GalleryState.TransferDone(0); return }
 
+        val totalBytes = toTransfer.sumOf { it.first.size }
+        val startTime = System.currentTimeMillis()
+        val savedUris = mutableListOf<Uri>()
+
         syncJob?.cancel()
         syncJob = scope.launch {
             var ok = 0
+            var bytesAcc = 0L
             for ((i, p) in toTransfer.withIndex()) {
                 if (!currentCoroutineContext().isActive) return@launch
-                _state.value = GalleryState.Transferring(i + 1, toTransfer.size, p.first.name)
-                if (saveToMediaStore(m, p.first)) {
+                _state.value = GalleryState.Transferring(
+                    TransferProgress(
+                        synced = i + 1,
+                        total = toTransfer.size,
+                        currentFile = p.first.name,
+                        bytesTransferred = bytesAcc,
+                        totalBytes = totalBytes,
+                        startTimeMillis = startTime,
+                    )
+                )
+                val uri = saveToMediaStore(m, p.first)
+                if (uri != null) {
                     ok++; _selected.remove(p.second)
+                    bytesAcc += p.first.size
+                    savedUris.add(uri)
                     photoSyncManager.markAsImported(0, p.first.handle)
                 }
             }
-            _state.value = GalleryState.TransferDone(ok)
+            _state.value = GalleryState.TransferDone(ok, savedUris.toList())
         }
     }
 
@@ -334,7 +415,7 @@ class GalleryViewModel(private val app: Application) {
 
     // ── MediaStore ──────────────────────────────────────────────────────────
 
-    private suspend fun saveToMediaStore(m: MtpDevice, photo: NikonUsbManager.PhotoInfo): Boolean {
+    private suspend fun saveToMediaStore(m: MtpDevice, photo: NikonUsbManager.PhotoInfo): android.net.Uri? {
         val dateFolder = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             .format(Date(photo.dateModified))
         val path = "Pictures/CameraSync/Nikon Z30/$dateFolder"
@@ -351,18 +432,22 @@ class GalleryViewModel(private val app: Application) {
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
         val uri = app.contentResolver
-            .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv) ?: return false
+            .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv) ?: return null
         return try {
-            app.contentResolver.openOutputStream(uri)?.use { out ->
+            val bytes = app.contentResolver.openOutputStream(uri)?.use { out ->
                 nikon.downloadPhoto(m, photo, out, app.cacheDir)
+            } ?: 0L
+            if (bytes <= 0L) {
+                app.contentResolver.delete(uri, null, null)
+                return null
             }
             cv.clear(); cv.put(MediaStore.Images.Media.IS_PENDING, 0)
             app.contentResolver.update(uri, cv, null, null)
-            true
+            uri
         } catch (e: Exception) {
             Log.error(tag = TAG, throwable = e) { "Transfer failed: ${photo.name}" }
             app.contentResolver.delete(uri, null, null)
-            false
+            null
         }
     }
 

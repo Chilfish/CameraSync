@@ -259,12 +259,18 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         }.sortedByDescending { it.dateModified }
     }
 
+    /**
+     * Downloads a photo from the MTP device to [outputStream], using [cacheDir]
+     * as a temporary staging area.
+     *
+     * @return the number of bytes transferred, or `null` if the transfer failed.
+     */
     suspend fun downloadPhoto(
         mtpDevice: MtpDevice,
         photoInfo: PhotoInfo,
         outputStream: OutputStream,
         cacheDir: File,
-    ): Boolean =
+    ): Long? =
         withContext(Dispatchers.IO) {
             try {
                 val tempFile = File(cacheDir, "mtp_${photoInfo.handle}")
@@ -273,7 +279,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                 val ok = mtpDevice.importFile(photoInfo.handle, tempFile.absolutePath)
                 if (!ok) {
                     Log.error(tag = TAG) { "importFile(${photoInfo.handle}) → false" }
-                    return@withContext false
+                    return@withContext null
                 }
 
                 var total = 0L
@@ -289,12 +295,12 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                 tempFile.delete()
 
                 Log.info(tag = TAG) { "Downloaded ${photoInfo.name}: $total bytes" }
-                true
+                total
             } catch (e: Exception) {
                 Log.error(tag = TAG, throwable = e) {
                     "Download ${photoInfo.name} failed: ${e.message}"
                 }
-                false
+                null
             }
         }
 }

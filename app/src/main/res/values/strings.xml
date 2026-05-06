@@ -198,6 +198,41 @@
     <string name="usb_action_select_all">全选</string>
     <string name="usb_action_deselect_all">取消全选</string>
     <string name="usb_status_syncing">同步中…</string>
-    <string name="usb_transfer_speed">%1$s/s</string>
+    <string name="usb_transfer_speed">%s</string>
     <string name="usb_select_photos">选择要下载的照片</string>
+
+    <!-- Sprint 1: Transfer & Post-transfer -->
+    <string name="usb_transfer_eta_calculating">计算中…</string>
+    <string name="usb_transfer_eta_seconds">还剩 %ds</string>
+    <string name="usb_transfer_eta_minutes">还剩 %dm %ds</string>
+    <string name="usb_transfer_complete_title">同步完成</string>
+    <string name="usb_transfer_complete_count">已保存 %d 张照片</string>
+    <string name="usb_action_view_in_gallery">在相册中查看</string>
+    <string name="usb_action_share">分享</string>
+    <string name="usb_action_delete_from_camera">从相机删除</string>
+    <string name="usb_action_delete_coming_soon">即将支持</string>
+    <string name="usb_action_continue_browsing">继续浏览</string>
+
+    <!-- Sprint 1: Storage -->
+    <string name="usb_storage_used">已用 %s / %s</string>
+    <string name="usb_storage_low_warning">空间不足</string>
+
+    <!-- Sprint 1: Filter chips -->
+    <string name="usb_filter_all">全部</string>
+    <string name="usb_filter_new">新照片</string>
+    <string name="usb_filter_raw">RAW</string>
+    <string name="usb_filter_jpeg">JPEG</string>
+
+    <!-- Sprint 1: Notification -->
+    <string name="usb_notif_sync_complete_title">同步完成</string>
+    <string name="usb_notif_sync_complete_body">已保存 %d 张照片</string>
+
+    <!-- Transfer UI — Speed, ETA & Progress (Sprint 2) -->
+    <string name="transfer_speed_mb_per_s">%1$.1f MB/s</string>
+    <string name="transfer_speed_kb_per_s">%1$d KB/s</string>
+    <string name="transfer_speed_b_per_s">%1$.0f B/s</string>
+    <string name="transfer_calculating">计算中…</string>
+    <string name="transfer_eta_seconds">还剩 %1$ds</string>
+    <string name="transfer_eta_minutes_seconds">还剩 %1$dm %2$ds</string>
+    <string name="transfer_progress_format">正在传输 %1$d/%2$d</string>
 </resources>

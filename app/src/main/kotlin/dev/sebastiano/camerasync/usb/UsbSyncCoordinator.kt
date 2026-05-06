@@ -5,6 +5,7 @@ import android.content.Context
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.mtp.MtpDevice
+import android.net.Uri
 import android.provider.MediaStore
 import com.juul.khronicle.Log
 import kotlinx.coroutines.CoroutineScope
@@ -90,6 +91,7 @@ class UsbSyncCoordinator(
                 var newPhotos = 0
                 var synced = 0
                 var failed = 0
+                val savedUris = mutableListOf<Uri>()
 
                 for (storage in storages) {
                     val photos = nikonUsbManager.listPhotos(mtp, storage.id)
@@ -111,8 +113,10 @@ class UsbSyncCoordinator(
                         val i = synced + idx + 1
                         _state.value = UsbSyncServiceState.Syncing(i, newOnes.size, photo.name)
 
-                        if (saveToMediaStore(mtp, photo)) {
+                        val savedUri = saveToMediaStore(mtp, photo)
+                        if (savedUri != null) {
                             photoSyncManager.markAsImported(storage.id, photo.handle)
+                            savedUris.add(savedUri)
                             synced++
                         } else {
                             failed++
@@ -125,7 +129,7 @@ class UsbSyncCoordinator(
                 }
 
                 _state.value = UsbSyncServiceState.Completed(synced, totalPhotos)
-                return SyncResult(synced, failed, totalPhotos, null)
+                return SyncResult(synced, failed, totalPhotos, null, savedUris)
             } finally {
                 closeMtp()
             }
@@ -146,7 +150,7 @@ class UsbSyncCoordinator(
         mtpDevice = null
     }
 
-    private suspend fun saveToMediaStore(mtp: MtpDevice, photo: NikonUsbManager.PhotoInfo): Boolean {
+    private suspend fun saveToMediaStore(mtp: MtpDevice, photo: NikonUsbManager.PhotoInfo): Uri? {
         val dateFolder = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             .format(Date(photo.dateModified))
         val path = "Pictures/CameraSync/Nikon Z30/$dateFolder"
@@ -166,20 +170,25 @@ class UsbSyncCoordinator(
         }
 
         val uri = context.contentResolver
-            .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv) ?: return false
+            .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv) ?: return null
 
         return try {
-            context.contentResolver.openOutputStream(uri)?.use { out ->
+            val bytesWritten = context.contentResolver.openOutputStream(uri)?.use { out ->
                 nikonUsbManager.downloadPhoto(mtp, photo, out, context.cacheDir)
             }
-            cv.clear()
-            cv.put(MediaStore.Images.Media.IS_PENDING, 0)
-            context.contentResolver.update(uri, cv, null, null)
-            true
+            if (bytesWritten != null) {
+                cv.clear()
+                cv.put(MediaStore.Images.Media.IS_PENDING, 0)
+                context.contentResolver.update(uri, cv, null, null)
+                uri
+            } else {
+                context.contentResolver.delete(uri, null, null)
+                null
+            }
         } catch (e: Exception) {
             Log.error(tag = TAG, throwable = e) { "MediaStore save failed: ${photo.name}" }
             context.contentResolver.delete(uri, null, null)
-            false
+            null
         }
     }
 }
@@ -189,6 +198,7 @@ data class SyncResult(
     val failed: Int,
     val total: Int,
     val error: String?,
+    val savedUris: List<Uri> = emptyList(),
 ) {
     val isSuccess: Boolean get() = error == null
 }
