@@ -2,41 +2,58 @@
 
 This document describes the architecture that enables CameraSync to support cameras from multiple manufacturers (Ricoh, Sony), and how to extend the system for new camera brands or models.
 
+> **Note — USB Transport**: The USB/MTP photo sync path for Nikon series cameras lives **outside** this
+> BLE vendor architecture, in the `usb/` package. USB uses a fundamentally different paradigm
+> (cable connection, MTP protocol, file transfer) that does not involve protocol
+> reverse-engineering, BLE pairing, or GATT characteristics. The BLE vendor abstractions
+> described below remain fully valid for Ricoh BLE GPS/Date-Time sync and for Sony BLE
+> GPS/Date-Time sync. Nikon's `NikonCameraVendor`, `NikonGattSpec`, and `NikonProtocol`
+> still exist in `vendors/nikon/` and provide BLE device recognition via advertisement
+> data; however the primary Nikon data transfer path is USB.
+
 ---
 
 ## 1. Architecture Overview
 
 CameraSync uses a **Strategy Pattern** with a clean layered design. The core sync logic is completely vendor-agnostic; all vendor-specific behavior is isolated in dedicated implementation packages.
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│  MultiDeviceSyncCoordinator  (vendor-agnostic sync loop)           │
-│  KableCameraRepository       (vendor-agnostic BLE management)      │
-│  KableCameraConnection       (delegates to VendorConnectionDelegate)│
-└────────────────────────┬───────────────────────────────────────────┘
-                         │
-                         │ uses
-                         ▼
-┌────────────────────────────────────────────────────────────────────┐
-│  CameraVendorRegistry  ──  identifies vendor from BLE advertisement│
-│  CameraVendor          ──  strategy interface per vendor/brand     │
-│  VendorConnectionDelegate  ──  connection & sync lifecycle         │
-│  CameraGattSpec        ──  BLE UUID definitions                   │
-│  CameraProtocol        ──  binary encoding/decoding                │
-│  CameraCapabilities    ──  feature flags                           │
-└────────────────────────┬───────────────────────────────────────────┘
-                         │
-                         │ implemented by
-                         ▼
-┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│ vendors/ricoh/   │  │ vendors/sony/    │  │ vendors/nikon/   │
-│  ├ RicohCamera   │  │  ├ SonyCamera    │  │  (future)        │
-│  │   Vendor      │  │  │   Vendor      │  │                  │
-│  ├ RicohGattSpec │  │  ├ SonyGattSpec │  │                  │
-│  ├ RicohProtocol │  │  ├ SonyProtocol │  │                  │
-│  └ (default      │  │  └ SonyConnect  │  │                  │
-│     delegate)    │  │     ionDelegate │  │                  │
-└──────────────────┘  └──────────────────┘  └──────────────────┘
+```mermaid
+graph TB
+    subgraph Coord["Vendor-Agnostic Layer"]
+        MDSC["MultiDeviceSyncCoordinator<br/>vendor-agnostic sync loop"]
+        KCR["KableCameraRepository<br/>vendor-agnostic BLE management"]
+        KCC["KableCameraConnection<br/>delegates to VendorConnectionDelegate"]
+    end
+
+    subgraph Abstraction["Vendor Abstraction Layer"]
+        CVR["CameraVendorRegistry<br/>identifies vendor from BLE advertisement"]
+        CV["CameraVendor<br/>strategy interface per vendor/brand"]
+        VCD["VendorConnectionDelegate<br/>connection & sync lifecycle"]
+        CGS["CameraGattSpec<br/>BLE UUID definitions"]
+        CP["CameraProtocol<br/>binary encoding/decoding"]
+        CC["CameraCapabilities<br/>feature flags"]
+    end
+
+    subgraph Implementations["Vendor Implementations"]
+        subgraph Ricoh["vendors/ricoh/"]
+            RCV["RicohCameraVendor"]
+            RGS["RicohGattSpec"]
+            RP["RicohProtocol"]
+            RD["(default delegate)"]
+        end
+        subgraph Sony["vendors/sony/"]
+            SCV["SonyCameraVendor"]
+            SGS["SonyGattSpec"]
+            SP["SonyProtocol"]
+            SCD["SonyConnectionDelegate"]
+        end
+        subgraph Nikon["vendors/nikon/"]
+            NCV["(future)"]
+        end
+    end
+
+    Coord -->|uses| Abstraction
+    Abstraction -->|implemented by| Implementations
 ```
 
 ---
@@ -150,23 +167,17 @@ Manages all registered vendors. Key methods:
 
 ### 3.1 BLE Scanning
 
-```
-┌──────────────┐     ┌─────────────────────┐     ┌──────────────────┐
-│ BLE Scanner  │────▶│ Ad.toCamera()        │────▶│ vendorRegistry    │
-│ (Kable)      │     │ KableCameraRepository│     │ .identifyVendor() │
-└──────────────┘     └─────────────────────┘     └────────┬─────────┘
-                                                          │
-                                ┌─────────────────────────┘
-                                ▼
-                      ┌────────────────────┐
-                      │ For each vendor:   │
-                      │ recognizesDevice() │
-                      ├────────────────────┤
-                      │ 1. Check mfr data  │
-                      │ 2. Check services  │
-                      │ 3. Check name      │
-                      │ First match → Camera│
-                      └────────────────────┘
+```mermaid
+flowchart LR
+    Scanner["BLE Scanner<br/>(Kable)"] --> Adapter["Ad.toCamera()<br/>KableCameraRepository"]
+    Adapter --> Registry["vendorRegistry<br/>.identifyVendor()"]
+    Registry --> Loop["For each vendor:<br/>recognizesDevice()"]
+    Loop --> Check1["1. Check mfr data"]
+    Loop --> Check2["2. Check services"]
+    Loop --> Check3["3. Check name"]
+    Check1 --> Match["First match → Camera"]
+    Check2 --> Match
+    Check3 --> Match
 ```
 
 ### 3.2 `recognizesDevice()` Implementation
@@ -198,21 +209,20 @@ This metadata is stored in `Camera.vendorMetadata` and later used by `SonyConnec
 
 ### 4.1 Connection Establishment
 
-```
-KableCameraRepository.connect()
-  │
-  ├─ Scan for camera by MAC address (with retry logic for bonded devices)
-  ├─ Create Peripheral from advertisement
-  │
-  ├─ On services discovered:
-  │   └─ Request MTU (if delegate specifies one)
-  │
-  ├─ peripheral.connect()
-  ├─ delegate.onConnected(peripheral, camera)
-  │   └─ Sony: enables location service (DD30/DD31)
-  │   └─ Ricoh: no-op (default)
-  │
-  └─ Return KableCameraConnection(camera, peripheral, delegate)
+```mermaid
+sequenceDiagram
+    participant Repo as KableCameraRepository
+    participant Peripheral
+    participant Delegate as VendorConnectionDelegate
+    participant Conn as KableCameraConnection
+
+    Repo->>Repo: Scan for camera by MAC (retry for bonded devices)
+    Repo->>Repo: Create Peripheral from advertisement
+    Note over Repo: On services discovered:<br/>Request MTU (if delegate specifies)
+    Repo->>Peripheral: connect()
+    Repo->>Delegate: onConnected(peripheral, camera)
+    Note over Delegate: Sony: enables location service (DD30/DD31)<br/>Ricoh: no-op (default)
+    Repo->>Conn: Return KableCameraConnection(camera, peripheral, delegate)
 ```
 
 ### 4.2 Sync Operations
@@ -390,27 +400,32 @@ Additional protocol methods:
 
 The most complex vendor component in the codebase. Implements a multi-step state machine:
 
-```
-onFirstEnable:
-  1. Check bleProtocolVersion from vendorMetadata
-  2. If version >= 65 and DD30/DD31 exist → requires unlock sequence
-  3. Subscribe to DD01 notifications
-  4. Write 0x01 to DD30 (Lock Session)
-  5. Write 0x01 to DD31 (Enable Transfer)
-  6. Read DD21 (timezone requirement), DD32 (time correction), DD33 (area adjustment)
-  7. Store SonyCapabilities
+```mermaid
+flowchart TB
+    subgraph onFirstEnable["onFirstEnable"]
+        Check["Check bleProtocolVersion<br/>from vendorMetadata"]
+        Check --> Version{"version >= 65<br/>and DD30/DD31 exist?"}
+        Version -->|Yes| UnlockSeq["Requires unlock sequence"]
+        Version -->|No| Subscribe["Subscribe to DD01 notifications"]
+        UnlockSeq --> Lock["Write 0x01 to DD30<br/>(Lock Session)"]
+        Lock --> Enable["Write 0x01 to DD31<br/>(Enable Transfer)"]
+        Enable --> CapRead["Read DD21 (timezone)<br/>DD32 (time correction)<br/>DD33 (area adjustment)"]
+        CapRead --> Store["Store SonyCapabilities"]
+        Subscribe --> Store
+    end
 
-syncLocation (every write):
-  1. Re-enable location service (DD30→DD31) if needed
-  2. Check capabilities for timezone inclusion
-  3. Encode location packet via SonyProtocol.encodeLocationPacket()
-  4. Write to DD11 with retry (3 attempts, 500ms delay)
-  5. Uses WriteType.WithResponse, 30s timeout
+    subgraph syncLocation["syncLocation (every write)"]
+        ReEnable["Re-enable location service<br/>(DD30→DD31) if needed"]
+        ReEnable --> CheckCaps["Check capabilities<br/>for timezone inclusion"]
+        CheckCaps --> Encode["Encode location packet via<br/>SonyProtocol.encodeLocationPacket()"]
+        Encode --> Write["Write to DD11 with retry<br/>(3 attempts, 500ms delay)<br/>WriteType.WithResponse, 30s timeout"]
+    end
 
-onDisconnecting:
-  1. Cancel DD01 notification observation
-  2. Write 0x00 to DD31 (Disable Transfer)
-  3. Write 0x00 to DD30 (Unlock Session)
+    subgraph onDisconnecting["onDisconnecting"]
+        Cancel["Cancel DD01 notification observation"]
+        Cancel --> Disable["Write 0x00 to DD31<br/>(Disable Transfer)"]
+        Disable --> Unlock["Write 0x00 to DD30<br/>(Unlock Session)"]
+    end
 ```
 
 MTU: 158 bytes (overridden from default).
@@ -440,29 +455,13 @@ Queries Sony's firmware list API at `support.d-imaging.sony.co.jp`:
 
 ### 6.1 Architecture
 
-```
-┌──────────────────────────────────┐
-│ FirmwareUpdateCheckWorker        │  WorkManager periodic task
-│ (daily background check)         │
-└──────────────┬───────────────────┘
-               │
-               ▼
-┌──────────────────────────────────┐
-│ FirmwareUpdateScheduler          │  Schedules/coordinates checks
-└──────────────┬───────────────────┘
-               │
-               ▼
-┌──────────────────────────────────┐
-│ List<FirmwareUpdateChecker>      │  Per-vendor implementations
-│ ├ RicohFirmwareUpdateChecker     │
-│ └ SonyFirmwareUpdateChecker      │
-└──────────────┬───────────────────┘
-               │
-               ▼
-┌──────────────────────────────────┐
-│ PairedDevicesRepository          │  Stores latestFirmwareVersion
-│                                  │  + firmwareUpdateNotificationShown
-└──────────────────────────────────┘
+```mermaid
+graph TB
+    Worker["FirmwareUpdateCheckWorker<br/>WorkManager periodic task<br/>(daily background check)"] --> Scheduler["FirmwareUpdateScheduler<br/>Schedules/coordinates checks"]
+    Scheduler --> Checkers["List&lt;FirmwareUpdateChecker&gt;<br/>Per-vendor implementations"]
+    Checkers --> Ricoh["RicohFirmwareUpdateChecker"]
+    Checkers --> Sony["SonyFirmwareUpdateChecker"]
+    Checkers --> Repo["PairedDevicesRepository<br/>Stores latestFirmwareVersion<br/>+ firmwareUpdateNotificationShown"]
 ```
 
 ### 6.2 Interface
@@ -734,3 +733,69 @@ app/src/test/kotlin/dev/sebastiano/camerasync/
 └── fakes/
     └── FakeVendorRegistry.kt                  # FakeCameraVendor + FakeGattSpec + FakeProtocol
 ```
+
+---
+
+## 13. USB as a Parallel Transport (Nikon series)
+
+### 13.1 Architecture Compared
+
+While the BLE vendor system (Sections 1–12) handles GPS location and date/time sync via GATT
+characteristics, the USB/MTP subsystem handles **photo transfer** via a completely different
+paradigm:
+
+| Dimension | BLE Vendor Architecture | USB/MTP (Nikon series) |
+|-----------|------------------------|---------------------|
+| **Transport** | Bluetooth Low Energy | USB Host (C2C cable) |
+| **Discovery** | BLE scan + advertisement parsing | USB device attached broadcast |
+| **Pairing/Auth** | Companion Device Manager, GATT pairing | Physical cable = trusted (no auth) |
+| **Protocol** | Vendor-specific binary GATT writes | MTP (`android.mtp.MtpDevice`) |
+| **Data** | GPS coordinates, date/time | JPEG/NEF photo files |
+| **Service** | `MultiDeviceSyncService` (BLE foreground) | `UsbSyncService` (USB foreground) |
+| **UI** | `DevicesListScreen` (paired device cards) | `GalleryScreen` (photo grid browser) |
+| **Package** | `vendors/*/`, `data/repository/` | `usb/` |
+
+*Table: BLE Vendor Architecture vs USB/MTP (Nikon series)*
+
+### 13.2 USB Subsystem Files
+
+```
+usb/
+├── NikonUsbManager.kt       # MTP open/close, storage enumeration, recursive listing, download
+├── GalleryViewModel.kt      # Pagination, transfer state, dedup, RAW+JPEG grouping
+├── GalleryScreen.kt         # Primary UI: 3-column grid, long-press selection, folder browsing
+├── PhotoSyncManager.kt      # Per-storage photo handle tracking for deduplication
+├── UsbSyncService.kt        # Foreground service (auto-start on USB attach, background sync)
+├── UsbSyncCoordinator.kt    # Service coordination (connection state, sync triggers)
+└── UsbSyncPreferences.kt    # Per-camera settings (auto-sync, format preference, last-synced)
+```
+
+### 13.3 Key Architectural Differences
+
+1. **No protocol reverse-engineering**: MTP is a standard protocol — `MtpDevice.getObjectHandles()`,
+   `getThumbnail()`, `importFile()` work out of the box. No binary packet formats to decode.
+
+2. **No pairing flow**: USB permission is a one-time grant via Android's `PendingIntent` +
+   `BroadcastReceiver` pattern. The cable provides both power and trust.
+
+3. **Separate foreground service**: `UsbSyncService` runs independently from
+   `MultiDeviceSyncService`. A user could theoretically sync GPS over BLE from a Ricoh camera
+   while simultaneously importing photos over USB from a Nikon series camera.
+
+4. **Deduplication at file level**: `PhotoSyncManager` tracks imported `objectHandle` values
+   in `SharedPreferences`, avoiding duplicate imports across sessions.
+
+5. **Hot-plug detection**: USB attach/detach is detected via `BroadcastReceiver` with
+   `ACTION_USB_DEVICE_ATTACHED` / `ACTION_USB_DEVICE_DETACHED` intent filters. This powers
+   the reactive device card on the home screen.
+
+### 13.4 Nikon BLE Bridging
+
+Nikon's BLE vendor components (`NikonCameraVendor`, `NikonGattSpec`, `NikonProtocol`) remain
+in `vendors/nikon/` for BLE device recognition via advertisement data. The mfr ID `0x0399`,
+device name prefix `Z_`, and SnapBridge service UUID `0000DE00-…` allow `CameraVendorRegistry`
+to identify Nikon cameras during BLE scans. This enables the USB device card to display the
+correct model name ("Nikon Z30") on the home screen before USB is even connected.
+
+However, **BLE GPS/date-time sync for Nikon is blocked** — Nikon's SnapBridge authentication
+layer prevents third-party GATT writes. See `TODO.md` Phase 5 for status.

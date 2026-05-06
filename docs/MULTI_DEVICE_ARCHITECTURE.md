@@ -5,62 +5,37 @@ simultaneously, with centralized location collection and independent device conn
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         UI Layer                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  DevicesListScreen          │  PairingScreen                    │
-│  - Shows paired devices     │  - BLE scanning                   │
-│  - Enable/disable toggles   │  - Device discovery               │
-│  - Connection status        │  - Pairing flow                   │
-│  - Unpair action            │  - Error handling                 │
-│                                                                 │
-│  SyncWidget (Glance)        │  SyncTileService                  │
-│  - Homescreen status/toggle │  - Quick Settings toggle          │
-└─────────────────────────────┴───────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       Service Layer                              │
-├─────────────────────────────────────────────────────────────────┤
-│  MultiDeviceSyncService (Foreground Service)                    │
-│  - Manages service lifecycle                                    │
-│  - Observes enabled devices from repository                     │
-│  - Updates notifications                                        │
-│  - Handles notification actions (Refresh, Stop)                 │
-│                                                                 │
-│  MultiDeviceSyncCoordinator                                     │
-│  - Manages multiple concurrent camera connections               │
-│  - Per-device state tracking (Map<MAC, DeviceConnectionState>)  │
-│  - Broadcasts location updates to all connected devices         │
-│  - Manages Passive Scanning (PendingIntent)                     │
-│                                                                 │
-│  LocationCollectionCoordinator                                  │
-│  - Centralized location collection                              │
-│  - Device registration for automatic start/stop                 │
-│                                                                 │
-│  FirmwareUpdateCheckWorker (WorkManager)                        │
-│  - Periodic background check for firmware updates               │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Repository Layer                           │
-├─────────────────────────────────────────────────────────────────┤
-│  PairedDevicesRepository                                        │
-│  - Stores paired devices (Proto DataStore)                      │
-│  - Enable/disable device state                                  │
-│  - Flow<List<PairedDevice>> for reactive updates                │
-│                                                                 │
-│  CameraRepository                                               │
-│  - BLE scanning and discovery                                   │
-│  - Device connection management                                 │
-│  - Passive scan registration via PendingIntent                 │
-│                                                                 │
-│  LocationRepository                                             │
-│  - Fused Location Provider                                      │
-│  - High-accuracy GPS updates                                    │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph UI["UI Layer"]
+        DevicesList["DevicesListScreen<br/>- Shows paired devices<br/>- Enable/disable toggles<br/>- Connection status<br/>- Unpair action"]
+        Pairing["PairingScreen<br/>- BLE scanning<br/>- Device discovery<br/>- Pairing flow<br/>- Error handling"]
+        Widget["SyncWidget (Glance)<br/>- Homescreen status/toggle"]
+        Tile["SyncTileService<br/>- Quick Settings toggle"]
+    end
+
+    subgraph Service["Service Layer"]
+        subgraph BleService["BLE Sync Subsystem"]
+            MDSS["MultiDeviceSyncService<br/>Foreground Service"]
+            MDSC["MultiDeviceSyncCoordinator<br/>Manages concurrent connections"]
+            LCC["LocationCollectionCoordinator<br/>Centralized location collection"]
+            FW["FirmwareUpdateCheckWorker<br/>WorkManager periodic task"]
+        end
+        subgraph UsbService["USB Photo Sync Subsystem"]
+            USS["UsbSyncService<br/>Foreground Service"]
+            USC["UsbSyncCoordinator<br/>Connection state management"]
+            PSM["PhotoSyncManager<br/>Deduplication"]
+        end
+    end
+
+    subgraph Repo["Repository Layer"]
+        PDR["PairedDevicesRepository<br/>Proto DataStore"]
+        CR["CameraRepository<br/>BLE scanning & discovery"]
+        LR["LocationRepository<br/>Fused Location Provider"]
+    end
+
+    UI --> Service
+    Service --> Repo
 ```
 
 ## Key Components
@@ -239,104 +214,202 @@ firmware updates. It queries vendor-specific update endpoints and updates the
 in-app badges. The app also proactively triggers a check when a device connects if the firmware data
 is missing or older than 24 hours.
 
+### 6. UsbSyncService (USB Photo Sync)
+
+A Foreground Service managing USB photo transfer for Nikon series cameras (and future USB-capable cameras).
+
+**Responsibilities:**
+- Runs as foreground service with `connectedDevice` type
+- Auto-starts when `ACTION_USB_DEVICE_ATTACHED` is broadcast
+- Uses `CoroutineScope(Dispatchers.IO + SupervisorJob)` (same pattern as `MultiDeviceSyncService`)
+- Handles intent actions: `ACTION_SYNC` (start transfer), `ACTION_STOP` (cancel and stop service)
+- Exposes a `Binder` inner class for activity binding (UI status observation)
+- Shows notification with transfer progress: "正在同步 (3/15)"
+- Idle detection: stops service when USB cable is disconnected
+
+**Lifecycle:**
+1. USB cable plugged in → system broadcasts `ACTION_USB_DEVICE_ATTACHED`
+2. Manifest-registered intent filter starts `UsbSyncService`
+3. Service obtains USB permission via `PendingIntent` + `BroadcastReceiver`
+4. `UsbSyncCoordinator` handles MTP connection and triggers sync
+5. When USB disconnected → service stops with `stopForeground(STOP_FOREGROUND_REMOVE)`
+
+### 7. UsbSyncCoordinator
+
+Coordinates USB connection lifecycle and sync operations.
+
+**Class:** `usb/UsbSyncCoordinator.kt`
+
+**Key Responsibilities:**
+- Manages `NikonUsbManager` MTP connection state
+- Registers `BroadcastReceiver` for `ACTION_USB_DEVICE_ATTACHED` / `DETACHED` (hot-plug detection)
+- Emits `StateFlow<UsbConnectionState>` for reactive UI updates
+- Triggers `PhotoSyncManager` for deduplicated photo transfer
+- Coordinates with `GalleryViewModel` for UI-driven transfer operations
+
+**Connection States:**
+```kotlin
+sealed interface UsbConnectionState {
+    data object Disconnected
+    data object PermissionRequired
+    data object Connecting
+    data class Connected(val cameraInfo: UsbCameraInfo)
+    data class Transferring(val progress: TransferProgress)
+    data class Done(val photosTransferred: Int)
+    data class Error(val message: String)
+}
+```
+
+### 8. PhotoSyncManager
+
+Tracks imported photo handles to prevent duplicate transfers across sync sessions.
+
+**Class:** `usb/PhotoSyncManager.kt`
+
+**Key Features:**
+- Per-storage handle tracking via `SharedPreferences` (storage ID → set of object handles)
+- `isAlreadyImported(handle: Int, storageId: Int): Boolean` — fast dedup check
+- `markAsImported(handle: Int, storageId: Int)` — record after successful transfer
+- `clearStorage(storageId: Int)` — reset tracking for a specific storage
+- Persists across app restarts — handles survive process death
+
+**Deduplication Flow:**
+1. `GalleryViewModel` enumerates all object handles from MTP device
+2. Each handle is checked against `PhotoSyncManager.isAlreadyImported()`
+3. Previously imported photos are filtered out before transfer
+4. After successful MediaStore save, handle is recorded via `markAsImported()`
+
 ## Data Flow
 
 ### Device Pairing
 
-```
-User selects device in PairingScreen
-        │
-        ▼
-PairingViewModel.pairDevice(camera)
-        │
-        ▼
-PairedDevicesRepository.addDevice(camera, enabled=true)
-        │
-        ▼
-MultiDeviceSyncService observes enabledDevices (if sync_enabled=true)
-        │
-        ▼
-MultiDeviceSyncCoordinator.startDeviceSync(device)
-        │
-        ▼
-Device connects → Initial setup → Register for location
+```mermaid
+sequenceDiagram
+    participant User
+    participant PairingVM as PairingViewModel
+    participant Repo as PairedDevicesRepository
+    participant Service as MultiDeviceSyncService
+    participant Coordinator as MultiDeviceSyncCoordinator
+
+    User->>PairingVM: Select device in PairingScreen
+    PairingVM->>Repo: addDevice(camera, enabled=true)
+    Repo-->>Service: observes enabledDevices (if sync_enabled=true)
+    Service->>Coordinator: startDeviceSync(device)
+    Coordinator->>Coordinator: Device connects → Initial setup → Register for location
 ```
 
 ### Stop All Sync
 
-```
-User clicks "Stop all" in Notification
-        │
-        ▼
-MultiDeviceSyncService.onStartCommand(ACTION_STOP)
-        │
-        ▼
-PairedDevicesRepository.setSyncEnabled(false)
-        │
-        ▼
-MultiDeviceSyncCoordinator.stopAllDevices()
-        │
-        ▼
-stopForeground(REMOVE) & stopSelf()
+```mermaid
+sequenceDiagram
+    participant User
+    participant Service as MultiDeviceSyncService
+    participant Repo as PairedDevicesRepository
+    participant Coordinator as MultiDeviceSyncCoordinator
+
+    User->>Service: Click "Stop all" in Notification
+    Service->>Service: onStartCommand(ACTION_STOP)
+    Service->>Repo: setSyncEnabled(false)
+    Service->>Coordinator: stopAllDevices()
+    Service->>Service: stopForeground(REMOVE) & stopSelf()
 ```
 
 ### Manual Refresh / Restart
 
-```
-User clicks "Refresh" in UI, Widget, or Notification
-        │
-        ▼
-DevicesListViewModel.refreshConnections() / ACTION_REFRESH
-        │
-        ▼
-PairedDevicesRepository.setSyncEnabled(true)
-        │
-        ▼
-context.startService(ACTION_REFRESH)
-        │
-        ▼
-Service starts/resumes → startForegroundService() → refreshConnections() → trigger firmware check
+```mermaid
+sequenceDiagram
+    participant User
+    participant VM as DevicesListViewModel
+    participant Repo as PairedDevicesRepository
+    participant Service as MultiDeviceSyncService
+
+    User->>VM: Click "Refresh" (UI/Widget/Notification)
+    VM->>Repo: setSyncEnabled(true)
+    VM->>Service: startService(ACTION_REFRESH)
+    Service->>Service: startForegroundService() → refreshConnections() → trigger firmware check
 ```
 
 ### Location Sync
 
+```mermaid
+sequenceDiagram
+    participant LR as LocationRepository
+    participant LCC as LocationCollectionCoordinator
+    participant MDSC as MultiDeviceSyncCoordinator
+    participant D1 as Device 1
+    participant D2 as Device 2
+    participant DN as Device N
+
+    LR->>LCC: Emit new GPS location
+    LCC->>LCC: locationUpdates StateFlow emits
+    LCC->>MDSC: syncLocationToAllDevices()
+    MDSC->>D1: CameraConnection.syncLocation()
+    MDSC->>D2: CameraConnection.syncLocation()
+    MDSC->>DN: CameraConnection.syncLocation()
 ```
-LocationRepository emits new GPS location
-        │
-        ▼
-LocationCollectionCoordinator receives location
-        │
-        ▼
-locationUpdates StateFlow emits to subscribers
-        │
-        ▼
-MultiDeviceSyncCoordinator.syncLocationToAllDevices()
-        │
-        ├──▶ Device 1: CameraConnection.syncLocation()
-        ├──▶ Device 2: CameraConnection.syncLocation()
-        └──▶ Device N: CameraConnection.syncLocation()
+
+### USB Photo Sync
+
+```mermaid
+sequenceDiagram
+    participant Cable as USB Cable
+    participant System as Android System
+    participant Service as UsbSyncService
+    participant User
+    participant Coordinator as UsbSyncCoordinator
+    participant MTP as NikonUsbManager
+    participant PSM as PhotoSyncManager
+    participant VM as GalleryViewModel
+    participant MS as MediaStore
+
+    Cable->>System: ACTION_USB_DEVICE_ATTACHED
+    System->>Service: Start UsbSyncService
+    Service->>User: Request USB permission (PendingIntent)
+    User->>Service: Grant permission
+    Service->>Coordinator: Open MTP connection
+    Coordinator->>MTP: Enumerate storages + photo handles (BFS)
+    MTP-->>Coordinator: Photo object handles
+    Coordinator->>PSM: Filter already-imported handles
+    PSM-->>Coordinator: New photos only
+    Coordinator->>VM: Load page (30 items) with thumbnails
+    User->>VM: Select photos + tap transfer
+    VM->>MTP: importFile()
+    MTP->>MS: Pictures/CameraSync/{model}/{date}/
+    VM->>PSM: markAsImported()
 ```
+
+### Hot-Plug Detection
+
+USB attach/detach is detected reactively via a `BroadcastReceiver` registered for:
+- `ACTION_USB_DEVICE_ATTACHED` — triggers `UsbSyncService` auto-start; updates device card on
+  home screen to show "connected" state
+- `ACTION_USB_DEVICE_DETACHED` — triggers service stop; transitions device card back to
+  "disconnected"
+
+The receiver is registered dynamically at runtime (not in the manifest) to avoid consuming
+system resources when the app is not in the foreground. On Android 14+, the
+`RECEIVER_EXPORTED` flag is required because the broadcast is sent by the system.
 
 ### Enable/Disable Device
 
-```
-User toggles switch in DevicesListScreen
-        │
-        ▼
-DevicesListViewModel.setDeviceEnabled(mac, enabled)
-        │
-        ▼
-PairedDevicesRepository.setDeviceEnabled(mac, enabled)
-        │
-        ▼
-If (enabled AND sync_enabled) -> context.startService()
-        │
-        ▼
-MultiDeviceSyncService observes change via background monitoring
-        │
-        ├── If enabled: startDeviceSync(device)
-        └── If disabled: checkAndConnectEnabledDevices() detects
-            device is no longer enabled and calls stopDeviceSync(mac)
+```mermaid
+sequenceDiagram
+    participant User
+    participant VM as DevicesListViewModel
+    participant Repo as PairedDevicesRepository
+    participant Service as MultiDeviceSyncService
+
+    User->>VM: Toggle switch in DevicesListScreen
+    VM->>Repo: setDeviceEnabled(mac, enabled)
+    alt Enabled AND sync_enabled
+        Repo->>Service: context.startService()
+    end
+    Service->>Service: Background monitoring detects change
+    alt Enabled
+        Service->>Service: startDeviceSync(device)
+    else Disabled
+        Service->>Service: checkAndConnectEnabledDevices()<br/>detects device no longer enabled<br/>→ stopDeviceSync(mac)
+    end
 ```
 
 **Important:** When a device is disabled, the `checkAndConnectEnabledDevices()` method automatically

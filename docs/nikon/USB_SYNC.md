@@ -1,22 +1,12 @@
-# USB Wired Photo Sync — Nikon Z30
+# USB Wired Photo Sync — Nikon series
 
-> **Status**: MVP verified (2026-05-05). Next: integrate into app architecture.
+> **Status**: ✅ Working (2026-05-06). Integrated GalleryScreen + ForegroundService architecture live.
 
-This document describes the USB wired photo sync subsystem for Nikon Z30 — the third and successful approach after BLE SnapBridge (private protocol, can't reverse) and Wi‑Fi PTP‑IP (Z30 lacks Infrastructure mode).
+This document describes the USB wired photo sync subsystem for Nikon series cameras. USB wired MTP is the transfer method for Nikon cameras. Android's `android.mtp.MtpDevice` API handles MTP/PTP natively — no protocol reverse-engineering, no pairing, no auth.
 
-## 1. Why USB Wins
+## 1. USB Permission Flow (Critical)
 
-| Approach | Protocol | Auth | Z30 Support | Status |
-|----------|----------|------|-------------|--------|
-| BLE SnapBridge | Proprietary BLE | 8-digit pairing + auth handshake | ❌ Requires reverse engineering obfuscated code | Abandoned |
-| Wi‑Fi PTP‑IP | PTP/IP over TCP :15740 | WTU GUID + MD5 challenge | ❌ Z30 lacks Infrastructure mode | Abandoned |
-| **USB MTP/PTP** | Standard MTP over USB | **None** (physical = secure) | ✅ Works like 像素蛋糕 | ✅ MVP verified |
-
-Android's built-in `android.mtp.MtpDevice` API handles the MTP/PTP protocol natively — no protocol reverse-engineering, no pairing, no auth.
-
-## 2. USB Permission Flow (Critical)
-
-### 2.1 The Problem
+### 1.1 The Problem
 
 Android 14+ enforces strict rules for USB access. The camera **must** go through the system USB permission dialog before the app can open an MTP connection. Key pitfalls:
 
@@ -27,7 +17,7 @@ Android 14+ enforces strict rules for USB access. The camera **must** go through
 | `FLAG_MUTABLE` alone | May fail on some OEMs | Use `FLAG_MUTABLE \| FLAG_UPDATE_CURRENT` |
 | Skipping the dialog | `hasPermission()` returns false, `openDevice()` fails silently | Always call `requestPermission()` first |
 
-### 2.2 Correct Permission Flow
+### 1.2 Correct Permission Flow
 
 ```kotlin
 // 1. Detect device
@@ -54,7 +44,7 @@ val mtp = MtpDevice(device)
 mtp.open(conn)
 ```
 
-### 2.3 Manifest Requirements
+### 1.3 Manifest Requirements
 
 ```xml
 <!-- Feature: NOT required (phones without USB host can still install) -->
@@ -69,9 +59,9 @@ mtp.open(conn)
     android:resource="@xml/nikon_usb_device_filter" />
 ```
 
-## 3. MTP Photo Enumeration (Critical)
+## 2. MTP Photo Enumeration (Critical)
 
-### 3.1 The `getObjectHandles` Trap
+### 2.1 The `getObjectHandles` Trap
 
 `MtpDevice.getObjectHandles(storageId, format, parentHandle)` returns **only direct children** of `parentHandle`. It does NOT recurse.
 
@@ -83,7 +73,7 @@ mtp.getObjectHandles(storageId, 0, 0)
 mtp.getObjectHandles(storageId, 0, -1)
 ```
 
-### 3.2 Correct: BFS Folder Traversal
+### 2.2 Correct: BFS Folder Traversal
 
 ```kotlin
 fun listPhotos(mtp: MtpDevice, storageId: Int): List<PhotoInfo> {
@@ -109,7 +99,7 @@ fun listPhotos(mtp: MtpDevice, storageId: Int): List<PhotoInfo> {
 }
 ```
 
-### 3.3 Multiple Storages
+### 2.3 Multiple Storages
 
 The Z30 may expose multiple storage units (internal memory + SD card). You must scan ALL of them:
 
@@ -121,9 +111,9 @@ for (id in storageIds) {
 }
 ```
 
-## 4. Photo Download
+## 3. Photo Download
 
-### 4.1 Import + Scoped Storage
+### 3.1 Import + Scoped Storage
 
 On API 33+, writing to external storage requires `MediaStore`. The approach:
 
@@ -132,7 +122,7 @@ On API 33+, writing to external storage requires `MediaStore`. The approach:
 val cv = ContentValues().apply {
     put(MediaStore.Images.Media.DISPLAY_NAME, photo.name)
     put(MediaStore.Images.Media.MIME_TYPE, mimeType)
-    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraSync/Nikon Z30/$dateFolder")
+    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraSync/{camera model}/$dateFolder")
     put(MediaStore.Images.Media.IS_PENDING, 1)
 }
 val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)
@@ -150,7 +140,7 @@ cv.clear(); cv.put(MediaStore.Images.Media.IS_PENDING, 0)
 resolver.update(uri, cv, null, null)
 ```
 
-### 4.2 File Size Handling
+### 3.2 File Size Handling
 
 `MtpObjectInfo.compressedSize` is `Int` (32-bit), but photos can exceed 2GB. Use unsigned conversion:
 
@@ -158,9 +148,9 @@ resolver.update(uri, cv, null, null)
 val size: Long = info.compressedSize.toLong() and 0xFFFFFFFFL
 ```
 
-## 5. MTP API Quirks
+## 4. MTP API Quirks
 
-### 5.1 `MtpDeviceInfo` Fields
+### 4.1 `MtpDeviceInfo` Fields
 
 | Field | Access | Notes |
 |-------|--------|-------|
@@ -172,7 +162,7 @@ val size: Long = info.compressedSize.toLong() and 0xFFFFFFFFL
 | `eventsSupported` | `.eventsSupported` | `IntArray?` — PTP event codes |
 | `vendorExtension*` | N/A | Not exposed in public API |
 
-### 5.2 Missing Constants
+### 4.2 Missing Constants
 
 Some format constants are only defined in newer API levels:
 
@@ -181,7 +171,7 @@ Some format constants are only defined in newer API levels:
 | HEIF | 0x380C | `MtpConstants.FORMAT_HEIF` (API 30+) |
 | NEF (Nikon RAW) | 0xB103 | Not in SDK — use raw |
 
-### 5.3 `open()` Requires `UsbDeviceConnection`
+### 4.3 `open()` Requires `UsbDeviceConnection`
 
 ```kotlin
 val conn = usbManager.openDevice(usbDevice) // Get UsbDeviceConnection first
@@ -189,7 +179,7 @@ val mtp = MtpDevice(usbDevice)
 mtp.open(conn) // Pass connection, not device
 ```
 
-## 6. Nikon Z30 USB Identifiers
+## 5. Nikon Z30 USB Identifiers
 
 | Property | Value |
 |----------|-------|
@@ -198,10 +188,10 @@ mtp.open(conn) // Pass connection, not device
 | MTP Interface | Class 6 (Imaging), Subclass 0x01, Protocol 0x01 |
 | PTP Interface | Class 6 (Imaging), Subclass 0x01, Protocol 0x01 (same as MTP) |
 
-## 7. File Organization
+## 6. File Organization
 
 ```
-Pictures/CameraSync/Nikon Z30/
+Pictures/CameraSync/{camera model}/
 ├── 2026-05-01/
 │   ├── DSC_0001.JPG
 │   ├── DSC_0001.NEF
@@ -214,36 +204,45 @@ Pictures/CameraSync/Nikon Z30/
 - Date folder derived from EXIF/creation date (not download date)
 - MIME types: `image/jpeg`, `image/x-nikon-nef`, `image/heic`, `image/png`
 
-## 8. Architecture: Current vs Target
+## 7. Architecture
 
-### Current (MVP / Debug Screen)
-```
-UsbSyncScreen (debug UI)
-  └── UsbSyncViewModel (AndroidViewModel, manual ops)
-      └── NikonUsbManager (raw MTP wrapper)
-```
+### Current Architecture (Implemented)
 
-### Target (Integrated)
-```
-DevicesListScreen → shows USB camera status
-  └── UsbSyncService (Foreground Service)
-      ├── UsbSyncCoordinator (auto-sync lifecycle)
-      │   ├── NikonUsbManager (MTP operations)
-      │   └── PhotoSyncManager (dedup, storage, metadata)
-      └── Notification (sync progress)
+```mermaid
+graph TB
+    MainActivity["MainActivity"] -->|"detects USB attach"| GalleryScreen["GalleryScreen<br/>3-column grid, folder nav<br/>long-press selection, transfer progress"]
+    GalleryScreen --> GalleryViewModel["GalleryViewModel<br/>connection lifecycle<br/>USB detection, permission flow<br/>state machine, MediaStore save"]
+    GalleryViewModel --> NikonUsbManager["NikonUsbManager<br/>raw MTP operations"]
+    GalleryViewModel --> PhotoSyncManager["PhotoSyncManager<br/>dedup via SharedPreferences"]
+
+    UsbSyncService["UsbSyncService<br/>Foreground Service"] --> UsbSyncCoordinator["UsbSyncCoordinator<br/>auto-sync lifecycle"]
+    UsbSyncCoordinator --> NikonUsbManager2["NikonUsbManager<br/>MTP operations"]
+    UsbSyncCoordinator --> PhotoSyncManager2["PhotoSyncManager<br/>dedup"]
+    UsbSyncCoordinator --> UsbSyncPreferences["UsbSyncPreferences<br/>per-camera sync config"]
 ```
 
-## 9. Key Files
+### Key Design Decisions
+
+- **GalleryScreen is the production UI** — a full gallery experience, not a debug screen. Drives all user-initiated transfers.
+- **GalleryViewModel manages the full connection lifecycle** — USB detection, permission requests, MTP open/close, folder navigation state, selection state, and transfer orchestration.
+- **UsbSyncService handles background sync** — foreground service with notification progress for auto-sync when the app is not in the foreground.
+- **PhotoSyncManager handles deduplication** — record of transferred `(handle, dateAdded, size, storageId)` tuples in SharedPreferences, checked before download.
+
+## 8. Key Files
 
 | File | Role |
 |------|------|
-| `usb/NikonUsbManager.kt` | All MTP operations: open/close, camera info, storage, photo list, download |
-| `usb/UsbSyncViewModel.kt` | USB detection, permission flow, MTP state machine, MediaStore save |
-| `usb/UsbSyncScreen.kt` | Debug UI: status, camera info, photo list, download, log console |
+| `usb/NikonUsbManager.kt` | All MTP operations: open/close, camera info, storage, photo list, folder listing, download |
+| `usb/GalleryViewModel.kt` | USB detection, permission flow, connection, folder navigation, selection, transfer, MediaStore save |
+| `usb/GalleryScreen.kt` | Primary UI: 3-column grid, folder browsing, long-press selection, transfer progress |
+| `usb/PhotoSyncManager.kt` | Deduplication via SharedPreferences |
+| `usb/UsbSyncService.kt` | Foreground service for background sync |
+| `usb/UsbSyncCoordinator.kt` | Auto-sync lifecycle |
+| `usb/UsbSyncPreferences.kt` | Per-camera USB sync preferences |
 | `res/xml/nikon_usb_device_filter.xml` | USB device filter (Nikon VID 0x04B0) |
 | `res/drawable/ic_usb_24dp.xml` | USB icon |
 
-## 10. Verified With
+## 9. Verified With
 
 - Device: Nikon Z30
 - Cable: USB-C to USB-C (C2C)

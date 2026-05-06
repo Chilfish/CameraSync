@@ -1,69 +1,68 @@
-# Nikon Z30 Camera Support Documentation
+# Nikon Camera Support — USB Photo Sync
+
+> **Status**: ✅ Working (2026-05-06)
+
+USB wired MTP photo sync for Nikon series cameras. Transfers photos over a USB cable using Android's native `android.mtp.MtpDevice` API — no proprietary protocols, no pairing, no auth.
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph App["CameraSync App"]
+        subgraph USB["USB Layer (Nikon series)"]
+            MTP["MTP/PTP over USB"]
+            Enum["Photo enumeration"]
+            DL["Download"]
+            MS["MediaStore save"]
+            AD["Auto-detect on cable connect"]
+            Dedup["Deduplication"]
+            BG["Background sync"]
+        end
+        subgraph Common["Common"]
+            FS["Foreground Service"]
+            Notif["Notifications"]
+            SS["Scoped Storage"]
+            Prefs["Preferences"]
+        end
+    end
+    USB --> Common
+```
 
 ## Document Index
 
 | Document | Scope |
 |----------|--------|
-| **[USB_SYNC.md](USB_SYNC.md)** | **USB wired photo sync — the working approach.** Architecture, permission flow, MTP enumeration, file download, pitfalls. ✅ MVP verified. |
-| **[NIKON_VENDOR_ADAPTATION.md](NIKON_VENDOR_ADAPTATION.md)** | **How to adapt Nikon Z30 to CameraSync's existing multi-vendor architecture.** BLE vendor implementation guide. |
-| **[BLE_GPS_SYNC.md](BLE_GPS_SYNC.md)** | **BLE GPS/date-time synchronization.** SnapBridge protocol research notes (deprioritized). |
-| **[PTP_IMAGE_TRANSFER.md](PTP_IMAGE_TRANSFER.md)** | **Wi‑Fi / PTP‑IP image transfer design.** TCP port 15740, WTU pairing — deprecated in favor of USB. |
+| **[USB_SYNC.md](USB_SYNC.md)** | USB wired photo sync — permission flow, MTP enumeration, photo download, API quirks, architecture, key files. The definitive technical reference. |
 
-## Current Status (2026-05-05)
+## Quick Reference: Nikon USB
 
-### ✅ Working
-- **USB wired photo sync**: Detect Z30 via USB, MTP connection, enumerate & download photos from SD card
-- **BLE device recognition**: Z30 is recognized as a Nikon device via manufacturer ID 0x0399 + name prefix "Z_"
-- **Debug UI**: Functional USB sync screen with camera info, photo list, download, log console
+| Property | Value |
+|----------|-------|
+| USB Vendor ID | `0x04B0` (Nikon Corporation) |
+| Android API | `android.mtp.MtpDevice` (API 24+) |
+| Connection | `UsbManager.openDevice()` → `MtpDevice.open(UsbDeviceConnection)` |
+| Photo enumeration | BFS folder traversal (NOT recursive by default) |
+| Download | `MtpDevice.importFile()` to temp → copy to `MediaStore` |
+| Storage path | `Pictures/CameraSync/{camera model}/YYYY-MM-DD/` |
 
-### 📋 Planned (Phase 7)
-- Replace debug screen with proper settings UI
-- Foreground service: auto-start USB sync on cable connect
-- Background polling: detect new photos automatically
-- Notification: transfer progress in notification shade
-- Integration with `DevicesListScreen`: show USB camera status alongside BLE devices
+## Key Features
 
-### ❌ Deprecated
-- **BLE GPS/time sync**: Requires reverse-engineering SnapBridge auth — not feasible without packet capture
-- **Wi‑Fi PTP‑IP**: Z30 lacks Infrastructure mode — blocked at camera firmware level
+- **Auto-detect on cable connect** — USB device filter triggers app on Z30 attach
+- **Gallery browsing** — 3-column photo grid with thumbnail generation
+- **Folder navigation** — browse by date folders on the camera's SD card
+- **RAW+JPEG grouping** — pairs NEF/JPG taken in the same capture
+- **Selective transfer** — long-press to choose which photos to download
+- **Background sync** — foreground service with notification progress
+- **Deduplication** — SharedPreferences-based, skips already-transferred photos
 
-## Architecture
+## Source Files
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  CameraSync App                                           │
-│                                                           │
-│  ┌─ BLE Layer (Richo, Sony) ──────────────────────────┐  │
-│  │ GPS sync • DateTime sync • Auto-reconnect            │  │
-│  └─────────────────────────────────────────────────────┘  │
-│                                                           │
-│  ┌─ USB Layer (Nikon Z30) ─── NEW ────────────────────┐  │
-│  │ MTP/PTP over USB • Photo enumeration • Download     │  │
-│  │ MediaStore save • Auto-detect on cable connect      │  │
-│  └─────────────────────────────────────────────────────┘  │
-│                                                           │
-│  ┌─ Common ───────────────────────────────────────────┐  │
-│  │ DevicesList • Notifications • Foreground Service     │  │
-│  │ Scoped Storage • Preferences                        │  │
-│  └─────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────┘
-```
-
-## Nikon Z30 Transport Comparison
-
-| Feature | BLE (SnapBridge) | Wi‑Fi (PTP‑IP) | **USB (MTP)** |
-|---------|-----------------|----------------|---------------|
-| Image transfer | ❌ Proprietary | ❌ No Infra mode | ✅ Standard MTP |
-| GPS sync | ❌ Auth required | — | N/A (EXIF metadata) |
-| DateTime sync | ❌ Auth required | — | N/A |
-| Pairing required | Yes (8-digit) | Yes (WTU GUID) | **No** (physical) |
-| Protocol reverse needed | Yes | Partial | **No** (platform API) |
-
-## Quick Reference: Z30 USB
-
-- **USB Vendor ID**: `0x04B0` (Nikon Corporation)
-- **Android API**: `android.mtp.MtpDevice` (API 24+, NOT deprecated)
-- **Connection**: `UsbManager.openDevice()` → `MtpDevice.open(UsbDeviceConnection)`
-- **Photo enumeration**: BFS folder traversal (NOT recursive by default)
-- **Download**: `MtpDevice.importFile()` to temp → copy to `MediaStore`
-- **Storage**: `Pictures/CameraSync/Nikon Z30/YYYY-MM-DD/`
+| File | Role |
+|------|------|
+| `usb/NikonUsbManager.kt` | All MTP operations: open/close, camera info, storage enum, BFS photo listing, folder listing, download |
+| `usb/GalleryViewModel.kt` | USB detection, permission flow, connection, folder navigation, selection, transfer, MediaStore save |
+| `usb/GalleryScreen.kt` | Primary UI: 3-column grid, folder browsing, long-press selection, transfer progress |
+| `usb/PhotoSyncManager.kt` | Deduplication via SharedPreferences |
+| `usb/UsbSyncService.kt` | Foreground service for background sync |
+| `usb/UsbSyncCoordinator.kt` | Auto-sync lifecycle |
+| `usb/UsbSyncPreferences.kt` | Per-camera USB sync preferences |

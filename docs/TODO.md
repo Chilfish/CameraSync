@@ -1,4 +1,4 @@
-# CameraSync — Nikon Z30 Support: Task Plan & Progress Log
+# CameraSync — Nikon Camera Support: Task Plan & Progress Log
 
 > Branch: `nikon-feature` | Started: 2026-05-05 | Updated: 2026-05-07
 
@@ -122,18 +122,15 @@
 
 ---
 
-## Phase 5: BLE GPS/Time Sync (SnapBridge) 📋 PAUSED
+## Phase 5: BLE GPS/Time Sync (SnapBridge) ❌ PERMANENTLY ABANDONED
 
-> **Status**: Blocked by SnapBridge proprietary auth. Resume only if SnapBridge protocol
-> is successfully reverse-engineered (requires packet capture from official SnapBridge app).
-> USB sync provides higher user value in the meantime.
-
----
-
-## Deprecated: Wi‑Fi / PTP‑IP Approach (Phases 2–4)
-
-> ❌ Abandoned — Z30 lacks Infrastructure Wi‑Fi mode (flagship-only feature).
-> PTP/IP code was **deleted** (commit ef45a34).
+> **Status**: Blocked by SnapBridge proprietary auth. This workstream is permanently
+> abandoned — USB photo sync provides far higher user value without requiring protocol
+> reverse-engineering. The BLE vendor components for Nikon (`NikonCameraVendor`,
+> `NikonGattSpec`, `NikonProtocol`, `NikonConnectionDelegate`) are retained solely
+> for BLE device-name recognition (mfr ID `0x0399`, name prefix `Z_`). All GPS/date-time
+> sync paths through these components are dead code and can be safely removed in a cleanup
+> pass.
 
 ---
 
@@ -206,3 +203,21 @@
 | PTP/IP debug | `ptp/*` (8 files) | ❌ Deleted |
 | Old USB debug | `usb/UsbSyncScreen.kt`, `UsbSyncViewModel.kt` | ❌ Deleted |
 | Old USB photo | `usb/UsbPhotoScreen.kt` | ❌ Deleted (replaced by Gallery) |
+
+---
+
+## Code Cleanup Backlog
+
+### Remove dead BLE/WiFi code
+- **NikonGattSpec** / **NikonProtocol** / **NikonConnectionDelegate**: GPS/date-time sync
+  paths are dead code (SnapBridge auth permanently blocks BLE writes). Retain only the
+  advertisement-recognition logic needed for BLE device name detection.
+- **PTP/IP debug remnants**: Verify all `ptp/*` files are fully deleted and no stale
+  imports or references remain in `AppGraph.kt`, `NavRoute.kt`, or manifest entries.
+
+### Delete remaining BLE documentation references from multi-vendor docs
+- `MULTI_VENDOR_SUPPORT.md` Section 1 diagram and directory reference still show
+  `vendors/nikon/` without distinguishing BLE-only vs. USB. These should be updated if
+  Nikon BLE vendor code is eventually removed or reduced to recognition-only.
+- `MULTI_DEVICE_ARCHITECTURE.md` references to `NikonCameraVendor` recognition should be
+  cross-checked against the USB-centric reality.
