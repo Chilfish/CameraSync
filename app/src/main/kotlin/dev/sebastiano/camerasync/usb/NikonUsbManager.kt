@@ -280,6 +280,15 @@ class NikonUsbManager(private val usbManager: UsbManager) {
     }
 
     /**
+     * Attempts to read battery level from the camera via MTP PTP properties.
+     *
+     * Most MTP/PTP devices do not implement the BatteryLevel property (0xD303),
+     * and Android's [MtpDevice] does not expose a public API to query arbitrary
+     * device properties. Returns `null` to indicate "not available".
+     */
+    fun getBatteryLevel(mtpDevice: MtpDevice): Int? = null
+
+    /**
      * Downloads a photo from the MTP device to [outputStream], using [cacheDir]
      * as a temporary staging area.
      *

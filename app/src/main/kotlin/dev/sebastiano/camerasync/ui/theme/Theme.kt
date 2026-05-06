@@ -65,17 +65,25 @@ val ChonkyShapes =
 
 @Composable
 fun CameraSyncTheme(
+    themeMode: String = "system",
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false, // Disabled by default for expressive branding
     content: @Composable () -> Unit,
 ) {
+    val useDarkTheme = when (themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> darkTheme // system default
+    }
+
     val colorScheme =
         when {
             dynamicColor -> {
                 val context = LocalContext.current
-                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                if (useDarkTheme) dynamicDarkColorScheme(context)
+                else dynamicLightColorScheme(context)
             }
-            darkTheme -> DarkColorScheme
+            useDarkTheme -> DarkColorScheme
             else -> LightColorScheme
         }
 

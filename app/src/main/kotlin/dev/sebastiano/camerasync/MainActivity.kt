@@ -7,6 +7,7 @@ import android.Manifest.permission.BLUETOOTH_CONNECT
 import android.Manifest.permission.BLUETOOTH_SCAN
 import android.Manifest.permission.POST_NOTIFICATIONS
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -48,9 +49,12 @@ import dev.sebastiano.camerasync.onboarding.OnboardingScreen
 import dev.sebastiano.camerasync.onboarding.OnboardingViewModel
 import dev.sebastiano.camerasync.permissions.PermissionsScreen
 import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
+import dev.sebastiano.camerasync.settings.SettingsScreen
 import dev.sebastiano.camerasync.usb.GalleryFolderScreen
 import dev.sebastiano.camerasync.usb.GalleryScreen
 import dev.sebastiano.camerasync.usb.GalleryViewModel
+import dev.sebastiano.camerasync.usb.TransferHistoryScreen
+import dev.sebastiano.camerasync.usb.UsbSyncPreferences
 import dev.zacsweers.metro.Inject
 
 @Inject
@@ -91,10 +95,13 @@ private fun RootComposable(
     viewModelFactory: ViewModelProvider.Factory,
     shouldShowPermissions: Boolean = false,
 ) {
-    CameraSyncTheme {
+    val ctx = LocalContext.current
+    val prefs = remember { UsbSyncPreferences(ctx) }
+    val themeMode = prefs.getThemeMode()
+
+    CameraSyncTheme(themeMode = themeMode) {
         // Shared GalleryViewModel — lives at Activity scope so it survives
         // folder navigation pushes/pops without reconnecting MTP.
-        val ctx = LocalContext.current
         val app = ctx.applicationContext as Application
         val galleryViewModel = remember { GalleryViewModel(app) }
 
@@ -207,6 +214,7 @@ private fun RootComposable(
                         GalleryScreen(
                             viewModel = galleryViewModel,
                             onNavigateToLogs = { backStack.add(NavRoute.LogViewer) },
+                            onNavigateToSettings = { backStack.add(NavRoute.Settings) },
                             onFolderClick = { folder ->
                                 backStack.add(
                                     NavRoute.GalleryFolder(folder.storageId, folder.info.handle, folder.info.name)
@@ -252,6 +260,30 @@ private fun RootComposable(
                             onNavigateBack = {
                                 if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
                             },
+                        )
+                    }
+
+                    NavRoute.Settings -> {
+                        val prefs = remember { UsbSyncPreferences(ctx) }
+                        SettingsScreen(
+                            prefs = prefs,
+                            onNavigateBack = { backStack.removeLastOrNull() },
+                            onNavigateToHistory = { backStack.add(NavRoute.TransferHistory) },
+                            onNavigateToOnboarding = {
+                                ctx.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
+                                    .edit().putBoolean("completed", false).apply()
+                                backStack.removeLastOrNull()
+                                backStack.add(NavRoute.Onboarding)
+                            },
+                        )
+                    }
+
+                    NavRoute.TransferHistory -> {
+                        val prefs = remember { UsbSyncPreferences(ctx) }
+                        val records = remember { prefs.getTransferHistory() }
+                        TransferHistoryScreen(
+                            records = records,
+                            onNavigateBack = { backStack.removeLastOrNull() },
                         )
                     }
 

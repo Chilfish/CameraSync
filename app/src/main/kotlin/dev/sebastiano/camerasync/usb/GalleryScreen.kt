@@ -92,6 +92,7 @@ import kotlinx.coroutines.withContext
 fun GalleryScreen(
     viewModel: GalleryViewModel,
     onNavigateToLogs: () -> Unit,
+    onNavigateToSettings: () -> Unit = {},
     onFolderClick: (GalleryEntry.Folder) -> Unit = {},
 ) {
     DisposableEffect(Unit) { viewModel.start(); onDispose { viewModel.stop() } }
@@ -107,10 +108,12 @@ fun GalleryScreen(
             GalleryTopBar(
                 title = "USB 照片同步",
                 hasBack = false,
+                showSettings = true,
                 showLogs = true,
                 selectionCount = selectionCount,
                 onBackClick = {},
                 onLogsClick = onNavigateToLogs,
+                onSettingsClick = onNavigateToSettings,
                 onDeselectAll = viewModel::deselectAll,
                 gridColumns = viewModel.gridColumns,
                 onGridChange = { viewModel.setGridColumns(it); prefs.setGridColumns(it) },
@@ -222,9 +225,11 @@ private fun GalleryTopBar(
     title: String,
     hasBack: Boolean,
     showLogs: Boolean,
+    showSettings: Boolean = false,
     selectionCount: Int,
     onBackClick: () -> Unit,
     onLogsClick: () -> Unit,
+    onSettingsClick: () -> Unit = {},
     onDeselectAll: () -> Unit,
     gridColumns: Int = 3,
     onGridChange: (Int) -> Unit = {},
@@ -253,9 +258,14 @@ private fun GalleryTopBar(
                     Text("取消")
                 }
             }
+            if (showSettings) {
+                IconButton(onClick = onSettingsClick) {
+                    Icon(painterResource(R.drawable.ic_settings_24dp), "设置")
+                }
+            }
             if (showLogs) {
                 IconButton(onClick = onLogsClick) {
-                    Icon(painterResource(R.drawable.ic_settings_24dp), "设置")
+                    Icon(painterResource(android.R.drawable.ic_menu_manage), "日志")
                 }
             }
         },
@@ -330,7 +340,7 @@ private fun BrowsingContent(
 
     // Storage & filter UI above the grid
     Column {
-        StorageStatusBar(state.storages)
+        StorageStatusBar(state.storages, batteryLevel = vm.batteryLevel)
         FilterChipsRow(
             currentFilter = vm.filterMode,
             newCount = newCount,
@@ -676,7 +686,10 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
 // ── Storage Status Bar ─────────────────────────────────────────────────────
 
 @Composable
-private fun StorageStatusBar(storages: List<NikonUsbManager.StorageInfo>) {
+private fun StorageStatusBar(
+    storages: List<NikonUsbManager.StorageInfo>,
+    batteryLevel: Int? = null,
+) {
     if (storages.isEmpty()) return
     val totalBytes = storages.sumOf { it.maxCapacity }
     val freeBytes = storages.sumOf { it.freeSpace }
@@ -708,6 +721,14 @@ private fun StorageStatusBar(storages: List<NikonUsbManager.StorageInfo>) {
             Text("⚠️ 空间不足", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
         }
         Spacer(Modifier.weight(1f))
+        if (batteryLevel != null) {
+            Text(
+                "🔋 $batteryLevel%",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         LinearProgressIndicator(
             progress = { ratio },
             modifier = Modifier.width(80.dp).height(4.dp).clip(RoundedCornerShape(2.dp)),
@@ -866,6 +887,18 @@ private fun TransferDoneContent(
                         Icon(painterResource(android.R.drawable.ic_menu_delete), null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("从相机删除")
+                    }
+                }
+
+                if (viewModel.failedHandles.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { onDismiss(); viewModel.retryFailedTransfers() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(painterResource(android.R.drawable.ic_menu_revert), null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("重试失败的 ${viewModel.failedHandles.size} 张")
                     }
                 }
 

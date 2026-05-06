@@ -31,4 +31,10 @@ sealed interface NavRoute : Parcelable {
 
     /** Log viewer screen. */
     @Parcelize @Serializable data object LogViewer : NavRoute
+
+    /** Settings screen. */
+    @Parcelize @Serializable data object Settings : NavRoute
+
+    /** Transfer history screen. */
+    @Parcelize @Serializable data object TransferHistory : NavRoute
 }

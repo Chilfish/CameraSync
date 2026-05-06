@@ -118,6 +118,14 @@ class GalleryViewModel(private val app: Application) {
     var lastTransferredHandles: List<Int> = emptyList()
         private set
 
+    /** Handles that failed during the last transfer attempt. Populated in [performTransfer]. */
+    var failedHandles: List<Int> = emptyList()
+        private set
+
+    /** Camera battery level (0–100), or null if the device doesn't report it. */
+    var batteryLevel: Int? = null
+        private set
+
     /** Current grid column count (2, 3, or 4). */
     var gridColumns: Int = 3
         private set
@@ -208,6 +216,7 @@ class GalleryViewModel(private val app: Application) {
 
                 cameraInfo = nikon.getCameraInfo(m)
                 storages = nikon.getStorages(m)
+                batteryLevel = nikon.getBatteryLevel(m)
                 Log.info(tag = TAG) {
                     "Connected: ${cameraInfo?.manufacturer} ${cameraInfo?.model}"
                 }
@@ -363,54 +372,82 @@ class GalleryViewModel(private val app: Application) {
 
     // ── Transfer ────────────────────────────────────────────────────────────
 
-    fun startTransfer() {
-        val m = mtp ?: return
-        val toTransfer = currentPhotos.mapNotNull { g ->
-            val h = if (g.raw != null && g.raw.handle in _selected) g.raw.handle
-                else if (g.jpg != null && g.jpg.handle in _selected) g.jpg.handle
+    /** Builds the transfer list by filtering [currentPhotos] with [handleFilter]. */
+    private fun buildTransferList(handleFilter: (Int) -> Boolean): List<Pair<NikonUsbManager.PhotoInfo, Int>> {
+        return currentPhotos.mapNotNull { g ->
+            val h = if (g.raw != null && handleFilter(g.raw.handle)) g.raw.handle
+                else if (g.jpg != null && handleFilter(g.jpg.handle)) g.jpg.handle
                 else return@mapNotNull null
             val photo = listOfNotNull(g.raw, g.jpg).find { it.handle == h }
                 ?: return@mapNotNull null
-            // Skip already-imported photos
-            val storageId = 0 // we don't track storageId in PhotoSyncManager currently
-            if (photoSyncManager.isAlreadyImported(storageId, photo.handle)) return@mapNotNull null
+            if (photoSyncManager.isAlreadyImported(0, photo.handle)) return@mapNotNull null
             photo to h
         }
-        if (toTransfer.isEmpty()) { _state.value = GalleryState.TransferDone(0); return }
+    }
 
+    /** Core transfer loop. Updates [_state], [_selected], and [failedHandles]. */
+    private suspend fun performTransfer(
+        toTransfer: List<Pair<NikonUsbManager.PhotoInfo, Int>>,
+    ) {
+        val m = mtp ?: return
         val totalBytes = toTransfer.sumOf { it.first.size }
         val startTime = System.currentTimeMillis()
         val savedUris = mutableListOf<Uri>()
         val transferredHandles = mutableListOf<Int>()
+        val failedList = mutableListOf<Int>()
 
-        syncJob?.cancel()
-        syncJob = scope.launch {
-            var ok = 0
-            var bytesAcc = 0L
-            for ((i, p) in toTransfer.withIndex()) {
-                if (!currentCoroutineContext().isActive) return@launch
-                _state.value = GalleryState.Transferring(
-                    TransferProgress(
-                        synced = i + 1,
-                        total = toTransfer.size,
-                        currentFile = p.first.name,
-                        bytesTransferred = bytesAcc,
-                        totalBytes = totalBytes,
-                        startTimeMillis = startTime,
-                    )
+        var ok = 0
+        var bytesAcc = 0L
+        for ((i, p) in toTransfer.withIndex()) {
+            if (!currentCoroutineContext().isActive) return
+            _state.value = GalleryState.Transferring(
+                TransferProgress(
+                    synced = i + 1,
+                    total = toTransfer.size,
+                    currentFile = p.first.name,
+                    bytesTransferred = bytesAcc,
+                    totalBytes = totalBytes,
+                    startTimeMillis = startTime,
                 )
-                val uri = saveToMediaStore(m, p.first)
-                if (uri != null) {
-                    ok++; _selected.remove(p.second)
-                    bytesAcc += p.first.size
-                    savedUris.add(uri)
-                    transferredHandles.add(p.second)
-                    photoSyncManager.markAsImported(0, p.first.handle)
-                }
+            )
+            val uri = saveToMediaStore(m, p.first)
+            if (uri != null) {
+                ok++; _selected.remove(p.second)
+                bytesAcc += p.first.size
+                savedUris.add(uri)
+                transferredHandles.add(p.second)
+                photoSyncManager.markAsImported(0, p.first.handle)
+            } else {
+                failedList.add(p.second)
             }
-            lastTransferredHandles = transferredHandles.toList()
-            _state.value = GalleryState.TransferDone(ok, savedUris.toList())
         }
+        lastTransferredHandles = transferredHandles.toList()
+        failedHandles = failedList.toList()
+        if (ok > 0) {
+            val prefs = UsbSyncPreferences(app)
+            prefs.addTransferRecord(ok, cameraInfo?.model ?: "Nikon")
+        }
+        _state.value = GalleryState.TransferDone(ok, savedUris.toList())
+    }
+
+    fun startTransfer() {
+        val toTransfer = buildTransferList { it in _selected }
+        if (toTransfer.isEmpty()) { _state.value = GalleryState.TransferDone(0); return }
+
+        failedHandles = emptyList()
+        syncJob?.cancel()
+        syncJob = scope.launch { performTransfer(toTransfer) }
+    }
+
+    fun retryFailedTransfers() {
+        if (failedHandles.isEmpty()) return
+        val toRetry = buildTransferList { it in failedHandles }
+        if (toRetry.isEmpty()) return
+
+        _selected.clear()
+        failedHandles = emptyList()
+        syncJob?.cancel()
+        syncJob = scope.launch { performTransfer(toRetry) }
     }
 
     /** Pull-to-refresh: reload current level. */

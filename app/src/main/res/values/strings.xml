@@ -258,10 +258,34 @@
     <string name="onboarding_title_3">一键传输</string>
     <string name="onboarding_desc_3">选择照片后轻点传输\n自动保存到手机相册\n已传过的照片不会重复导入</string>
 
+    <!-- Theme -->
+    <string name="settings_theme">主题</string>
+    <string name="settings_theme_system">跟随系统</string>
+    <string name="settings_theme_light">浅色</string>
+    <string name="settings_theme_dark">深色</string>
+
     <!-- Sprint 2: Delete from Camera -->
     <string name="usb_delete_confirm_title">确认删除</string>
     <string name="usb_delete_confirm_body">这些照片已安全保存到手机。\n从相机删除后无法恢复。\n\n确定要删除 %d 张照片吗？</string>
     <string name="usb_delete_confirm_yes">删除</string>
     <string name="usb_delete_confirm_no">取消</string>
     <string name="usb_delete_success">已删除 %d 张</string>
+
+    <!-- F14: Retry failed transfers -->
+    <string name="usb_retry_failed">重试失败的 %d 张</string>
+
+    <!-- Sprint 3: Settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_auto_sync">自动同步</string>
+    <string name="settings_auto_sync_desc">插线时自动导入新照片</string>
+    <string name="settings_grid_density">照片网格</string>
+    <string name="settings_history">传输历史</string>
+    <string name="settings_history_desc">查看以往的同步记录</string>
+    <string name="settings_onboarding">查看引导</string>
+    <string name="settings_onboarding_desc">重新查看使用指南</string>
+
+    <!-- Sprint 3: History -->
+    <string name="history_title">传输历史</string>
+    <string name="history_empty">暂无传输记录</string>
+    <string name="history_empty_desc">连接相机并传输照片后\n记录将显示在这里</string>
 </resources>
