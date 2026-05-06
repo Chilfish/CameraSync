@@ -168,13 +168,58 @@
 - [x] Pull-to-refresh
 - [x] Transfer dedup integration (PhotoSyncManager)
 - [x] Thumbnail preloading (first 30 after load)
-- [ ] EXIF metadata extraction and display (shutter speed, aperture, ISO, focal length)
+- [x] EXIF metadata extraction and display — F7 PhotoDetailSheet (Sprint 2)
 - [x] Haptic feedback for selection
-- [ ] Photo grouping configurable (by folder / by date / flat)
-- [ ] Photo sorting configurable (by name / by date / by size)
-- [ ] Grid columns configurable (2/3/4)
-- [ ] Download format preference (RAW+NEF / RAW only / JPEG only)
-- [ ] Auto-delete from camera after transfer (optional)
+- [ ] Photo grouping configurable (by folder / by date / flat) — deferred
+- [ ] Photo sorting configurable (by name / by date / by size) — deferred
+- [x] Grid columns configurable (2/3/4) — F10 (Sprint 2)
+- [ ] Download format preference (RAW+NEF / RAW only / JPEG only) — deferred
+- [x] Auto-delete from camera after transfer — F8 (Sprint 2)
+
+---
+
+---
+
+## v2.0 Feature Delivery (Sprints 1–3) ✅ COMPLETED
+
+> **2026-05-07**: Three sprints delivered 16 features. See `docs/PRD.md` for product spec.
+
+### Sprint 1 — Delight & Closure (v2.0) ✅
+- [x] F1 Transfer speed & ETA in TransferringContent
+- [x] F2 Post-transfer action sheet (View/Share/Delete)
+- [x] F3 Haptic feedback on transfer complete
+- [x] F4 Camera storage bar (used/total, color-coded)
+- [x] F5 Smart filter chips (全部/新照片/RAW/JPEG)
+- [x] F6 Rich notification with BigPictureStyle
+
+### Sprint 2 — Pro Photographer (v2.1) ✅
+- [x] F7 EXIF detail sheet (shutter/aperture/ISO/focal length)
+- [x] F8 Delete from camera after transfer (with safety confirmation)
+- [x] F9 Onboarding flow (3-screen swipeable, first-launch only)
+- [x] F10 Grid density toggle (2/3/4 columns)
+
+### Sprint 3 — Polish & Trust (v2.2) ✅
+- [x] F12 Camera battery indicator (best-effort via MTP)
+- [x] F13 Transfer history timeline (SharedPreferences persistence)
+- [x] F14 Retry failed transfers (extracted performTransfer loop)
+- [x] F15 Settings screen (auto-sync, grid, history, theme links)
+- [x] F16 Dark theme support (system/light/dark toggle)
+
+### New Files Created
+| File | Feature |
+|------|---------|
+| `usb/PhotoDetailSheet.kt` | F7 EXIF bottom sheet |
+| `onboarding/OnboardingScreen.kt` | F9 Swipeable onboarding |
+| `onboarding/OnboardingViewModel.kt` | F9 Onboarding state persistence |
+| `usb/TransferHistoryScreen.kt` | F13 Transfer history list |
+| `settings/SettingsScreen.kt` | F15 Settings page |
+
+### Deferred to Future
+- Photo grouping configurable (by folder / by date / flat)
+- Photo sorting configurable (by name / by date / by size)
+- Download format preference (RAW+NEF / RAW only / JPEG only)
+- Cloud backup integration
+- Video file support
 
 ---
 
@@ -199,6 +244,12 @@
 | Navigation | `NavRoute.kt` | ✅ |
 | Wiring | `MainActivity.kt` | ✅ |
 | Manifest | `AndroidManifest.xml` | ✅ |
+| **New (Sprint 1–3)** | | |
+| Photo Detail | `usb/PhotoDetailSheet.kt` | ✅ F7 EXIF |
+| Onboarding | `onboarding/OnboardingScreen.kt` | ✅ F9 |
+| Onboarding VM | `onboarding/OnboardingViewModel.kt` | ✅ F9 |
+| Transfer History | `usb/TransferHistoryScreen.kt` | ✅ F13 |
+| Settings | `settings/SettingsScreen.kt` | ✅ F15 |
 | **Deleted** | | |
 | PTP/IP debug | `ptp/*` (8 files) | ❌ Deleted |
 | Old USB debug | `usb/UsbSyncScreen.kt`, `UsbSyncViewModel.kt` | ❌ Deleted |
