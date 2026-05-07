@@ -229,9 +229,7 @@ private fun RootComposable(
                             storageId = key.storageId,
                             folderHandle = key.folderHandle,
                             folderName = key.folderName,
-                            onNavigateBack = {
-                                if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
-                            },
+                            onNavigateBack = { backStack.removeLastOrNull() },
                             onFolderClick = { folder ->
                                 backStack.add(
                                     NavRoute.GalleryFolder(folder.storageId, folder.info.handle, folder.info.name)
@@ -257,9 +255,7 @@ private fun RootComposable(
 
                         LogViewerScreen(
                             viewModel = logViewerViewModel,
-                            onNavigateBack = {
-                                if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
-                            },
+                            onNavigateBack = { backStack.removeLastOrNull() },
                         )
                     }
 
@@ -275,10 +271,9 @@ private fun RootComposable(
                                 backStack.removeLastOrNull()
                                 backStack.add(NavRoute.Onboarding)
                             },
-                            // Grouping/sorting/format take effect on next refresh in GalleryViewModel
-                            onGroupingChanged = {},
-                            onSortingChanged = {},
-                            onDownloadFormatChanged = {},
+                            onGroupingChanged = { galleryViewModel.requestReload() },
+                            onSortingChanged = { galleryViewModel.requestReload() },
+                            onDownloadFormatChanged = { galleryViewModel.requestReload() },
                         )
                     }
 
@@ -299,17 +294,9 @@ private fun RootComposable(
                         @SuppressLint("MissingPermission")
                         PairingScreen(
                             viewModel = pairingViewModel,
-                            onNavigateBack = {
-                                // Can't use removeLast before API 35
-                                // Ensure we don't remove the last item (must keep at least one
-                                // route)
-                                if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
-                            },
+                            onNavigateBack = { backStack.removeLastOrNull() },
                             onDevicePaired = {
-                                // Can't use removeLast before API 35
-                                // Ensure we don't remove the last item (must keep at least one
-                                // route)
-                                if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+                                backStack.removeLastOrNull()
                                 // Trigger a refresh so the newly paired device connects
                                 // immediately.
                                 androidx.core.content.ContextCompat.startForegroundService(

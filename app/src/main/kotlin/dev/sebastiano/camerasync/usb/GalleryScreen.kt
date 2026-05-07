@@ -74,6 +74,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,16 +92,38 @@ import kotlinx.coroutines.withContext
 @Composable
 fun GalleryScreen(
     viewModel: GalleryViewModel,
-    onNavigateToLogs: () -> Unit,
+    onNavigateToLogs: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onFolderClick: (GalleryEntry.Folder) -> Unit = {},
+    // ── Folder-mode params (null → root gallery) ──────────────────────────
+    storageId: Int? = null,
+    folderHandle: Int? = null,
+    folderName: String = "",
+    onNavigateBack: () -> Unit = {},
 ) {
     DisposableEffect(Unit) { viewModel.start(); onDispose { viewModel.stop() } }
+
+    // Load folder contents when in folder mode
+    if (storageId != null && folderHandle != null) {
+        LaunchedEffect(storageId, folderHandle) {
+            viewModel.loadFolder(storageId, folderHandle)
+        }
+    }
+
+    // Reload when settings change (e.g. grouping, sorting, download format)
+    LaunchedEffect(viewModel.needsReload) {
+        if (viewModel.needsReload) {
+            viewModel.loadRoot()
+            viewModel.needsReload = false
+        }
+    }
 
     val s = viewModel.state.value
     val selectionCount = viewModel.selectedCount
     val context = LocalContext.current
     val prefs = remember { UsbSyncPreferences(context) }
+
+    val inFolder = storageId != null
 
     // Preview bottom sheet state
     var showPreview by remember { mutableStateOf(false) }
@@ -109,12 +132,12 @@ fun GalleryScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             GalleryTopBar(
-                title = "USB 照片同步",
-                hasBack = false,
-                showSettings = true,
-                showLogs = true,
+                title = if (inFolder) folderName else stringResource(R.string.usb_title),
+                hasBack = inFolder,
+                showSettings = !inFolder,
+                showLogs = !inFolder,
                 selectionCount = selectionCount,
-                onBackClick = {},
+                onBackClick = { viewModel.deselectAll(); onNavigateBack() },
                 onLogsClick = onNavigateToLogs,
                 onSettingsClick = onNavigateToSettings,
                 onDeselectAll = viewModel::deselectAll,
@@ -132,17 +155,22 @@ fun GalleryScreen(
                     Button(
                         onClick = { showPreview = true },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    ) { Text("传输 $selectionCount 张照片") }
+                    ) { Text(stringResource(R.string.usb_action_transfer_count, selectionCount)) }
                 }
             }
         },
     ) { innerPadding ->
         Box(Modifier.padding(innerPadding).fillMaxSize()) {
             when (s) {
-                is GalleryState.Disconnected -> DisconnectedContent()
-                is GalleryState.Connecting -> ConnectingContent()
+                is GalleryState.Disconnected -> {
+                    if (inFolder) LaunchedEffect(Unit) { onNavigateBack() }
+                    else DisconnectedContent()
+                }
+                is GalleryState.Connecting -> {
+                    if (!inFolder) ConnectingContent()
+                }
                 is GalleryState.Loading -> LoadingContent(s.message)
-                is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = true, onFolderClick)
+                is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
                 is GalleryState.Empty -> EmptyCameraContent()
                 is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
                 is GalleryState.Transferring -> TransferringContent(s)
@@ -164,7 +192,7 @@ fun GalleryScreen(
     }
 }
 
-// ── Folder Gallery Screen ──────────────────────────────────────────────────
+// ── Folder Gallery Screen (thin wrapper) ───────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -176,70 +204,14 @@ fun GalleryFolderScreen(
     onNavigateBack: () -> Unit,
     onFolderClick: (GalleryEntry.Folder) -> Unit = {},
 ) {
-    LaunchedEffect(storageId, folderHandle) {
-        viewModel.loadFolder(storageId, folderHandle)
-    }
-
-    val s = viewModel.state.value
-    val selectionCount = viewModel.selectedCount
-    val context = LocalContext.current
-    val prefs = remember { UsbSyncPreferences(context) }
-
-    var showPreview by remember { mutableStateOf(false) }
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            GalleryTopBar(
-                title = folderName,
-                hasBack = true,
-                showLogs = false,
-                selectionCount = selectionCount,
-                onBackClick = { viewModel.deselectAll(); onNavigateBack() },
-                onLogsClick = {},
-                onDeselectAll = viewModel::deselectAll,
-                gridColumns = viewModel.gridColumns,
-                onGridChange = { viewModel.setGridColumns(it); prefs.setGridColumns(it) },
-            )
-        },
-        bottomBar = {
-            AnimatedVisibility(
-                visible = s is GalleryState.Browsing && selectionCount > 0,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it },
-            ) {
-                BottomAppBar {
-                    Button(
-                        onClick = { showPreview = true },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    ) { Text("传输 $selectionCount 张照片") }
-                }
-            }
-        },
-    ) { innerPadding ->
-        Box(Modifier.padding(innerPadding).fillMaxSize()) {
-            when (s) {
-                is GalleryState.Disconnected -> {
-                    LaunchedEffect(Unit) { onNavigateBack() }
-                }
-                is GalleryState.Loading -> LoadingContent(s.message)
-                is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = false, onFolderClick)
-                is GalleryState.Empty -> EmptyCameraContent()
-                is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
-                is GalleryState.Transferring -> TransferringContent(s)
-                is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
-                else -> {}
-            }
-
-            if (showPreview && s is GalleryState.Browsing) {
-                TransferPreviewSheet(
-                    viewModel = viewModel,
-                    onConfirm = { showPreview = false; viewModel.startTransfer() },
-                    onDismiss = { showPreview = false },
-                )
-            }
-        }
-    }
+    GalleryScreen(
+        viewModel = viewModel,
+        storageId = storageId,
+        folderHandle = folderHandle,
+        folderName = folderName,
+        onNavigateBack = onNavigateBack,
+        onFolderClick = onFolderClick,
+    )
 }
 
 // ── Top Bar ────────────────────────────────────────────────────────────────
@@ -261,13 +233,13 @@ private fun GalleryTopBar(
 ) {
     TopAppBar(
         title = {
-            if (selectionCount > 0) Text("已选 $selectionCount 张", fontWeight = FontWeight.Bold)
+            if (selectionCount > 0) Text(stringResource(R.string.usb_selected_count, selectionCount), fontWeight = FontWeight.Bold)
             else Text(title, fontWeight = FontWeight.Bold)
         },
         navigationIcon = {
             if (hasBack) {
                 IconButton(onClick = onBackClick) {
-                    Icon(painterResource(R.drawable.ic_arrow_back_24dp), "返回")
+                    Icon(painterResource(R.drawable.ic_arrow_back_24dp), stringResource(R.string.general_back))
                 }
             }
         },
@@ -276,21 +248,21 @@ private fun GalleryTopBar(
                 val next = when (gridColumns) { 2 -> 3; 3 -> 4; else -> 2 }
                 onGridChange(next)
             }) {
-                Icon(painterResource(android.R.drawable.ic_menu_view), "列数: $gridColumns")
+                Icon(painterResource(android.R.drawable.ic_menu_view), stringResource(R.string.usb_grid_columns, gridColumns))
             }
             if (selectionCount > 0) {
                 androidx.compose.material3.TextButton(onClick = onDeselectAll) {
-                    Text("取消")
+                    Text(stringResource(R.string.general_cancel))
                 }
             }
             if (showSettings) {
                 IconButton(onClick = onSettingsClick) {
-                    Icon(painterResource(R.drawable.ic_settings_24dp), "设置")
+                    Icon(painterResource(R.drawable.ic_settings_24dp), stringResource(R.string.settings_title))
                 }
             }
             if (showLogs) {
                 IconButton(onClick = onLogsClick) {
-                    Icon(painterResource(android.R.drawable.ic_menu_manage), "日志")
+                    Icon(painterResource(android.R.drawable.ic_menu_manage), stringResource(R.string.label_logs))
                 }
             }
         },
@@ -307,9 +279,9 @@ private fun DisconnectedContent() {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
                 modifier = Modifier.size(72.dp))
             Spacer(Modifier.height(16.dp))
-            Text("连接 Nikon Z30", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.usb_prompt_connect), fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("通过 USB-C 数据线连接\n插入后将自动识别",
+            Text(stringResource(R.string.usb_prompt_connect_desc),
                 fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center)
         }
@@ -322,7 +294,7 @@ private fun ConnectingContent() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator()
             Spacer(Modifier.height(16.dp))
-            Text("正在连接相机…", fontSize = 15.sp)
+            Text(stringResource(R.string.usb_status_connecting), fontSize = 15.sp)
         }
     }
 }
@@ -399,7 +371,7 @@ private fun BrowsingContent(
         // Folders section — full width (BY_FOLDER mode only)
         if (folders.isNotEmpty() && !isFlatMode) {
             item(span = StaggeredGridItemSpan.FullLine) {
-                Text("文件夹", fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                Text(stringResource(R.string.usb_label_folders), fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
@@ -447,7 +419,7 @@ private fun BrowsingContent(
             // BY_FOLDER or FLAT: show photos
             if (filteredPhotos.isNotEmpty()) {
                 item(span = StaggeredGridItemSpan.FullLine) {
-                    Text("照片 (${filteredPhotos.size})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                    Text(stringResource(R.string.usb_section_photos, filteredPhotos.size), fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
@@ -521,8 +493,8 @@ private fun DeviceInfoCard(
             }
             AnimatedVisibility(expanded) {
                 Column(Modifier.padding(top = 8.dp)) {
-                    info.serialNumber?.let { DetailRow("序列号", it) }
-                    info.deviceVersion?.let { DetailRow("固件版本", it) }
+                    info.serialNumber?.let { DetailRow(stringResource(R.string.usb_info_serial), it) }
+                    info.deviceVersion?.let { DetailRow(stringResource(R.string.usb_label_firmware), it) }
                 }
             }
         }
@@ -564,6 +536,51 @@ private fun FolderRow(folder: GalleryEntry.Folder, onClick: () -> Unit) {
     }
 }
 
+// ── Thumbnail Image ────────────────────────────────────────────────────────
+
+@Composable
+private fun ThumbnailImage(
+    handle: Int,
+    getThumbnail: suspend (Int) -> ByteArray?,
+    getOrientation: (Int) -> Int?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+    onAspectReady: ((Float) -> Unit)? = null,
+) {
+    var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
+    var loadingFailed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(handle) {
+        val bytes = withContext(Dispatchers.IO) { getThumbnail(handle) }
+        if (bytes == null) { loadingFailed = true; return@LaunchedEffect }
+
+        val raw = withContext(Dispatchers.IO) {
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } ?: run { loadingFailed = true; return@LaunchedEffect }
+
+        val fallback = getOrientation(handle)
+        val rotated = withContext(Dispatchers.IO) { rotateByExif(raw, bytes, fallback) }
+        thumb = rotated.asImageBitmap()
+        onAspectReady?.invoke(rotated.width.toFloat() / rotated.height.toFloat())
+    }
+
+    if (thumb != null) {
+        Image(
+            bitmap = thumb!!,
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = contentScale,
+        )
+    } else if (loadingFailed) {
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant))
+    } else {
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+            Alignment.Center) {
+            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        }
+    }
+}
+
 // ── Photo Cell ─────────────────────────────────────────────────────────────
 
 @Composable
@@ -589,30 +606,12 @@ private fun PhotoCell(
         else -> 3f / 2f
     }
 
-    var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
-
     // cellAspect: initially computed from orientation cache / thumbPix dimensions.
     // Once the real thumbnail loads and is rotated, the actual bitmap dimensions
     // take over (stored in loadedAspect). This avoids the staggered grid measuring
     // the cell at a wrong default ratio.
     var loadedAspect by remember { mutableStateOf<Float?>(null) }
     val cellAspect = loadedAspect ?: baseAspect
-
-    LaunchedEffect(handle) {
-        val bytes = withContext(Dispatchers.IO) { getThumbnail(handle) }
-        if (bytes == null) return@LaunchedEffect
-
-        val raw = withContext(Dispatchers.IO) {
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        } ?: return@LaunchedEffect
-
-        // Use orientation from cache as authoritative source;
-        // falls back to the thumbnail's own EXIF if cache is empty.
-        val fallback = getOrientation(handle)
-        val rotated = withContext(Dispatchers.IO) { rotateByExif(raw, bytes, fallback) }
-        thumb = rotated.asImageBitmap()
-        loadedAspect = rotated.width.toFloat() / rotated.height.toFloat()
-    }
 
     Box(
         modifier = Modifier
@@ -624,20 +623,14 @@ private fun PhotoCell(
                 onLongClick = { onToggle() },
             ),
     ) {
-        if (thumb != null) {
-            Image(
-                bitmap = thumb!!,
-                contentDescription = group.baseName,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            Box(Modifier.fillMaxSize()
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-                Alignment.Center) {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            }
-        }
+        ThumbnailImage(
+            handle = handle,
+            getThumbnail = getThumbnail,
+            getOrientation = getOrientation,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            onAspectReady = { loadedAspect = it },
+        )
 
         if (isSelected) {
             Box(Modifier.fillMaxSize()
@@ -719,9 +712,9 @@ private fun EmptyCameraContent() {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
                 modifier = Modifier.size(64.dp))
             Spacer(Modifier.height(12.dp))
-            Text("相机中无照片", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.usb_empty_title), fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("拍摄照片后会自动出现在这里", fontSize = 13.sp,
+            Text(stringResource(R.string.usb_empty_subtitle), fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -737,7 +730,7 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
             Text(message, fontSize = 14.sp, textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
-            Button(onClick = onRetry) { Text("重试") }
+            Button(onClick = onRetry) { Text(stringResource(R.string.usb_action_retry)) }
         }
     }
 }
@@ -771,18 +764,18 @@ private fun StorageStatusBar(
             tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(6.dp))
         Text(
-            "已用 ${formatFileSize(usedBytes)} / ${formatFileSize(totalBytes)}",
+            stringResource(R.string.usb_storage_used, formatFileSize(usedBytes), formatFileSize(totalBytes)),
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (ratio > 0.9f) {
             Spacer(Modifier.width(6.dp))
-            Text("⚠️ 空间不足", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+            Text(stringResource(R.string.usb_storage_low), fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
         }
         Spacer(Modifier.weight(1f))
         if (batteryLevel != null) {
             Text(
-                "🔋 $batteryLevel%",
+                stringResource(R.string.usb_battery_level, batteryLevel),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -815,25 +808,25 @@ private fun FilterChipsRow(
         FilterChip(
             selected = currentFilter == PhotoFilter.ALL,
             onClick = { onFilterChange(PhotoFilter.ALL) },
-            label = { Text("全部", fontSize = 13.sp) },
+            label = { Text(stringResource(R.string.usb_filter_all), fontSize = 13.sp) },
         )
         FilterChip(
             selected = currentFilter == PhotoFilter.NEW,
             onClick = { onFilterChange(PhotoFilter.NEW) },
-            label = { Text("新照片 ($newCount)", fontSize = 13.sp) },
+            label = { Text("${stringResource(R.string.usb_filter_new)} ($newCount)", fontSize = 13.sp) },
         )
         if (rawCount > 0) {
             FilterChip(
                 selected = currentFilter == PhotoFilter.RAW_ONLY,
                 onClick = { onFilterChange(PhotoFilter.RAW_ONLY) },
-                label = { Text("RAW ($rawCount)", fontSize = 13.sp) },
+                label = { Text("${stringResource(R.string.usb_filter_raw)} ($rawCount)", fontSize = 13.sp) },
             )
         }
         if (jpgCount > 0) {
             FilterChip(
                 selected = currentFilter == PhotoFilter.JPEG_ONLY,
                 onClick = { onFilterChange(PhotoFilter.JPEG_ONLY) },
-                label = { Text("JPEG ($jpgCount)", fontSize = 13.sp) },
+                label = { Text("${stringResource(R.string.usb_filter_jpeg)} ($jpgCount)", fontSize = 13.sp) },
             )
         }
     }
@@ -847,7 +840,7 @@ private fun TransferringContent(s: GalleryState.Transferring) {
                modifier = Modifier.padding(32.dp).fillMaxWidth()) {
             CircularProgressIndicator()
             Spacer(Modifier.height(24.dp))
-            Text("正在传输 ${p.currentFile}", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.usb_transferring_file, p.currentFile), fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
                 progress = { if (p.total > 0) p.synced.toFloat() / p.total else 0f },
@@ -898,9 +891,9 @@ private fun TransferDoneContent(
             ) {
                 Text("✨", fontSize = 40.sp)
                 Spacer(Modifier.height(12.dp))
-                Text("同步完成", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.usb_transfer_complete_title), fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
-                Text("已保存 ${s.synced} 张照片", fontSize = 15.sp,
+                Text(stringResource(R.string.usb_transfer_complete_count, s.synced), fontSize = 15.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(24.dp))
 
@@ -917,7 +910,7 @@ private fun TransferDoneContent(
                     ) {
                         Icon(painterResource(android.R.drawable.ic_menu_gallery), null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("在相册中查看")
+                        Text(stringResource(R.string.usb_action_view_in_gallery))
                     }
                     Spacer(Modifier.height(8.dp))
 
@@ -929,13 +922,13 @@ private fun TransferDoneContent(
                                     ArrayList(s.savedUris))
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
-                            context.startActivity(Intent.createChooser(intent, "分享照片"))
+                            context.startActivity(Intent.createChooser(intent, context.getString(R.string.usb_share_chooser_title)))
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Icon(painterResource(android.R.drawable.ic_menu_share), null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("分享")
+                        Text(stringResource(R.string.usb_action_share))
                     }
                     Spacer(Modifier.height(8.dp))
 
@@ -945,7 +938,7 @@ private fun TransferDoneContent(
                     ) {
                         Icon(painterResource(android.R.drawable.ic_menu_delete), null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("从相机删除")
+                        Text(stringResource(R.string.usb_action_delete_from_camera))
                     }
                 }
 
@@ -957,13 +950,13 @@ private fun TransferDoneContent(
                     ) {
                         Icon(painterResource(android.R.drawable.ic_menu_revert), null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("重试失败的 ${viewModel.failedHandles.size} 张")
+                        Text(stringResource(R.string.usb_retry_failed, viewModel.failedHandles.size))
                     }
                 }
 
                 Spacer(Modifier.height(12.dp))
                 TextButton(onClick = onDismiss) {
-                    Text("继续浏览")
+                    Text(stringResource(R.string.usb_action_continue_browsing))
                 }
             }
         }
@@ -973,8 +966,8 @@ private fun TransferDoneContent(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("确认删除", fontWeight = FontWeight.Bold) },
-            text = { Text("这些照片已安全保存到手机。\n从相机删除后无法恢复。\n\n确定要删除 ${s.synced} 张照片吗？") },
+            title = { Text(stringResource(R.string.usb_delete_confirm_title), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.usb_delete_confirm_body, s.synced)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -982,17 +975,17 @@ private fun TransferDoneContent(
                         scope.launch {
                             val deleted = viewModel.deleteTransferredPhotos(viewModel.lastTransferredHandles)
                             withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "已删除 $deleted 张", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.usb_delete_success, deleted), Toast.LENGTH_SHORT).show()
                             }
                         }
                     },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     ),
-                ) { Text("删除") }
+                ) { Text(stringResource(R.string.usb_delete_confirm_yes)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.general_cancel)) }
             },
         )
     }
@@ -1037,10 +1030,10 @@ private fun TransferPreviewSheet(
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
             ) {
-                Text("确认传输", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.usb_preview_title), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "${allSelectedPhotos.size} 个文件 (${totalGroups} 组照片)",
+                    stringResource(R.string.usb_preview_summary, allSelectedPhotos.size, totalGroups),
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1056,7 +1049,7 @@ private fun TransferPreviewSheet(
                     }
                 }
                 Text(
-                    "总大小: ${formatFileSize(totalSize)}",
+                    stringResource(R.string.usb_preview_total_size, formatFileSize(totalSize)),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(top = 4.dp),
@@ -1065,7 +1058,7 @@ private fun TransferPreviewSheet(
                 // Thumbnail previews
                 if (selectedGroups.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
-                    Text("预览", fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    Text(stringResource(R.string.usb_label_preview), fontSize = 13.sp, fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     Row(
@@ -1073,42 +1066,13 @@ private fun TransferPreviewSheet(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         for (group in selectedGroups) {
-                            var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
-                            LaunchedEffect(group.previewHandle) {
-                                val bytes = withContext(Dispatchers.IO) {
-                                    viewModel.getThumbnail(group.previewHandle)
-                                }
-                                if (bytes != null) {
-                                    val bmp = withContext(Dispatchers.IO) {
-                                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                                    }
-                                    if (bmp != null) {
-                                        val ori = viewModel.getOrientation(group.previewHandle)
-                                        val rotated = withContext(Dispatchers.IO) {
-                                            rotateByExif(bmp, bytes, ori)
-                                        }
-                                        thumb = rotated.asImageBitmap()
-                                    }
-                                }
-                            }
-                            Box(
-                                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                if (thumb != null) {
-                                    Image(
-                                        bitmap = thumb!!,
-                                        contentDescription = group.baseName,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop,
-                                    )
-                                } else {
-                                    CircularProgressIndicator(
-                                        Modifier.size(16.dp), strokeWidth = 2.dp,
-                                    )
-                                }
-                            }
+                            ThumbnailImage(
+                                handle = group.previewHandle,
+                                getThumbnail = viewModel::getThumbnail,
+                                getOrientation = viewModel::getOrientation,
+                                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)),
+                                contentScale = ContentScale.Crop,
+                            )
                         }
                         // "+N more" indicator
                         val remaining = totalGroups - selectedGroups.size
@@ -1140,13 +1104,13 @@ private fun TransferPreviewSheet(
                 ) {
                     Icon(painterResource(android.R.drawable.ic_menu_save), null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("开始传输")
+                    Text(stringResource(R.string.usb_action_start_transfer))
                 }
                 Spacer(Modifier.height(8.dp))
                 TextButton(onClick = {
                     scope.launch { sheetState.hide(); onDismiss() }
                 }, modifier = Modifier.fillMaxWidth()) {
-                    Text("取消")
+                    Text(stringResource(R.string.general_cancel))
                 }
             }
         }

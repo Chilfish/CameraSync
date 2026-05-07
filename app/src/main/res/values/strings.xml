@@ -288,4 +288,31 @@
     <string name="history_title">传输历史</string>
     <string name="history_empty">暂无传输记录</string>
     <string name="history_empty_desc">连接相机并传输照片后\n记录将显示在这里</string>
+
+    <!-- Gallery Screen -->
+    <string name="usb_title">USB 照片同步</string>
+    <string name="usb_selected_count">已选 %d 张</string>
+    <string name="general_cancel">取消</string>
+    <string name="usb_prompt_connect">连接 Nikon Z30</string>
+    <string name="usb_prompt_connect_desc">通过 USB-C 数据线连接\n插入后将自动识别</string>
+    <string name="usb_status_loading">正在读取…</string>
+    <string name="usb_status_loading_photos">正在读取照片…</string>
+    <string name="usb_label_folders">文件夹</string>
+    <string name="usb_action_transfer_count">传输 %d 张照片</string>
+    <string name="general_back">返回</string>
+    <string name="label_logs">日志</string>
+    <string name="usb_grid_columns">列数: %d</string>
+    <string name="usb_preview_title">确认传输</string>
+    <string name="usb_action_start_transfer">开始传输</string>
+    <string name="usb_label_preview">预览</string>
+    <string name="usb_empty_title">相机中无照片</string>
+    <string name="usb_empty_subtitle">拍摄照片后会自动出现在这里</string>
+    <string name="usb_label_firmware">固件版本</string>
+    <string name="usb_storage_low">⚠️ 空间不足</string>
+    <string name="usb_transferring_file">正在传输 %s</string>
+    <string name="usb_section_photos">照片 (%d)</string>
+    <string name="usb_battery_level">🔋 %d%%</string>
+    <string name="usb_share_chooser_title">分享照片</string>
+    <string name="usb_preview_summary">%1$d 个文件 (%2$d 组照片)</string>
+    <string name="usb_preview_total_size">总大小: %s</string>
 </resources>

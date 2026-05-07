@@ -14,8 +14,10 @@ import android.os.Build
 import android.net.Uri
 import android.provider.MediaStore
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.exifinterface.media.ExifInterface
 import com.juul.khronicle.Log
 import kotlinx.coroutines.CoroutineScope
@@ -131,15 +133,21 @@ class GalleryViewModel(private val app: Application) {
     var gridColumns: Int = 3
         private set
 
+    /** Set to true by [requestReload] to signal the UI to reload the gallery. */
+    var needsReload by mutableStateOf(false)
+
+    /** Requests a gallery reload when the user returns from settings, etc. */
+    fun requestReload() { needsReload = true }
+
     /** Preferences (auto-sync, format, grouping, sorting, theme, history). */
     val prefs = UsbSyncPreferences(app)
 
     /** Current photo grouping mode. */
-    var groupingMode: UsbSyncPreferences.PhotoGrouping = prefs.photoGrouping
+    var groupingMode: UsbSyncPreferences.PhotoGrouping by mutableStateOf(prefs.photoGrouping)
         private set
 
     /** Current photo sorting mode. */
-    var sortingMode: UsbSyncPreferences.PhotoSorting = prefs.photoSorting
+    var sortingMode: UsbSyncPreferences.PhotoSorting by mutableStateOf(prefs.photoSorting)
         private set
 
     private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -390,7 +398,7 @@ class GalleryViewModel(private val app: Application) {
 
     // ── Filtering ──────────────────────────────────────────────────────────
 
-    var filterMode: PhotoFilter = downloadFormatToFilter(prefs.downloadFormat)
+    var filterMode: PhotoFilter by mutableStateOf(downloadFormatToFilter(prefs.downloadFormat))
         private set
 
     fun setFilter(mode: PhotoFilter) {

@@ -381,7 +381,7 @@ private fun eventCodeName(code: Int): String? =
         else -> null
     }
 
-fun formatFileSize(bytes: Long): String =
+internal fun formatFileSize(bytes: Long): String =
     when {
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> "${bytes / 1024} KB"

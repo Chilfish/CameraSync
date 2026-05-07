@@ -17,10 +17,13 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,94 +62,101 @@ val onboardingPages = listOf(
     ),
 )
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(onDone: () -> Unit) {
     val pagerState = rememberPagerState(pageCount = { onboardingPages.size })
     val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize().padding(32.dp)) {
-        // Skip button
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = onDone) {
-                Text("跳过", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-
-        Spacer(Modifier.weight(0.5f))
-
-        // Pager
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.weight(2f),
-        ) { page ->
-            val data = onboardingPages[page]
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            ) {
-                Icon(
-                    painter = painterResource(data.icon),
-                    contentDescription = null,
-                    modifier = Modifier.size(80.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(Modifier.height(32.dp))
-                Text(
-                    data.title,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    data.description,
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 22.sp,
-                )
-            }
-        }
-
-        // Page indicators
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            repeat(onboardingPages.size) { index ->
-                val isSelected = pagerState.currentPage == index
-                val color by animateColorAsState(
-                    if (isSelected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant,
-                )
-                Box(
-                    modifier = Modifier
-                        .padding(4.dp)
-                        .size(if (isSelected) 24.dp else 8.dp, 8.dp)
-                        .clip(CircleShape)
-                        .background(color),
-                )
-            }
-        }
-
-        Spacer(Modifier.weight(0.5f))
-
-        // Bottom button
-        val isLastPage = pagerState.currentPage == onboardingPages.size - 1
-        Button(
-            onClick = {
-                if (isLastPage) onDone()
-                else scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-            },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-        ) {
-            Text(
-                if (isLastPage) "开始使用" else "下一步",
-                fontSize = 16.sp,
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { },
+                actions = {
+                    TextButton(onClick = onDone) {
+                        Text("跳过")
+                    }
+                },
             )
-        }
+        },
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding).padding(32.dp)) {
 
-        Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.weight(0.5f))
+
+            // Pager
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(2f),
+            ) { page ->
+                val data = onboardingPages[page]
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(data.icon),
+                        contentDescription = null,
+                        modifier = Modifier.size(80.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.height(32.dp))
+                    Text(
+                        data.title,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        data.description,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 22.sp,
+                    )
+                }
+            }
+
+            // Page indicators
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                repeat(onboardingPages.size) { index ->
+                    val isSelected = pagerState.currentPage == index
+                    val color by animateColorAsState(
+                        if (isSelected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceVariant,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .size(if (isSelected) 24.dp else 8.dp, 8.dp)
+                            .clip(CircleShape)
+                            .background(color),
+                    )
+                }
+            }
+
+            Spacer(Modifier.weight(0.5f))
+
+            // Bottom button
+            val isLastPage = pagerState.currentPage == onboardingPages.size - 1
+            Button(
+                onClick = {
+                    if (isLastPage) onDone()
+                    else scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) {
+                Text(
+                    if (isLastPage) "开始使用" else "下一步",
+                    fontSize = 16.sp,
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }
