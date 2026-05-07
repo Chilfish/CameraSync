@@ -214,6 +214,17 @@ class GalleryViewModel(private val app: Application) {
             }
         )
 
+    // Full-photo download cache — keyed by handle, stores full NEF/JPEG bytes (up to 26MB each).
+    // LRU eviction at 12 entries to cap memory at ~300MB. Cleared on disconnect.
+    // Thread-safe: accessed from PhotoDetailSheet coroutine (IO) and cleared from main thread.
+    private val fullPhotoCache =
+        java.util.Collections.synchronizedMap(
+            object : LinkedHashMap<Int, ByteArray>(12, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, ByteArray>?) =
+                    size > 12
+            }
+        )
+
     // EXIF orientation cache — extracted from MTP thumbnail bytes, keyed by handle.
     // Uses ExifInterface.ORIENTATION_* constants. Populated by getThumbnail().
     // ConcurrentHashMap because writes (IO) and reads (main) happen on different threads.
@@ -490,6 +501,9 @@ class GalleryViewModel(private val app: Application) {
      * Uses MTP importFile to temp, reads bytes, deletes temp. Returns null on failure.
      */
     suspend fun downloadFullPhoto(handle: Int): ByteArray? {
+        // Check cache first — avoids re-downloading 26MB NEF files
+        fullPhotoCache[handle]?.let { return it }
+
         val m = mtp ?: return null
         return withContext(Dispatchers.IO) {
             try {
@@ -499,12 +513,19 @@ class GalleryViewModel(private val app: Application) {
                 if (!ok) return@withContext null
                 val bytes = tempFile.readBytes()
                 tempFile.delete()
+                fullPhotoCache[handle] = bytes
                 bytes
             } catch (e: Exception) {
                 Log.error(tag = "GalleryVM", throwable = e) { "downloadFullPhoto failed" }
                 null
             }
         }
+    }
+
+    /** Returns true if any photo in the group has already been imported. */
+    fun isGroupImported(group: GalleryEntry.PhotoGroup): Boolean {
+        val handles = listOfNotNull(group.raw?.handle, group.jpg?.handle)
+        return handles.any { photoSyncManager.isAlreadyImported(0, it) }
     }
 
     // ── Selection ──────────────────────────────────────────────────────────
@@ -721,6 +742,7 @@ class GalleryViewModel(private val app: Application) {
     fun closeMtp() {
         nikon.closeMtpDevice()
         mtp = null
+        fullPhotoCache.clear()
     }
 
     // ── MediaStore ──────────────────────────────────────────────────────────

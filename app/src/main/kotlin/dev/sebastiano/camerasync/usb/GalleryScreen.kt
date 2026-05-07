@@ -467,6 +467,7 @@ private fun BrowsingContent(
                             PhotoCell(
                                 group = group,
                                 isSelected = vm.isGroupSelected(group),
+                                isImported = vm.isGroupImported(group),
                                 onToggle = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     vm.toggleSelection(group)
@@ -502,6 +503,7 @@ private fun BrowsingContent(
                         PhotoCell(
                             group = group,
                             isSelected = vm.isGroupSelected(group),
+                            isImported = vm.isGroupImported(group),
                             onToggle = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 vm.toggleSelection(group)
@@ -708,6 +710,7 @@ private fun ThumbnailImage(
 private fun PhotoCell(
     group: GalleryEntry.PhotoGroup,
     isSelected: Boolean,
+    isImported: Boolean = false,
     onToggle: () -> Unit,
     getThumbnail: suspend (Int) -> ByteArray?,
     getOrientation: (Int) -> Int?,
@@ -778,6 +781,21 @@ private fun PhotoCell(
                 Alignment.Center,
             ) {
                 Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // Already-imported indicator — subtle green badge at top-right
+        if (isImported && !isSelected) {
+            Box(
+                Modifier.align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(18.dp)
+                    .background(Color(0xFF4CAF50).copy(alpha = 0.85f), CircleShape),
+                Alignment.Center,
+            ) {
+                Text(
+                    "✓", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                )
             }
         }
     }
