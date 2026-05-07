@@ -242,7 +242,6 @@ private fun DevicesListContent(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-
                     if (!state.isIgnoringBatteryOptimizations) {
                         BatteryOptimizationWarning(
                             onEnableClick = onBatteryOptimizationClick,
@@ -275,7 +274,6 @@ private fun DevicesListContent(
         }
     }
 }
-
 
 @Preview(name = "Top App Bar - Sync Enabled", showBackground = true)
 @Composable

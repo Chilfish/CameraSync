@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import java.io.ByteArrayInputStream
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
@@ -33,8 +32,10 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,17 +49,14 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import dev.sebastiano.camerasync.R
+import java.io.ByteArrayInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -101,13 +100,14 @@ fun GalleryScreen(
     folderName: String = "",
     onNavigateBack: () -> Unit = {},
 ) {
-    DisposableEffect(Unit) { viewModel.start(); onDispose { viewModel.stop() } }
+    DisposableEffect(Unit) {
+        viewModel.start()
+        onDispose { viewModel.stop() }
+    }
 
     // Load folder contents when in folder mode
     if (storageId != null && folderHandle != null) {
-        LaunchedEffect(storageId, folderHandle) {
-            viewModel.loadFolder(storageId, folderHandle)
-        }
+        LaunchedEffect(storageId, folderHandle) { viewModel.loadFolder(storageId, folderHandle) }
     }
 
     // Reload when settings change (e.g. grouping, sorting, download format)
@@ -137,12 +137,18 @@ fun GalleryScreen(
                 showSettings = !inFolder,
                 showLogs = !inFolder,
                 selectionCount = selectionCount,
-                onBackClick = { viewModel.deselectAll(); onNavigateBack() },
+                onBackClick = {
+                    viewModel.deselectAll()
+                    onNavigateBack()
+                },
                 onLogsClick = onNavigateToLogs,
                 onSettingsClick = onNavigateToSettings,
                 onDeselectAll = viewModel::deselectAll,
                 gridColumns = viewModel.gridColumns,
-                onGridChange = { viewModel.setGridColumns(it); prefs.setGridColumns(it) },
+                onGridChange = {
+                    viewModel.gridColumns = it
+                    prefs.setGridColumns(it)
+                },
             )
         },
         bottomBar = {
@@ -155,7 +161,9 @@ fun GalleryScreen(
                     Button(
                         onClick = { showPreview = true },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    ) { Text(stringResource(R.string.usb_action_transfer_count, selectionCount)) }
+                    ) {
+                        Text(stringResource(R.string.usb_action_transfer_count, selectionCount))
+                    }
                 }
             }
         },
@@ -170,11 +178,13 @@ fun GalleryScreen(
                     if (!inFolder) ConnectingContent()
                 }
                 is GalleryState.Loading -> LoadingContent(s.message)
-                is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
+                is GalleryState.Browsing ->
+                    BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
                 is GalleryState.Empty -> EmptyCameraContent()
                 is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
                 is GalleryState.Transferring -> TransferringContent(s)
-                is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
+                is GalleryState.TransferDone ->
+                    TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
             }
         }
 
@@ -233,22 +243,39 @@ private fun GalleryTopBar(
 ) {
     TopAppBar(
         title = {
-            if (selectionCount > 0) Text(stringResource(R.string.usb_selected_count, selectionCount), fontWeight = FontWeight.Bold)
+            if (selectionCount > 0)
+                Text(
+                    stringResource(R.string.usb_selected_count, selectionCount),
+                    fontWeight = FontWeight.Bold,
+                )
             else Text(title, fontWeight = FontWeight.Bold)
         },
         navigationIcon = {
             if (hasBack) {
                 IconButton(onClick = onBackClick) {
-                    Icon(painterResource(R.drawable.ic_arrow_back_24dp), stringResource(R.string.general_back))
+                    Icon(
+                        painterResource(R.drawable.ic_arrow_back_24dp),
+                        stringResource(R.string.general_back),
+                    )
                 }
             }
         },
         actions = {
-            IconButton(onClick = {
-                val next = when (gridColumns) { 2 -> 3; 3 -> 4; else -> 2 }
-                onGridChange(next)
-            }) {
-                Icon(painterResource(android.R.drawable.ic_menu_view), stringResource(R.string.usb_grid_columns, gridColumns))
+            IconButton(
+                onClick = {
+                    val next =
+                        when (gridColumns) {
+                            2 -> 3
+                            3 -> 4
+                            else -> 2
+                        }
+                    onGridChange(next)
+                }
+            ) {
+                Icon(
+                    painterResource(android.R.drawable.ic_menu_view),
+                    stringResource(R.string.usb_grid_columns, gridColumns),
+                )
             }
             if (selectionCount > 0) {
                 androidx.compose.material3.TextButton(onClick = onDeselectAll) {
@@ -257,12 +284,18 @@ private fun GalleryTopBar(
             }
             if (showSettings) {
                 IconButton(onClick = onSettingsClick) {
-                    Icon(painterResource(R.drawable.ic_settings_24dp), stringResource(R.string.settings_title))
+                    Icon(
+                        painterResource(R.drawable.ic_settings_24dp),
+                        stringResource(R.string.settings_title),
+                    )
                 }
             }
             if (showLogs) {
                 IconButton(onClick = onLogsClick) {
-                    Icon(painterResource(android.R.drawable.ic_menu_manage), stringResource(R.string.label_logs))
+                    Icon(
+                        painterResource(android.R.drawable.ic_menu_manage),
+                        stringResource(R.string.label_logs),
+                    )
                 }
             }
         },
@@ -275,15 +308,25 @@ private fun GalleryTopBar(
 private fun DisconnectedContent() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(painterResource(R.drawable.ic_usb_24dp), null,
+            Icon(
+                painterResource(R.drawable.ic_usb_24dp),
+                null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                modifier = Modifier.size(72.dp))
+                modifier = Modifier.size(72.dp),
+            )
             Spacer(Modifier.height(16.dp))
-            Text(stringResource(R.string.usb_prompt_connect), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.usb_prompt_connect),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+            )
             Spacer(Modifier.height(6.dp))
-            Text(stringResource(R.string.usb_prompt_connect_desc),
-                fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center)
+            Text(
+                stringResource(R.string.usb_prompt_connect_desc),
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -302,8 +345,10 @@ private fun ConnectingContent() {
 @Composable
 private fun LoadingContent(message: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp)) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp),
+        ) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp))
             Text(message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -325,7 +370,10 @@ private fun BrowsingContent(
     val folders = entries.filterIsInstance<GalleryEntry.Folder>()
     val dateSections = entries.filterIsInstance<GalleryEntry.DateSection>()
 
-    if (entries.isEmpty()) { EmptyCameraContent(); return }
+    if (entries.isEmpty()) {
+        EmptyCameraContent()
+        return
+    }
 
     val haptic = LocalHapticFeedback.current
     val rawCount = photos.count { it.hasRaw }
@@ -335,10 +383,8 @@ private fun BrowsingContent(
     val isFlatMode = vm.groupingMode != UsbSyncPreferences.PhotoGrouping.BY_FOLDER
 
     var detailGroup by remember { mutableStateOf<GalleryEntry.PhotoGroup?>(null) }
-    var detailThumbBytes by remember { mutableStateOf<ByteArray?>(null) }
 
-    // Storage & filter UI above the grid
-    Column {
+    Column(modifier = Modifier.fillMaxSize()) {
         StorageStatusBar(state.storages, batteryLevel = vm.batteryLevel)
         FilterChipsRow(
             currentFilter = vm.filterMode,
@@ -347,107 +393,143 @@ private fun BrowsingContent(
             jpgCount = jpgCount,
             onFilterChange = vm::setFilter,
         )
-    }
 
-    PullToRefreshBox(
-        isRefreshing = false,
-        onRefresh = { vm.refresh() },
-    ) {
-        LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Fixed(vm.gridColumns),
-            contentPadding = PaddingValues(bottom = 80.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalItemSpacing = 4.dp,
+        PullToRefreshBox(
+            isRefreshing = false,
+            onRefresh = { vm.refresh() },
+            modifier = Modifier.weight(1f),
         ) {
-        // Device info — full width (root only)
-        if (isRoot) {
-            state.cameraInfo?.let { info ->
-                item(span = StaggeredGridItemSpan.FullLine) {
-                    DeviceInfoCard(info, state.storages)
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(vm.gridColumns),
+                contentPadding = PaddingValues(bottom = 80.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalItemSpacing = 4.dp,
+            ) {
+                // Device info — full width (root only)
+                if (isRoot) {
+                    state.cameraInfo?.let { info ->
+                        item(span = StaggeredGridItemSpan.FullLine) {
+                            DeviceInfoCard(info, state.storages)
+                        }
+                    }
                 }
-            }
-        }
 
-        // Folders section — full width (BY_FOLDER mode only)
-        if (folders.isNotEmpty() && !isFlatMode) {
-            item(span = StaggeredGridItemSpan.FullLine) {
-                Text(stringResource(R.string.usb_label_folders), fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            }
-            for (i in folders.indices) {
-                val folder = folders[i]
-                item(key = "f_${folder.storageId}_${folder.info.handle}",
-                    span = StaggeredGridItemSpan.FullLine) {
-                    FolderRow(folder, onClick = { onFolderClick(folder) })
+                // Folders section — full width (BY_FOLDER mode only)
+                if (folders.isNotEmpty() && !isFlatMode) {
+                    item(span = StaggeredGridItemSpan.FullLine) {
+                        Text(
+                            stringResource(R.string.usb_label_folders),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                    for (i in folders.indices) {
+                        val folder = folders[i]
+                        item(
+                            key = "f_${folder.storageId}_${folder.info.handle}",
+                            span = StaggeredGridItemSpan.FullLine,
+                        ) {
+                            FolderRow(folder, onClick = { onFolderClick(folder) })
+                        }
+                    }
                 }
-            }
-        }
 
-        // BY_DATE mode: render date sections + photos interleaved
-        if (dateSections.isNotEmpty()) {
-            for (section in dateSections) {
-                item(key = "ds_${section.date}", span = StaggeredGridItemSpan.FullLine) {
-                    Text(
-                        "${section.date}  (${section.count})",
-                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-                // Find photos for this date section
-                val datePhotos = filteredPhotos.filter { group ->
-                    val ts = maxOf(group.raw?.dateModified ?: 0L, group.jpg?.dateModified ?: 0L)
-                    val dateFmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                    dateFmt.format(java.util.Date(ts)) == section.date
-                }
-                items(datePhotos, key = { it.baseName }) { group ->
-                    PhotoCell(
-                        group = group,
-                        isSelected = vm.isGroupSelected(group),
-                        onToggle = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            vm.toggleSelection(group)
-                        },
-                        getThumbnail = vm::getThumbnail,
-                        getOrientation = vm::getOrientation,
-                        onPhotoClick = { detailGroup = group; detailThumbBytes = vm.getThumbnail(group.previewHandle) },
-                    )
-                }
-            }
-        } else {
-            // BY_FOLDER or FLAT: show photos
-            if (filteredPhotos.isNotEmpty()) {
-                item(span = StaggeredGridItemSpan.FullLine) {
-                    Text(stringResource(R.string.usb_section_photos, filteredPhotos.size), fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                }
-            }
+                // BY_DATE mode: render date sections + photos interleaved
+                if (dateSections.isNotEmpty()) {
+                    for (section in dateSections) {
+                        item(key = "ds_${section.date}", span = StaggeredGridItemSpan.FullLine) {
+                            Text(
+                                "${section.date}  (${section.count})",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
+                        // Find photos for this date section
+                        val datePhotos =
+                            filteredPhotos.filter { group ->
+                                val ts =
+                                    maxOf(
+                                        group.raw?.dateModified ?: 0L,
+                                        group.jpg?.dateModified ?: 0L,
+                                    )
+                                val dateFmt =
+                                    java.text.SimpleDateFormat(
+                                        "yyyy-MM-dd",
+                                        java.util.Locale.getDefault(),
+                                    )
+                                dateFmt.format(java.util.Date(ts)) == section.date
+                            }
+                        items(datePhotos, key = { it.baseName }) { group ->
+                            PhotoCell(
+                                group = group,
+                                isSelected = vm.isGroupSelected(group),
+                                onToggle = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    vm.toggleSelection(group)
+                                },
+                                getThumbnail = vm::getThumbnail,
+                                getOrientation = vm::getOrientation,
+                                onPhotoClick = {
+                                    if (vm.selectedCount > 0) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        vm.toggleSelection(group)
+                                    } else {
+                                        detailGroup = group
+                                    }
+                                },
+                            )
+                        }
+                    }
+                } else {
+                    // BY_FOLDER or FLAT: show photos
+                    if (filteredPhotos.isNotEmpty()) {
+                        item(span = StaggeredGridItemSpan.FullLine) {
+                            Text(
+                                stringResource(R.string.usb_section_photos, filteredPhotos.size),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
 
-            items(filteredPhotos, key = { it.baseName }) { group ->
-                PhotoCell(
-                    group = group,
-                    isSelected = vm.isGroupSelected(group),
-                    onToggle = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        vm.toggleSelection(group)
-                    },
-                    getThumbnail = vm::getThumbnail,
-                    getOrientation = vm::getOrientation,
-                    onPhotoClick = { detailGroup = group; detailThumbBytes = vm.getThumbnail(group.previewHandle) },
-                )
-            }
-        }
-    }
-    } // PullToRefreshBox
+                    items(filteredPhotos, key = { it.baseName }) { group ->
+                        PhotoCell(
+                            group = group,
+                            isSelected = vm.isGroupSelected(group),
+                            onToggle = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                vm.toggleSelection(group)
+                            },
+                            getThumbnail = vm::getThumbnail,
+                            getOrientation = vm::getOrientation,
+                            onPhotoClick = {
+                                if (vm.selectedCount > 0) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    vm.toggleSelection(group)
+                                } else {
+                                    detailGroup = group
+                                }
+                            },
+                        )
+                    }
+                }
+            } // LazyVerticalStaggeredGrid
+        } // PullToRefreshBox
+    } // Column
 
     detailGroup?.let { group ->
         val photo = group.jpg ?: group.raw ?: return@let
+        val thumbBytes = vm.getThumbnail(group.previewHandle)
         PhotoDetailSheet(
-            thumbnailBytes = detailThumbBytes,
+            thumbnailBytes = thumbBytes,
             photoInfo = photo,
-            onDismiss = { detailGroup = null; detailThumbBytes = null },
+            onDismiss = { detailGroup = null },
         )
     }
 }
@@ -462,39 +544,60 @@ private fun DeviceInfoCard(
     var expanded by remember { mutableStateOf(false) }
 
     Card(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-            .clickable { expanded = !expanded },
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clickable {
+            expanded = !expanded
+        },
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(0.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_photo_camera_48dp), null,
-                    Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    painterResource(R.drawable.ic_photo_camera_48dp),
+                    null,
+                    Modifier.size(28.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("${info.manufacturer} ${info.model}",
-                        fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                    val storageLine = storages.joinToString("  ") {
-                        "${it.description}  ${formatFileSize(it.freeSpace)} / ${formatFileSize(it.maxCapacity)}"
-                    }
-                    Text(storageLine, fontSize = 12.sp,
+                    Text(
+                        "${info.manufacturer} ${info.model}",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                    )
+                    val storageLine =
+                        storages.joinToString("  ") {
+                            "${it.description}  ${formatFileSize(it.freeSpace)} / ${formatFileSize(it.maxCapacity)}"
+                        }
+                    Text(
+                        storageLine,
+                        fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 Icon(
-                    painterResource(if (expanded) R.drawable.ic_collapse_24dp
-                        else R.drawable.ic_expand_24dp),
-                    null, Modifier.size(20.dp).padding(top = 4.dp),
+                    painterResource(
+                        if (expanded) R.drawable.ic_collapse_24dp else R.drawable.ic_expand_24dp
+                    ),
+                    null,
+                    Modifier.size(20.dp).padding(top = 4.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 )
             }
             AnimatedVisibility(expanded) {
                 Column(Modifier.padding(top = 8.dp)) {
-                    info.serialNumber?.let { DetailRow(stringResource(R.string.usb_info_serial), it) }
-                    info.deviceVersion?.let { DetailRow(stringResource(R.string.usb_label_firmware), it) }
+                    info.serialNumber?.let {
+                        DetailRow(stringResource(R.string.usb_info_serial), it)
+                    }
+                    info.deviceVersion?.let {
+                        DetailRow(stringResource(R.string.usb_label_firmware), it)
+                    }
                 }
             }
         }
@@ -504,8 +607,7 @@ private fun DeviceInfoCard(
 @Composable
 private fun DetailRow(label: String, value: String) {
     Row(Modifier.padding(vertical = 2.dp)) {
-        Text("$label  ", fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("$label  ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
@@ -515,23 +617,36 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 private fun FolderRow(folder: GalleryEntry.Folder, onClick: () -> Unit) {
     Card(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp)
-            .clickable { onClick() },
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp).clickable {
+            onClick()
+        },
         shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(0.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            ),
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(painterResource(R.drawable.ic_filter_list_24dp), null,
+            Icon(
+                painterResource(R.drawable.ic_filter_list_24dp),
+                null,
                 Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+            )
             Spacer(Modifier.width(12.dp))
-            Text(folder.info.name, fontWeight = FontWeight.Medium, fontSize = 15.sp,
-                modifier = Modifier.weight(1f))
-            Icon(painterResource(R.drawable.ic_arrow_back_24dp), null,
+            Text(
+                folder.info.name,
+                fontWeight = FontWeight.Medium,
+                fontSize = 15.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                painterResource(R.drawable.ic_arrow_back_24dp),
+                null,
                 Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+            )
         }
     }
 }
@@ -552,11 +667,17 @@ private fun ThumbnailImage(
 
     LaunchedEffect(handle) {
         val bytes = withContext(Dispatchers.IO) { getThumbnail(handle) }
-        if (bytes == null) { loadingFailed = true; return@LaunchedEffect }
+        if (bytes == null) {
+            loadingFailed = true
+            return@LaunchedEffect
+        }
 
-        val raw = withContext(Dispatchers.IO) {
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        } ?: run { loadingFailed = true; return@LaunchedEffect }
+        val raw =
+            withContext(Dispatchers.IO) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+                ?: run {
+                    loadingFailed = true
+                    return@LaunchedEffect
+                }
 
         val fallback = getOrientation(handle)
         val rotated = withContext(Dispatchers.IO) { rotateByExif(raw, bytes, fallback) }
@@ -574,8 +695,7 @@ private fun ThumbnailImage(
     } else if (loadingFailed) {
         Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant))
     } else {
-        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant),
-            Alignment.Center) {
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), Alignment.Center) {
             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
         }
     }
@@ -600,11 +720,21 @@ private fun PhotoCell(
     val photoInfo = group.jpg ?: group.raw
     val thumbPixW = photoInfo?.thumbPixWidth ?: 0
     val thumbPixH = photoInfo?.thumbPixHeight ?: 0
-    val baseAspect = when {
-        cachedOri != null -> orientationToAspect(cachedOri, thumbPixW, thumbPixH)
-        thumbPixW > 0 && thumbPixH > 0 -> thumbPixW.toFloat() / thumbPixH.toFloat()
-        else -> 3f / 2f
-    }
+    val baseAspect =
+        when {
+            cachedOri != null -> orientationToAspect(cachedOri, thumbPixW, thumbPixH)
+            thumbPixW > 0 && thumbPixH > 0 -> {
+                // When orientation is unknown (e.g. NEF TIFF thumbnail), use
+                // thumbPix dimensions to detect portrait photos. If width < height
+                // the photo is portrait — swap the aspect ratio accordingly.
+                if (thumbPixW < thumbPixH) {
+                    thumbPixH.toFloat() / thumbPixW.toFloat()
+                } else {
+                    thumbPixW.toFloat() / thumbPixH.toFloat()
+                }
+            }
+            else -> 3f / 2f
+        }
 
     // cellAspect: initially computed from orientation cache / thumbPix dimensions.
     // Once the real thumbnail loads and is rotated, the actual bitmap dimensions
@@ -614,14 +744,14 @@ private fun PhotoCell(
     val cellAspect = loadedAspect ?: baseAspect
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(cellAspect)
-            .clip(RoundedCornerShape(8.dp))
-            .combinedClickable(
-                onClick = { onPhotoClick?.invoke() },
-                onLongClick = { onToggle() },
-            ),
+        modifier =
+            Modifier.fillMaxWidth()
+                .aspectRatio(cellAspect)
+                .clip(RoundedCornerShape(8.dp))
+                .combinedClickable(
+                    onClick = { onPhotoClick?.invoke() },
+                    onLongClick = { onToggle() },
+                )
     ) {
         ThumbnailImage(
             handle = handle,
@@ -633,14 +763,19 @@ private fun PhotoCell(
         )
 
         if (isSelected) {
-            Box(Modifier.fillMaxSize()
-                .border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            Box(
+                Modifier.fillMaxSize()
+                    .border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
             )
 
-            Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(22.dp)
-                .background(MaterialTheme.colorScheme.primary, CircleShape),
-                Alignment.Center) {
+            Box(
+                Modifier.align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .size(22.dp)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                Alignment.Center,
+            ) {
                 Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
@@ -648,44 +783,52 @@ private fun PhotoCell(
 }
 
 /**
- * Rotates [bitmap] according to EXIF orientation in [jpegBytes].
- * If the thumbnail's own EXIF says NORMAL (or is missing) but we have
- * [fallbackOrientation] (e.g. extracted earlier from the JPEG counterpart),
- * the fallback is used instead.
+ * Rotates [bitmap] according to EXIF orientation in [jpegBytes]. If the thumbnail's own EXIF says
+ * NORMAL (or is missing) but we have [fallbackOrientation] (e.g. extracted earlier from the JPEG
+ * counterpart), the fallback is used instead.
  */
 private fun rotateByExif(
     bitmap: Bitmap,
     jpegBytes: ByteArray,
     fallbackOrientation: Int? = null,
-): Bitmap = try {
-    val exif = ExifInterface(ByteArrayInputStream(jpegBytes))
-    var orientation = exif.getAttributeInt(
-        ExifInterface.TAG_ORIENTATION,
-        ExifInterface.ORIENTATION_NORMAL,
-    )
-    // If the thumbnail doesn't specify a rotation but we have prior knowledge
-    // that the original photo IS rotated, use the fallback.
-    if (orientation == ExifInterface.ORIENTATION_NORMAL && fallbackOrientation != null &&
-        fallbackOrientation != ExifInterface.ORIENTATION_NORMAL) {
-        orientation = fallbackOrientation
+): Bitmap =
+    try {
+        val exif = ExifInterface(ByteArrayInputStream(jpegBytes))
+        var orientation =
+            exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        // If the thumbnail doesn't specify a rotation but we have prior knowledge
+        // that the original photo IS rotated, use the fallback.
+        if (
+            orientation == ExifInterface.ORIENTATION_NORMAL &&
+                fallbackOrientation != null &&
+                fallbackOrientation != ExifInterface.ORIENTATION_NORMAL
+        ) {
+            orientation = fallbackOrientation
+        }
+        val degrees =
+            when (orientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+        if (degrees == 0f) bitmap
+        else
+            Bitmap.createBitmap(
+                bitmap,
+                0,
+                0,
+                bitmap.width,
+                bitmap.height,
+                Matrix().apply { postRotate(degrees) },
+                true,
+            )
+    } catch (_: Exception) {
+        bitmap
     }
-    val degrees = when (orientation) {
-        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-        else -> 0f
-    }
-    if (degrees == 0f) bitmap
-    else Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height,
-        Matrix().apply { postRotate(degrees) }, true)
-} catch (_: Exception) { bitmap }
 
 /** Converts an EXIF orientation to an aspect ratio (width/height). */
-private fun orientationToAspect(
-    orientation: Int,
-    thumbPixW: Int,
-    thumbPixH: Int,
-): Float {
+private fun orientationToAspect(orientation: Int, thumbPixW: Int, thumbPixH: Int): Float {
     // If we have real thumbnail dimensions, swap them for rotated orientations
     if (thumbPixW > 0 && thumbPixH > 0) {
         return when (orientation) {
@@ -708,14 +851,24 @@ private fun orientationToAspect(
 private fun EmptyCameraContent() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(painterResource(R.drawable.ic_photo_camera_24dp), null,
+            Icon(
+                painterResource(R.drawable.ic_photo_camera_24dp),
+                null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                modifier = Modifier.size(64.dp))
+                modifier = Modifier.size(64.dp),
+            )
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(R.string.usb_empty_title), fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.usb_empty_title),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+            )
             Spacer(Modifier.height(6.dp))
-            Text(stringResource(R.string.usb_empty_subtitle), fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.usb_empty_subtitle),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -724,11 +877,19 @@ private fun EmptyCameraContent() {
 private fun ErrorContent(message: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(painterResource(R.drawable.ic_error_24dp), null,
-                tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(56.dp))
+            Icon(
+                painterResource(R.drawable.ic_error_24dp),
+                null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(56.dp),
+            )
             Spacer(Modifier.height(12.dp))
-            Text(message, fontSize = 14.sp, textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                message,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(16.dp))
             Button(onClick = onRetry) { Text(stringResource(R.string.usb_action_retry)) }
         }
@@ -749,28 +910,40 @@ private fun StorageStatusBar(
 
     val usedBytes = totalBytes - freeBytes
     val ratio = usedBytes.toFloat() / totalBytes
-    val color = when {
-        ratio < 0.8f -> MaterialTheme.colorScheme.primary
-        ratio < 0.9f -> Color(0xFFFFA000) // amber
-        else -> MaterialTheme.colorScheme.error
-    }
+    val color =
+        when {
+            ratio < 0.8f -> MaterialTheme.colorScheme.primary
+            ratio < 0.9f -> Color(0xFFFFA000) // amber
+            else -> MaterialTheme.colorScheme.error
+        }
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(android.R.drawable.ic_menu_save), null,
+        Icon(
+            painterResource(android.R.drawable.ic_menu_save),
+            null,
             modifier = Modifier.size(14.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Spacer(Modifier.width(6.dp))
         Text(
-            stringResource(R.string.usb_storage_used, formatFileSize(usedBytes), formatFileSize(totalBytes)),
+            stringResource(
+                R.string.usb_storage_used,
+                formatFileSize(usedBytes),
+                formatFileSize(totalBytes),
+            ),
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (ratio > 0.9f) {
             Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.usb_storage_low), fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+            Text(
+                stringResource(R.string.usb_storage_low),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
         Spacer(Modifier.weight(1f))
         if (batteryLevel != null) {
@@ -813,20 +986,29 @@ private fun FilterChipsRow(
         FilterChip(
             selected = currentFilter == PhotoFilter.NEW,
             onClick = { onFilterChange(PhotoFilter.NEW) },
-            label = { Text("${stringResource(R.string.usb_filter_new)} ($newCount)", fontSize = 13.sp) },
+            label = {
+                Text("${stringResource(R.string.usb_filter_new)} ($newCount)", fontSize = 13.sp)
+            },
         )
         if (rawCount > 0) {
             FilterChip(
                 selected = currentFilter == PhotoFilter.RAW_ONLY,
                 onClick = { onFilterChange(PhotoFilter.RAW_ONLY) },
-                label = { Text("${stringResource(R.string.usb_filter_raw)} ($rawCount)", fontSize = 13.sp) },
+                label = {
+                    Text("${stringResource(R.string.usb_filter_raw)} ($rawCount)", fontSize = 13.sp)
+                },
             )
         }
         if (jpgCount > 0) {
             FilterChip(
                 selected = currentFilter == PhotoFilter.JPEG_ONLY,
                 onClick = { onFilterChange(PhotoFilter.JPEG_ONLY) },
-                label = { Text("${stringResource(R.string.usb_filter_jpeg)} ($jpgCount)", fontSize = 13.sp) },
+                label = {
+                    Text(
+                        "${stringResource(R.string.usb_filter_jpeg)} ($jpgCount)",
+                        fontSize = 13.sp,
+                    )
+                },
             )
         }
     }
@@ -836,26 +1018,41 @@ private fun FilterChipsRow(
 private fun TransferringContent(s: GalleryState.Transferring) {
     val p = s.progress
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally,
-               modifier = Modifier.padding(32.dp).fillMaxWidth()) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp).fillMaxWidth(),
+        ) {
             CircularProgressIndicator()
             Spacer(Modifier.height(24.dp))
-            Text(stringResource(R.string.usb_transferring_file, p.currentFile), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(
+                stringResource(R.string.usb_transferring_file, p.currentFile),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+            )
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
                 progress = { if (p.total > 0) p.synced.toFloat() / p.total else 0f },
                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
             )
             Spacer(Modifier.height(8.dp))
-            Text("${p.synced} / ${p.total}", fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "${p.synced} / ${p.total}",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             if (p.speedBps > 0) {
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(p.speedFormatted, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(p.etaFormatted, fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        p.speedFormatted,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        p.etaFormatted,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -881,34 +1078,44 @@ private fun TransferDoneContent(
     }
 
     if (sheetState.isVisible) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = sheetState,
-        ) {
+        ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+                modifier =
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text("✨", fontSize = 40.sp)
                 Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.usb_transfer_complete_title), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.usb_transfer_complete_title),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(4.dp))
-                Text(stringResource(R.string.usb_transfer_complete_count, s.synced), fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    stringResource(R.string.usb_transfer_complete_count, s.synced),
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(24.dp))
 
                 if (s.savedUris.isNotEmpty()) {
                     OutlinedButton(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(s.savedUris.first(), "image/*")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
+                            val intent =
+                                Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(s.savedUris.first(), "image/*")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
                             context.startActivity(intent)
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(painterResource(android.R.drawable.ic_menu_gallery), null, Modifier.size(18.dp))
+                        Icon(
+                            painterResource(android.R.drawable.ic_menu_gallery),
+                            null,
+                            Modifier.size(18.dp),
+                        )
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.usb_action_view_in_gallery))
                     }
@@ -916,17 +1123,29 @@ private fun TransferDoneContent(
 
                     OutlinedButton(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                                type = "image/*"
-                                putParcelableArrayListExtra(Intent.EXTRA_STREAM,
-                                    ArrayList(s.savedUris))
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            context.startActivity(Intent.createChooser(intent, context.getString(R.string.usb_share_chooser_title)))
+                            val intent =
+                                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                    type = "image/*"
+                                    putParcelableArrayListExtra(
+                                        Intent.EXTRA_STREAM,
+                                        ArrayList(s.savedUris),
+                                    )
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                            context.startActivity(
+                                Intent.createChooser(
+                                    intent,
+                                    context.getString(R.string.usb_share_chooser_title),
+                                )
+                            )
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(painterResource(android.R.drawable.ic_menu_share), null, Modifier.size(18.dp))
+                        Icon(
+                            painterResource(android.R.drawable.ic_menu_share),
+                            null,
+                            Modifier.size(18.dp),
+                        )
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.usb_action_share))
                     }
@@ -936,7 +1155,11 @@ private fun TransferDoneContent(
                         onClick = { showDeleteConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(painterResource(android.R.drawable.ic_menu_delete), null, Modifier.size(18.dp))
+                        Icon(
+                            painterResource(android.R.drawable.ic_menu_delete),
+                            null,
+                            Modifier.size(18.dp),
+                        )
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.usb_action_delete_from_camera))
                     }
@@ -945,12 +1168,21 @@ private fun TransferDoneContent(
                 if (viewModel.failedHandles.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(
-                        onClick = { onDismiss(); viewModel.retryFailedTransfers() },
+                        onClick = {
+                            onDismiss()
+                            viewModel.retryFailedTransfers()
+                        },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(painterResource(android.R.drawable.ic_menu_revert), null, Modifier.size(18.dp))
+                        Icon(
+                            painterResource(android.R.drawable.ic_menu_revert),
+                            null,
+                            Modifier.size(18.dp),
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.usb_retry_failed, viewModel.failedHandles.size))
+                        Text(
+                            stringResource(R.string.usb_retry_failed, viewModel.failedHandles.size)
+                        )
                     }
                 }
 
@@ -966,26 +1198,42 @@ private fun TransferDoneContent(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text(stringResource(R.string.usb_delete_confirm_title), fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    stringResource(R.string.usb_delete_confirm_title),
+                    fontWeight = FontWeight.Bold,
+                )
+            },
             text = { Text(stringResource(R.string.usb_delete_confirm_body, s.synced)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showDeleteConfirm = false
                         scope.launch {
-                            val deleted = viewModel.deleteTransferredPhotos(viewModel.lastTransferredHandles)
+                            val deleted =
+                                viewModel.deleteTransferredPhotos(viewModel.lastTransferredHandles)
                             withContext(Dispatchers.Main) {
-                                Toast.makeText(context, context.getString(R.string.usb_delete_success, deleted), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                        context,
+                                        context.getString(R.string.usb_delete_success, deleted),
+                                        Toast.LENGTH_SHORT,
+                                    )
+                                    .show()
                             }
                         }
                     },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                ) { Text(stringResource(R.string.usb_delete_confirm_yes)) }
+                    colors =
+                        ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                ) {
+                    Text(stringResource(R.string.usb_delete_confirm_yes))
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.general_cancel)) }
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(stringResource(R.string.general_cancel))
+                }
             },
         )
     }
@@ -1003,19 +1251,23 @@ private fun TransferPreviewSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
-    // Collect selected photo groups for preview
-    val selectedGroups = viewModel.getFilteredGroups()
-        .filter { viewModel.isGroupSelected(it) }
-        .take(6) // show first 6 thumbnails
+    // Collect selected photo groups for preview.
+    // Use currentPhotos (unfiltered) so the preview shows ALL selected
+    // photos regardless of the active filter chip (e.g. "仅 RAW").
+    val selectedGroups =
+        viewModel.currentPhotos
+            .filter { viewModel.isGroupSelected(it) }
+            .take(6) // show first 6 thumbnails
 
     val totalSelected = viewModel.selectedCount
     val totalGroups = selectedGroups.size
 
-    // Compute total size of all selected photos
-    val allSelectedPhotos = viewModel.getFilteredGroups()
-        .flatMap { listOfNotNull(it.raw, it.jpg) }
-        .filter { photo -> viewModel.isSelected(photo.handle) }
-        .distinctBy { it.handle }
+    // Compute total size of all selected photos (unfiltered).
+    val allSelectedPhotos =
+        viewModel.currentPhotos
+            .flatMap { listOfNotNull(it.raw, it.jpg) }
+            .filter { photo -> viewModel.isSelected(photo.handle) }
+            .distinctBy { it.handle }
     val totalSize = allSelectedPhotos.sumOf { it.size }
     val rawCount = allSelectedPhotos.count { it.formatName == "NEF(RAW)" }
     val jpgCount = allSelectedPhotos.count { it.formatName in setOf("JPEG", "EXIF_JPEG") }
@@ -1023,17 +1275,23 @@ private fun TransferPreviewSheet(
     LaunchedEffect(Unit) { sheetState.show() }
 
     if (sheetState.isVisible) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = sheetState,
-        ) {
+        ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+                modifier =
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)
             ) {
-                Text(stringResource(R.string.usb_preview_title), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.usb_preview_title),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    stringResource(R.string.usb_preview_summary, allSelectedPhotos.size, totalGroups),
+                    stringResource(
+                        R.string.usb_preview_summary,
+                        allSelectedPhotos.size,
+                        totalGroups,
+                    ),
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1042,10 +1300,18 @@ private fun TransferPreviewSheet(
                 if (rawCount > 0 || jpgCount > 0) {
                     Spacer(Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        if (jpgCount > 0) Text("$jpgCount JPEG", fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (rawCount > 0) Text("$rawCount RAW", fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (jpgCount > 0)
+                            Text(
+                                "$jpgCount JPEG",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        if (rawCount > 0)
+                            Text(
+                                "$rawCount RAW",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                     }
                 }
                 Text(
@@ -1058,8 +1324,12 @@ private fun TransferPreviewSheet(
                 // Thumbnail previews
                 if (selectedGroups.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
-                    Text(stringResource(R.string.usb_label_preview), fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        stringResource(R.string.usb_label_preview),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Spacer(Modifier.height(8.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1078,8 +1348,10 @@ private fun TransferPreviewSheet(
                         val remaining = totalGroups - selectedGroups.size
                         if (remaining > 0) {
                             Box(
-                                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                modifier =
+                                    Modifier.size(56.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
@@ -1098,18 +1370,31 @@ private fun TransferPreviewSheet(
                 // Confirm / Cancel buttons
                 Button(
                     onClick = {
-                        scope.launch { sheetState.hide(); onConfirm() }
+                        scope.launch {
+                            sheetState.hide()
+                            onConfirm()
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(painterResource(android.R.drawable.ic_menu_save), null, Modifier.size(18.dp))
+                    Icon(
+                        painterResource(android.R.drawable.ic_menu_save),
+                        null,
+                        Modifier.size(18.dp),
+                    )
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.usb_action_start_transfer))
                 }
                 Spacer(Modifier.height(8.dp))
-                TextButton(onClick = {
-                    scope.launch { sheetState.hide(); onDismiss() }
-                }, modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            sheetState.hide()
+                            onDismiss()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text(stringResource(R.string.general_cancel))
                 }
             }

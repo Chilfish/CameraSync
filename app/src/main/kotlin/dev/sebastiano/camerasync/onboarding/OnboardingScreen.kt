@@ -1,6 +1,7 @@
 package dev.sebastiano.camerasync.onboarding
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -38,29 +38,26 @@ import androidx.compose.ui.unit.sp
 import dev.sebastiano.camerasync.R
 import kotlinx.coroutines.launch
 
-data class OnboardingPage(
-    val icon: Int,
-    val title: String,
-    val description: String,
-)
+data class OnboardingPage(val icon: Int, val title: String, val description: String)
 
-val onboardingPages = listOf(
-    OnboardingPage(
-        icon = R.drawable.ic_launcher_foreground,
-        title = "连接你的尼康相机",
-        description = "使用 USB-C 数据线连接相机和手机\n请将相机设置为 MTP/PTP 模式",
-    ),
-    OnboardingPage(
-        icon = R.drawable.ic_launcher_foreground,
-        title = "浏览与选择",
-        description = "在手机上直接浏览相机中的照片\n支持 RAW+JPEG 分组显示\n长按即可多选",
-    ),
-    OnboardingPage(
-        icon = R.drawable.ic_launcher_foreground,
-        title = "一键传输",
-        description = "选择照片后轻点传输\n自动保存到手机相册\n已传过的照片不会重复导入",
-    ),
-)
+val onboardingPages =
+    listOf(
+        OnboardingPage(
+            icon = R.drawable.ic_launcher_foreground,
+            title = "连接你的尼康相机",
+            description = "使用 USB-C 数据线连接相机和手机\n请将相机设置为 MTP/PTP 模式",
+        ),
+        OnboardingPage(
+            icon = R.drawable.ic_launcher_foreground,
+            title = "浏览与选择",
+            description = "在手机上直接浏览相机中的照片\n支持 RAW+JPEG 分组显示\n长按即可多选",
+        ),
+        OnboardingPage(
+            icon = R.drawable.ic_launcher_foreground,
+            title = "一键传输",
+            description = "选择照片后轻点传输\n自动保存到手机相册\n已传过的照片不会重复导入",
+        ),
+    )
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -70,25 +67,14 @@ fun OnboardingScreen(onDone: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { },
-                actions = {
-                    TextButton(onClick = onDone) {
-                        Text("跳过")
-                    }
-                },
-            )
-        },
+            TopAppBar(title = {}, actions = { TextButton(onClick = onDone) { Text("跳过") } })
+        }
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding).padding(32.dp)) {
-
             Spacer(Modifier.weight(0.5f))
 
             // Pager
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.weight(2f),
-            ) { page ->
+            HorizontalPager(state = pagerState, modifier = Modifier.weight(2f)) { page ->
                 val data = onboardingPages[page]
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -125,16 +111,17 @@ fun OnboardingScreen(onDone: () -> Unit) {
             ) {
                 repeat(onboardingPages.size) { index ->
                     val isSelected = pagerState.currentPage == index
-                    val color by animateColorAsState(
-                        if (isSelected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant,
-                    )
+                    val color by
+                        animateColorAsState(
+                            if (isSelected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
                     Box(
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .size(if (isSelected) 24.dp else 8.dp, 8.dp)
-                            .clip(CircleShape)
-                            .background(color),
+                        modifier =
+                            Modifier.padding(4.dp)
+                                .size(if (isSelected) 24.dp else 8.dp, 8.dp)
+                                .clip(CircleShape)
+                                .background(color)
                     )
                 }
             }
@@ -150,10 +137,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
             ) {
-                Text(
-                    if (isLastPage) "开始使用" else "下一步",
-                    fontSize = 16.sp,
-                )
+                Text(if (isLastPage) "开始使用" else "下一步", fontSize = 16.sp)
             }
 
             Spacer(Modifier.height(16.dp))

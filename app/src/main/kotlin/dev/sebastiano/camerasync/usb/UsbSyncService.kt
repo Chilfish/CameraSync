@@ -1,6 +1,5 @@
 package dev.sebastiano.camerasync.usb
 
-import android.Manifest
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Notification
 import android.app.Service
@@ -34,9 +33,9 @@ private const val TAG = "UsbSyncService"
 /**
  * Foreground service that handles USB MTP photo sync from Nikon cameras.
  *
- * Auto-starts on [ACTION_SYNC] intent (typically triggered by USB_DEVICE_ATTACHED).
- * Performs a full sync — connects to the camera, enumerates photos, downloads new ones —
- * then updates the notification with results and stops itself.
+ * Auto-starts on [ACTION_SYNC] intent (typically triggered by USB_DEVICE_ATTACHED). Performs a full
+ * sync — connects to the camera, enumerates photos, downloads new ones — then updates the
+ * notification with results and stops itself.
  *
  * The service runs briefly (duration of the sync) and is not persistent like
  * [MultiDeviceSyncService].
@@ -48,8 +47,7 @@ class UsbSyncService : Service(), CoroutineScope {
 
     private val binder by lazy { UsbSyncServiceBinder() }
 
-    private val _serviceState =
-        MutableStateFlow<UsbSyncServiceState>(UsbSyncServiceState.Stopped)
+    private val _serviceState = MutableStateFlow<UsbSyncServiceState>(UsbSyncServiceState.Stopped)
 
     /** Current state of the USB sync service. */
     val serviceState: StateFlow<UsbSyncServiceState> = _serviceState.asStateFlow()
@@ -119,7 +117,10 @@ class UsbSyncService : Service(), CoroutineScope {
                 }
 
                 _serviceState.value = UsbSyncServiceState.Stopped
-                ServiceCompat.stopForeground(this@UsbSyncService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                ServiceCompat.stopForeground(
+                    this@UsbSyncService,
+                    ServiceCompat.STOP_FOREGROUND_REMOVE,
+                )
                 NotificationManagerCompat.from(this@UsbSyncService).cancel(NOTIFICATION_ID)
                 stopSelf()
             } catch (e: Exception) {
@@ -144,11 +145,8 @@ class UsbSyncService : Service(), CoroutineScope {
     }
 
     private fun startForegroundNotification() {
-        val notification = buildNotification(
-            title = "Nikon USB 同步",
-            content = "准备同步…",
-            ongoing = true,
-        )
+        val notification =
+            buildNotification(title = "Nikon USB 同步", content = "准备同步…", ongoing = true)
 
         ServiceCompat.startForeground(
             this,
@@ -162,38 +160,30 @@ class UsbSyncService : Service(), CoroutineScope {
         val title = if (complete) "同步完成" else "正在同步"
         val content = if (complete) "已同步 $synced 张照片" else "$synced / $total 张照片"
 
-        val notification = buildNotification(
-            title = title,
-            content = content,
-            ongoing = !complete,
-        )
+        val notification = buildNotification(title = title, content = content, ongoing = !complete)
 
         NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
     }
 
     private fun updateErrorNotification(message: String) {
-        val notification = buildNotification(
-            title = "USB 同步失败",
-            content = message,
-            ongoing = false,
-        )
+        val notification = buildNotification(title = "USB 同步失败", content = message, ongoing = false)
         NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
     }
 
     private fun showCompletionNotification(result: SyncResult) {
-        val thumbnail: Bitmap? = result.savedUris.firstOrNull()?.let { uri ->
-            decodeThumbnail(this, uri)
-        }
+        val thumbnail: Bitmap? =
+            result.savedUris.firstOrNull()?.let { uri -> decodeThumbnail(this, uri) }
 
         val title = getString(R.string.usb_notif_sync_complete_title)
         val body = getString(R.string.usb_notif_sync_complete_body, result.synced)
 
-        val builder = NotificationCompat.Builder(this, USB_SYNC_CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setSmallIcon(android.R.drawable.ic_menu_camera)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        val builder =
+            NotificationCompat.Builder(this, USB_SYNC_CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setSmallIcon(android.R.drawable.ic_menu_camera)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
 
         if (thumbnail != null) {
             builder.setStyle(
@@ -212,10 +202,11 @@ class UsbSyncService : Service(), CoroutineScope {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeStream(input, null, options)
-                scale = maxOf(
-                    (options.outWidth / maxSize).coerceAtLeast(1),
-                    (options.outHeight / maxSize).coerceAtLeast(1),
-                )
+                scale =
+                    maxOf(
+                        (options.outWidth / maxSize).coerceAtLeast(1),
+                        (options.outHeight / maxSize).coerceAtLeast(1),
+                    )
             }
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val opts = BitmapFactory.Options().apply { inSampleSize = scale }
@@ -226,11 +217,7 @@ class UsbSyncService : Service(), CoroutineScope {
         }
     }
 
-    private fun buildNotification(
-        title: String,
-        content: String,
-        ongoing: Boolean,
-    ): Notification {
+    private fun buildNotification(title: String, content: String, ongoing: Boolean): Notification {
         return NotificationCompat.Builder(this, USB_SYNC_CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(content)

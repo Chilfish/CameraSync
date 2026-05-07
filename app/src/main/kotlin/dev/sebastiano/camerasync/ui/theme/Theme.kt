@@ -70,11 +70,12 @@ fun CameraSyncTheme(
     dynamicColor: Boolean = false, // Disabled by default for expressive branding
     content: @Composable () -> Unit,
 ) {
-    val useDarkTheme = when (themeMode) {
-        "dark" -> true
-        "light" -> false
-        else -> darkTheme // system default
-    }
+    val useDarkTheme =
+        when (themeMode) {
+            "dark" -> true
+            "light" -> false
+            else -> darkTheme // system default
+        }
 
     val colorScheme =
         when {

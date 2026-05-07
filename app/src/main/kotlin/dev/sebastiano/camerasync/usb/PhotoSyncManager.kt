@@ -4,11 +4,11 @@ import android.content.Context
 import android.content.SharedPreferences
 
 /**
- * Tracks which MTP photo handles have already been imported, enabling
- * deduplication across sync sessions.
+ * Tracks which MTP photo handles have already been imported, enabling deduplication across sync
+ * sessions.
  *
- * Handles are tied to a specific USB session — if the camera's session changes,
- * old handles become invalid and will be pruned automatically.
+ * Handles are tied to a specific USB session — if the camera's session changes, old handles become
+ * invalid and will be pruned automatically.
  */
 class PhotoSyncManager(context: Context) {
 
@@ -39,7 +39,8 @@ class PhotoSyncManager(context: Context) {
     }
 
     /** Returns the total number of tracked handles. */
-    val trackedCount: Int get() = prefs.all.size
+    val trackedCount: Int
+        get() = prefs.all.size
 
     private fun key(storageId: Int, handle: Int): String = "s${storageId}_h$handle"
 

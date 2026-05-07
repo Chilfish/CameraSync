@@ -106,11 +106,12 @@ class CameraSyncApp : Application(), Provider {
     private fun registerUsbSyncChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java)
-            val channel = NotificationChannel(
-                UsbSyncService.USB_SYNC_CHANNEL_ID,
-                "USB 同步",
-                NotificationManager.IMPORTANCE_LOW,
-            )
+            val channel =
+                NotificationChannel(
+                    UsbSyncService.USB_SYNC_CHANNEL_ID,
+                    "USB 同步",
+                    NotificationManager.IMPORTANCE_LOW,
+                )
             nm.createNotificationChannel(channel)
         }
     }

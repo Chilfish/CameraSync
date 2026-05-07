@@ -30,17 +30,14 @@ import androidx.compose.ui.unit.sp
 import dev.sebastiano.camerasync.R
 
 data class TransferRecord(
-    val date: String,       // "yyyy-MM-dd HH:mm"
+    val date: String, // "yyyy-MM-dd HH:mm"
     val photoCount: Int,
     val cameraModel: String,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransferHistoryScreen(
-    records: List<TransferRecord>,
-    onNavigateBack: () -> Unit,
-) {
+fun TransferHistoryScreen(records: List<TransferRecord>, onNavigateBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -51,19 +48,25 @@ fun TransferHistoryScreen(
                     }
                 },
             )
-        },
+        }
     ) { padding ->
         if (records.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("📷", fontSize = 48.sp)
                     Spacer(Modifier.height(12.dp))
-                    Text("暂无传输记录", fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(4.dp))
-                    Text("连接相机并传输照片后\n记录将显示在这里", fontSize = 14.sp,
+                    Text(
+                        "暂无传输记录",
+                        fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 20.sp)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "连接相机并传输照片后\n记录将显示在这里",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 20.sp,
+                    )
                 }
             }
         } else {
@@ -81,12 +84,18 @@ fun TransferHistoryScreen(
                         ) {
                             Column {
                                 Text(record.date, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                Text(record.cameraModel, fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    record.cameraModel,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
-                            Text("${record.photoCount} 张", fontSize = 16.sp,
+                            Text(
+                                "${record.photoCount} 张",
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary)
+                                color = MaterialTheme.colorScheme.primary,
+                            )
                         }
                     }
                 }

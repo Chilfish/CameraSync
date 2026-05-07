@@ -8,35 +8,34 @@ import android.mtp.MtpDevice
 import android.net.Uri
 import android.provider.MediaStore
 import com.juul.khronicle.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileInputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 private const val TAG = "UsbSyncCoordinator"
 
 sealed interface UsbSyncServiceState {
     data object Idle : UsbSyncServiceState
+
     data object Stopped : UsbSyncServiceState
-    data class Syncing(val synced: Int, val total: Int, val currentFile: String)
-        : UsbSyncServiceState
+
+    data class Syncing(val synced: Int, val total: Int, val currentFile: String) :
+        UsbSyncServiceState
+
     data class Completed(val synced: Int, val total: Int) : UsbSyncServiceState
+
     data class Error(val message: String) : UsbSyncServiceState
 }
 
 /**
- * Coordinates the USB MTP sync lifecycle: connect, enumerate, detect new photos,
- * and download them.
+ * Coordinates the USB MTP sync lifecycle: connect, enumerate, detect new photos, and download them.
  *
- * Used by [UsbSyncService] for background auto-sync. Can also be used by the
- * foreground UI (via [UsbSyncViewModel]) for manual sync.
+ * Used by [UsbSyncService] for background auto-sync. Can also be used by the foreground UI (via
+ * [UsbSyncViewModel]) for manual sync.
  */
 class UsbSyncCoordinator(
     private val context: Context,
@@ -53,16 +52,15 @@ class UsbSyncCoordinator(
     private var usbDevice: UsbDevice? = null
 
     /**
-     * Attempts to find and connect to a Nikon USB camera, list its photos,
-     * and download any new ones.
+     * Attempts to find and connect to a Nikon USB camera, list its photos, and download any new
+     * ones.
      *
      * @return the number of newly imported photos (0 if already synced).
      */
     suspend fun syncOnce(): SyncResult {
         try {
             // Find the camera
-            val device = usbManager.deviceList.values
-                .firstOrNull { it.vendorId == 0x04B0 }
+            val device = usbManager.deviceList.values.firstOrNull { it.vendorId == 0x04B0 }
             if (device == null) {
                 Log.warn(tag = TAG) { "No Nikon USB device found" }
                 return SyncResult(0, 0, 0, "No camera found")
@@ -97,11 +95,14 @@ class UsbSyncCoordinator(
                     val photos = nikonUsbManager.listPhotos(mtp, storage.id)
                     totalPhotos += photos.size
 
-                    val newOnes = photos.filter { !photoSyncManager.isAlreadyImported(storage.id, it.handle) }
+                    val newOnes =
+                        photos.filter { !photoSyncManager.isAlreadyImported(storage.id, it.handle) }
                     newPhotos += newOnes.size
 
                     if (newOnes.isEmpty()) {
-                        Log.info(tag = TAG) { "Storage ${storage.id}: ${photos.size} photos, 0 new" }
+                        Log.info(tag = TAG) {
+                            "Storage ${storage.id}: ${photos.size} photos, 0 new"
+                        }
                         continue
                     }
 
@@ -151,31 +152,34 @@ class UsbSyncCoordinator(
     }
 
     private suspend fun saveToMediaStore(mtp: MtpDevice, photo: NikonUsbManager.PhotoInfo): Uri? {
-        val dateFolder = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-            .format(Date(photo.dateModified))
+        val dateFolder = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(photo.dateModified))
         val path = "Pictures/CameraSync/Nikon Z30/$dateFolder"
 
-        val mime = when {
-            photo.name.endsWith(".NEF", ignoreCase = true) -> "image/x-nikon-nef"
-            photo.name.endsWith(".HEIC", ignoreCase = true) -> "image/heic"
-            photo.name.endsWith(".PNG", ignoreCase = true) -> "image/png"
-            else -> "image/jpeg"
-        }
+        val mime =
+            when {
+                photo.name.endsWith(".NEF", ignoreCase = true) -> "image/x-nikon-nef"
+                photo.name.endsWith(".HEIC", ignoreCase = true) -> "image/heic"
+                photo.name.endsWith(".PNG", ignoreCase = true) -> "image/png"
+                else -> "image/jpeg"
+            }
 
-        val cv = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, photo.name)
-            put(MediaStore.Images.Media.MIME_TYPE, mime)
-            put(MediaStore.Images.Media.RELATIVE_PATH, path)
-            put(MediaStore.Images.Media.IS_PENDING, 1)
-        }
+        val cv =
+            ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, photo.name)
+                put(MediaStore.Images.Media.MIME_TYPE, mime)
+                put(MediaStore.Images.Media.RELATIVE_PATH, path)
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
 
-        val uri = context.contentResolver
-            .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv) ?: return null
+        val uri =
+            context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)
+                ?: return null
 
         return try {
-            val bytesWritten = context.contentResolver.openOutputStream(uri)?.use { out ->
-                nikonUsbManager.downloadPhoto(mtp, photo, out, context.cacheDir)
-            }
+            val bytesWritten =
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    nikonUsbManager.downloadPhoto(mtp, photo, out, context.cacheDir)
+                }
             if (bytesWritten != null) {
                 cv.clear()
                 cv.put(MediaStore.Images.Media.IS_PENDING, 0)
@@ -200,5 +204,6 @@ data class SyncResult(
     val error: String?,
     val savedUris: List<Uri> = emptyList(),
 ) {
-    val isSuccess: Boolean get() = error == null
+    val isSuccess: Boolean
+        get() = error == null
 }

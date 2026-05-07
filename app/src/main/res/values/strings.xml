@@ -246,6 +246,19 @@
     <string name="usb_exif_model">相机型号</string>
     <string name="usb_exif_flash">闪光灯</string>
     <string name="usb_exif_close">关闭</string>
+    <string name="usb_exif_resolution">分辨率</string>
+    <string name="usb_exif_35mm_equiv">35mm 等效</string>
+    <string name="usb_exif_lens">镜头</string>
+    <string name="usb_exif_exposure_comp">曝光补偿</string>
+    <string name="usb_exif_metering_mode">测光模式</string>
+    <string name="usb_exif_orientation">方向</string>
+    <string name="usb_exif_camera">相机</string>
+    <string name="usb_exif_filename">文件名</string>
+    <string name="usb_exif_size">尺寸</string>
+    <string name="usb_exif_date">日期</string>
+    <string name="usb_exif_no_preview">无预览</string>
+    <string name="usb_exif_flash_fired">闪光</string>
+    <string name="usb_exif_flash_not_fired">未闪光</string>
 
     <!-- Sprint 2: Onboarding -->
     <string name="onboarding_skip">跳过</string>

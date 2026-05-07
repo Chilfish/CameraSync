@@ -60,7 +60,7 @@ fun SettingsScreen(
                     }
                 },
             )
-        },
+        }
     ) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
@@ -75,12 +75,18 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("自动同步", fontWeight = FontWeight.Medium)
-                        Text("插线时自动导入新照片", fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "插线时自动导入新照片",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     Switch(
                         checked = autoSync,
-                        onCheckedChange = { autoSync = it; prefs.autoSyncEnabled = it },
+                        onCheckedChange = {
+                            autoSync = it
+                            prefs.autoSyncEnabled = it
+                        },
                     )
                 }
             }
@@ -97,7 +103,10 @@ fun SettingsScreen(
                         listOf(2, 3, 4).forEach { cols ->
                             FilterChip(
                                 selected = gridCols == cols,
-                                onClick = { gridCols = cols; prefs.setGridColumns(cols) },
+                                onClick = {
+                                    gridCols = cols
+                                    prefs.setGridColumns(cols)
+                                },
                                 label = { Text("${cols}列") },
                             )
                         }
@@ -112,20 +121,21 @@ fun SettingsScreen(
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(
-                            UsbSyncPreferences.PhotoGrouping.BY_FOLDER to "按文件夹",
-                            UsbSyncPreferences.PhotoGrouping.BY_DATE to "按日期",
-                            UsbSyncPreferences.PhotoGrouping.FLAT to "不分组",
-                        ).forEach { (mode, label) ->
-                            FilterChip(
-                                selected = grouping == mode,
-                                onClick = {
-                                    grouping = mode
-                                    prefs.photoGrouping = mode
-                                    onGroupingChanged(mode)
-                                },
-                                label = { Text(label, fontSize = 13.sp) },
+                                UsbSyncPreferences.PhotoGrouping.BY_FOLDER to "按文件夹",
+                                UsbSyncPreferences.PhotoGrouping.BY_DATE to "按日期",
+                                UsbSyncPreferences.PhotoGrouping.FLAT to "不分组",
                             )
-                        }
+                            .forEach { (mode, label) ->
+                                FilterChip(
+                                    selected = grouping == mode,
+                                    onClick = {
+                                        grouping = mode
+                                        prefs.photoGrouping = mode
+                                        onGroupingChanged(mode)
+                                    },
+                                    label = { Text(label, fontSize = 13.sp) },
+                                )
+                            }
                     }
                 }
             }
@@ -137,20 +147,21 @@ fun SettingsScreen(
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(
-                            UsbSyncPreferences.PhotoSorting.DATE_DESC to "最新优先",
-                            UsbSyncPreferences.PhotoSorting.NAME_ASC to "按名称",
-                            UsbSyncPreferences.PhotoSorting.SIZE_DESC to "按大小",
-                        ).forEach { (mode, label) ->
-                            FilterChip(
-                                selected = sorting == mode,
-                                onClick = {
-                                    sorting = mode
-                                    prefs.photoSorting = mode
-                                    onSortingChanged(mode)
-                                },
-                                label = { Text(label, fontSize = 13.sp) },
+                                UsbSyncPreferences.PhotoSorting.DATE_DESC to "最新优先",
+                                UsbSyncPreferences.PhotoSorting.NAME_ASC to "按名称",
+                                UsbSyncPreferences.PhotoSorting.SIZE_DESC to "按大小",
                             )
-                        }
+                            .forEach { (mode, label) ->
+                                FilterChip(
+                                    selected = sorting == mode,
+                                    onClick = {
+                                        sorting = mode
+                                        prefs.photoSorting = mode
+                                        onSortingChanged(mode)
+                                    },
+                                    label = { Text(label, fontSize = 13.sp) },
+                                )
+                            }
                     }
                 }
             }
@@ -159,25 +170,29 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("默认下载格式", fontWeight = FontWeight.Medium)
-                    Text("连接相机后默认显示的照片类型", fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "连接相机后默认显示的照片类型",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(
-                            UsbSyncPreferences.DownloadFormat.ALL to "全部",
-                            UsbSyncPreferences.DownloadFormat.JPEG_ONLY to "仅 JPEG",
-                            UsbSyncPreferences.DownloadFormat.RAW_ONLY to "仅 RAW",
-                        ).forEach { (format, label) ->
-                            FilterChip(
-                                selected = downloadFormat == format,
-                                onClick = {
-                                    downloadFormat = format
-                                    prefs.downloadFormat = format
-                                    onDownloadFormatChanged(format)
-                                },
-                                label = { Text(label, fontSize = 13.sp) },
+                                UsbSyncPreferences.DownloadFormat.ALL to "全部",
+                                UsbSyncPreferences.DownloadFormat.JPEG_ONLY to "仅 JPEG",
+                                UsbSyncPreferences.DownloadFormat.RAW_ONLY to "仅 RAW",
                             )
-                        }
+                            .forEach { (format, label) ->
+                                FilterChip(
+                                    selected = downloadFormat == format,
+                                    onClick = {
+                                        downloadFormat = format
+                                        prefs.downloadFormat = format
+                                        onDownloadFormatChanged(format)
+                                    },
+                                    label = { Text(label, fontSize = 13.sp) },
+                                )
+                            }
                     }
                 }
             }
@@ -195,8 +210,11 @@ fun SettingsScreen(
                 ) {
                     Column {
                         Text("传输历史", fontWeight = FontWeight.Medium)
-                        Text("查看以往的同步记录", fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "查看以往的同步记录",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     Text("→", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -211,8 +229,11 @@ fun SettingsScreen(
                 ) {
                     Column {
                         Text("查看引导", fontWeight = FontWeight.Medium)
-                        Text("重新查看使用指南", fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "重新查看使用指南",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     Text("→", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

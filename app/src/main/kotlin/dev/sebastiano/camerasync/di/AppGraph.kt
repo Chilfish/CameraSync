@@ -125,9 +125,7 @@ interface AppGraph {
     @Provides
     @SingleIn(AppGraph::class)
     fun provideVendorRegistry(): CameraVendorRegistry =
-        DefaultCameraVendorRegistry(
-            vendors = listOf(RicohCameraVendor, SonyCameraVendor)
-        )
+        DefaultCameraVendorRegistry(vendors = listOf(RicohCameraVendor, SonyCameraVendor))
 
     @Provides
     @SingleIn(AppGraph::class)

@@ -17,11 +17,10 @@ sealed interface NavRoute : Parcelable {
     @Parcelize @Serializable data object Gallery : NavRoute
 
     /** Gallery folder — photos inside a specific MTP folder. */
-    @Parcelize @Serializable data class GalleryFolder(
-        val storageId: Int,
-        val folderHandle: Int,
-        val folderName: String,
-    ) : NavRoute
+    @Parcelize
+    @Serializable
+    data class GalleryFolder(val storageId: Int, val folderHandle: Int, val folderName: String) :
+        NavRoute
 
     /** Main screen showing paired BLE devices. */
     @Parcelize @Serializable data object DevicesList : NavRoute

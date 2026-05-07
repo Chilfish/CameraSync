@@ -1,12 +1,12 @@
 package dev.sebastiano.camerasync
 
-import android.app.Application
 import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.Manifest.permission.BLUETOOTH_CONNECT
 import android.Manifest.permission.BLUETOOTH_SCAN
 import android.Manifest.permission.POST_NOTIFICATIONS
 import android.annotation.SuppressLint
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -43,13 +43,13 @@ import dev.sebastiano.camerasync.devicesync.MultiDeviceSyncService
 import dev.sebastiano.camerasync.di.AppGraph
 import dev.sebastiano.camerasync.logging.LogViewerScreen
 import dev.sebastiano.camerasync.logging.LogViewerViewModel
-import dev.sebastiano.camerasync.pairing.PairingScreen
-import dev.sebastiano.camerasync.pairing.PairingViewModel
 import dev.sebastiano.camerasync.onboarding.OnboardingScreen
 import dev.sebastiano.camerasync.onboarding.OnboardingViewModel
+import dev.sebastiano.camerasync.pairing.PairingScreen
+import dev.sebastiano.camerasync.pairing.PairingViewModel
 import dev.sebastiano.camerasync.permissions.PermissionsScreen
-import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
 import dev.sebastiano.camerasync.settings.SettingsScreen
+import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
 import dev.sebastiano.camerasync.usb.GalleryFolderScreen
 import dev.sebastiano.camerasync.usb.GalleryScreen
 import dev.sebastiano.camerasync.usb.GalleryViewModel
@@ -194,11 +194,13 @@ private fun RootComposable(
             NavEntry(key) {
                 when (key) {
                     NavRoute.Onboarding -> {
-                        OnboardingScreen(onDone = {
-                            onboardingVm.markCompleted()
-                            backStack.clear()
-                            backStack.add(NavRoute.NeedsPermissions)
-                        })
+                        OnboardingScreen(
+                            onDone = {
+                                onboardingVm.markCompleted()
+                                backStack.clear()
+                                backStack.add(NavRoute.NeedsPermissions)
+                            }
+                        )
                     }
 
                     NavRoute.NeedsPermissions -> {
@@ -217,7 +219,11 @@ private fun RootComposable(
                             onNavigateToSettings = { backStack.add(NavRoute.Settings) },
                             onFolderClick = { folder ->
                                 backStack.add(
-                                    NavRoute.GalleryFolder(folder.storageId, folder.info.handle, folder.info.name)
+                                    NavRoute.GalleryFolder(
+                                        folder.storageId,
+                                        folder.info.handle,
+                                        folder.info.name,
+                                    )
                                 )
                             },
                         )
@@ -232,7 +238,11 @@ private fun RootComposable(
                             onNavigateBack = { backStack.removeLastOrNull() },
                             onFolderClick = { folder ->
                                 backStack.add(
-                                    NavRoute.GalleryFolder(folder.storageId, folder.info.handle, folder.info.name)
+                                    NavRoute.GalleryFolder(
+                                        folder.storageId,
+                                        folder.info.handle,
+                                        folder.info.name,
+                                    )
                                 )
                             },
                         )
@@ -267,7 +277,9 @@ private fun RootComposable(
                             onNavigateToHistory = { backStack.add(NavRoute.TransferHistory) },
                             onNavigateToOnboarding = {
                                 ctx.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
-                                    .edit().putBoolean("completed", false).apply()
+                                    .edit()
+                                    .putBoolean("completed", false)
+                                    .apply()
                                 backStack.removeLastOrNull()
                                 backStack.add(NavRoute.Onboarding)
                             },
@@ -306,7 +318,6 @@ private fun RootComposable(
                             },
                         )
                     }
-
                 }
             }
         }

@@ -47,6 +47,9 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         /** Thumbnail pixel dimensions from MtpObjectInfo — may be 0 if unavailable. */
         val thumbPixWidth: Int = 0,
         val thumbPixHeight: Int = 0,
+        /** Full image pixel dimensions from MtpObjectInfo — may be 0 if unavailable. */
+        val imagePixWidth: Int = 0,
+        val imagePixHeight: Int = 0,
     )
 
     private var mtpDevice: MtpDevice? = null
@@ -194,6 +197,8 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                             formatName = fmtName,
                             thumbPixWidth = info.thumbPixWidth,
                             thumbPixHeight = info.thumbPixHeight,
+                            imagePixWidth = info.imagePixWidth,
+                            imagePixHeight = info.imagePixHeight,
                         )
                     )
                 }
@@ -207,62 +212,61 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         return photos
     }
 
-    data class FolderInfo(
-        val handle: Int,
-        val name: String,
-        val dateCreated: Long,
-    )
+    data class FolderInfo(val handle: Int, val name: String, val dateCreated: Long)
 
     /**
-     * Lists only folders (FORMAT_ASSOCIATION) directly under [parentHandle].
-     * Use this for folder-based navigation instead of recursive flattening.
+     * Lists only folders (FORMAT_ASSOCIATION) directly under [parentHandle]. Use this for
+     * folder-based navigation instead of recursive flattening.
      */
-    fun listFolders(
-        mtpDevice: MtpDevice,
-        storageId: Int,
-        parentHandle: Int = 0,
-    ): List<FolderInfo> {
-        val handles = mtpDevice.getObjectHandles(
-            storageId, MtpConstants.FORMAT_ASSOCIATION, parentHandle,
-        ) ?: return emptyList()
+    fun listFolders(mtpDevice: MtpDevice, storageId: Int, parentHandle: Int = 0): List<FolderInfo> {
+        val handles =
+            mtpDevice.getObjectHandles(storageId, MtpConstants.FORMAT_ASSOCIATION, parentHandle)
+                ?: return emptyList()
 
-        return handles.toList().mapNotNull { h ->
-            val info = mtpDevice.getObjectInfo(h) ?: return@mapNotNull null
-            FolderInfo(handle = h, name = info.name, dateCreated = info.dateCreated * 1000L)
-        }.sortedByDescending { it.dateCreated }
+        return handles
+            .toList()
+            .mapNotNull { h ->
+                val info = mtpDevice.getObjectInfo(h) ?: return@mapNotNull null
+                FolderInfo(handle = h, name = info.name, dateCreated = info.dateCreated * 1000L)
+            }
+            .sortedByDescending { it.dateCreated }
     }
 
     /**
-     * Lists only photo files (non-folders) directly under [parentHandle].
-     * Does NOT recurse — this is for folder-based browsing.
+     * Lists only photo files (non-folders) directly under [parentHandle]. Does NOT recurse — this
+     * is for folder-based browsing.
      */
     fun listPhotosInFolder(
         mtpDevice: MtpDevice,
         storageId: Int,
         parentHandle: Int = 0,
     ): List<PhotoInfo> {
-        val handles = mtpDevice.getObjectHandles(storageId, ALL_FORMATS, parentHandle)
-            ?: return emptyList()
+        val handles =
+            mtpDevice.getObjectHandles(storageId, ALL_FORMATS, parentHandle) ?: return emptyList()
 
-        return handles.toList().mapNotNull { h ->
-            val info = mtpDevice.getObjectInfo(h) ?: return@mapNotNull null
-            if (info.format == MtpConstants.FORMAT_ASSOCIATION) return@mapNotNull null
-            PhotoInfo(
-                handle = h,
-                name = info.name,
-                size = compressedSizeLong(info),
-                dateModified = info.dateCreated * 1000L,
-                formatName = formatName(info.format),
-                thumbPixWidth = info.thumbPixWidth,
-                thumbPixHeight = info.thumbPixHeight,
-            )
-        }.sortedByDescending { it.dateModified }
+        return handles
+            .toList()
+            .mapNotNull { h ->
+                val info = mtpDevice.getObjectInfo(h) ?: return@mapNotNull null
+                if (info.format == MtpConstants.FORMAT_ASSOCIATION) return@mapNotNull null
+                PhotoInfo(
+                    handle = h,
+                    name = info.name,
+                    size = compressedSizeLong(info),
+                    dateModified = info.dateCreated * 1000L,
+                    formatName = formatName(info.format),
+                    thumbPixWidth = info.thumbPixWidth,
+                    thumbPixHeight = info.thumbPixHeight,
+                    imagePixWidth = info.imagePixWidth,
+                    imagePixHeight = info.imagePixHeight,
+                )
+            }
+            .sortedByDescending { it.dateModified }
     }
 
     /**
-     * Deletes a photo from the camera via MTP.
-     * Returns true if deletion was successful.
-     * WARNING: Irreversible. Only call after successful transfer to phone.
+     * Deletes a photo from the camera via MTP. Returns true if deletion was successful. WARNING:
+     * Irreversible. Only call after successful transfer to phone.
      */
     fun deletePhoto(mtpDevice: MtpDevice, handle: Int): Boolean {
         return try {
@@ -282,15 +286,15 @@ class NikonUsbManager(private val usbManager: UsbManager) {
     /**
      * Attempts to read battery level from the camera via MTP PTP properties.
      *
-     * Most MTP/PTP devices do not implement the BatteryLevel property (0xD303),
-     * and Android's [MtpDevice] does not expose a public API to query arbitrary
-     * device properties. Returns `null` to indicate "not available".
+     * Most MTP/PTP devices do not implement the BatteryLevel property (0xD303), and Android's
+     * [MtpDevice] does not expose a public API to query arbitrary device properties. Returns `null`
+     * to indicate "not available".
      */
     fun getBatteryLevel(mtpDevice: MtpDevice): Int? = null
 
     /**
-     * Downloads a photo from the MTP device to [outputStream], using [cacheDir]
-     * as a temporary staging area.
+     * Downloads a photo from the MTP device to [outputStream], using [cacheDir] as a temporary
+     * staging area.
      *
      * @return the number of bytes transferred, or `null` if the transfer failed.
      */

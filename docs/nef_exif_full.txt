@@ -1,0 +1,355 @@
+﻿ExifTool	-	ExifTool Version Number	13.40
+File	-	File Name	DSC_0873.NEF
+File	-	Directory	F:/Pictures/Nikon/raw
+File	-	File Size	26 MB
+File	-	File Modification Date/Time	2026:05:02 18:44:55+08:00
+File	-	File Access Date/Time	2026:05:08 00:20:09+08:00
+File	-	File Creation Date/Time	2026:05:03 18:04:20+08:00
+File	-	File Permissions	-rw-rw-rw-
+File	-	File Type	NEF
+File	-	File Type Extension	nef
+File	-	MIME Type	image/x-nikon-nef
+File	-	Exif Byte Order	Little-endian (Intel, II)
+EXIF	0x010f	Make	NIKON CORPORATION
+EXIF	0x0110	Camera Model Name	NIKON Z 30
+EXIF	0x0112	Orientation	Rotate 270 CW
+EXIF	0x0131	Software	Ver.01.20
+EXIF	0x0132	Modify Date	2026:05:02 18:44:55
+EXIF	0x013b	Artist	Chilfish
+EXIF	0x0201	Jpg From Raw Start	1311232
+EXIF	0x0202	Jpg From Raw Length	1799880
+EXIF	0x0213	Y Cb Cr Positioning	Co-sited
+EXIF	0x0100	Image Width	5600
+EXIF	0x0101	Image Height	3728
+EXIF	0x0102	Bits Per Sample	14
+EXIF	0x0103	Compression	Nikon NEF Compressed
+EXIF	0x0106	Photometric Interpretation	Color Filter Array
+EXIF	0x0111	Strip Offsets	3111424
+EXIF	0x0115	Samples Per Pixel	1
+EXIF	0x0116	Rows Per Strip	3728
+EXIF	0x0117	Strip Byte Counts	22739236
+EXIF	0x011a	X Resolution	300
+EXIF	0x011b	Y Resolution	300
+EXIF	0x011c	Planar Configuration	Chunky
+EXIF	0x0128	Resolution Unit	inches
+EXIF	0x828d	CFA Repeat Pattern Dim	2 2
+EXIF	0x828e	CFA Pattern 2	0 1 1 2
+EXIF	0x00fe	Subfile Type	Reduced-resolution image
+EXIF	0x0201	Other Image Start	279552
+EXIF	0x0202	Other Image Length	1031252
+EXIF	0x0214	Reference Black White	0 255 0 255 0 255
+EXIF	0x8298	Copyright	
+EXIF	0x829a	Exposure Time	1/60
+EXIF	0x829d	F Number	2.0
+EXIF	0x8822	Exposure Program	Aperture-priority AE
+EXIF	0x8827	ISO	400
+EXIF	0x8830	Sensitivity Type	Recommended Exposure Index
+EXIF	0x8832	Recommended Exposure Index	400
+EXIF	0x9004	Create Date	2026:05:02 18:44:55
+EXIF	0x9010	Offset Time	+08:00
+EXIF	0x9011	Offset Time Original	+08:00
+EXIF	0x9012	Offset Time Digitized	+08:00
+EXIF	0x9204	Exposure Compensation	+1/3
+EXIF	0x9207	Metering Mode	Multi-segment
+EXIF	0x9208	Light Source	Unknown
+EXIF	0x9209	Flash	No Flash
+EXIF	0x920a	Focal Length	35.0 mm
+EXIF	0x9286	User Comment	
+EXIF	0x9290	Sub Sec Time	28
+EXIF	0x9291	Sub Sec Time Original	28
+EXIF	0x9292	Sub Sec Time Digitized	28
+EXIF	0xa217	Sensing Method	One-chip color area
+EXIF	0xa300	File Source	Digital Camera
+EXIF	0xa301	Scene Type	Directly photographed
+EXIF	0xa401	Custom Rendered	Custom
+EXIF	0xa402	Exposure Mode	Auto
+EXIF	0xa405	Focal Length In 35mm Format	52 mm
+EXIF	0xa406	Scene Capture Type	Standard
+EXIF	0xa407	Gain Control	None
+EXIF	0xa408	Contrast	Normal
+EXIF	0xa409	Saturation	Normal
+EXIF	0xa40a	Sharpness	Normal
+EXIF	0xa40c	Subject Distance Range	Unknown
+EXIF	0xa431	Serial Number	8271278
+EXIF	0xa432	Lens Info	35mm f/1.7
+EXIF	0xa433	Lens Make	
+EXIF	0xa434	Lens Model	Viltrox AF 35/1.7 Z
+EXIF	0xa435	Lens Serial Number	0
+EXIF	0x0000	GPS Version ID	2.3.0.0
+EXIF	0x9003	Date/Time Original	2026:05:02 18:44:55
+EXIF	0x9216	TIFF-EP Standard ID	1.0.0.0
+EXIF	-	Jpg From Raw	(Binary data 1799880 bytes, use -b option to extract)
+EXIF	-	Other Image	(Binary data 1031252 bytes, use -b option to extract)
+EXIF	-	Thumbnail TIFF	(Binary data 57816 bytes, use -b option to extract)
+MakerNotes	0x0000	Distortion Correction Version	0100
+MakerNotes	0x0004	Distortion Correction	On (Optional)
+MakerNotes	0x0014	Radial Distortion Coefficient 1	0.00000
+MakerNotes	0x001c	Radial Distortion Coefficient 2	0.00000
+MakerNotes	0x0024	Radial Distortion Coefficient 3	0.00000
+MakerNotes	0x0000	Vignette Correction Version	0100
+MakerNotes	0x0024	Vignette Coefficient 1	-0.24329
+MakerNotes	0x0034	Vignette Coefficient 2	0.53223
+MakerNotes	0x0044	Vignette Coefficient 3	0.16930
+MakerNotes	0x0001	Maker Note Version	2.11
+MakerNotes	0x0004	Quality	RAW
+MakerNotes	0x0005	White Balance	Auto1
+MakerNotes	0x0007	Focus Mode	AF-S
+MakerNotes	0x0008	Flash Setting	Normal
+MakerNotes	0x0009	Flash Type	
+MakerNotes	0x000c	WB RB Levels	1.65625 1.72265625 1 1
+MakerNotes	0x000d	Program Shift	0
+MakerNotes	0x000e	Exposure Difference	0
+MakerNotes	0x0201	Preview Image Start	95044
+MakerNotes	0x0202	Preview Image Length	125641
+MakerNotes	0x0017	External Flash Exposure Comp	0
+MakerNotes	0x0018	Flash Exposure Bracket Value	0.0
+MakerNotes	0x0019	Exposure Bracket Value	0
+MakerNotes	0x001b	Crop Hi Speed	DX Uncropped (5600x3728 cropped to 5600x3728 at pixel 0,0)
+MakerNotes	0x001c	Exposure Tuning	0
+MakerNotes	0x001e	Color Space	sRGB
+MakerNotes	0x0000	VR Info Version	0200
+MakerNotes	0x0004	Vibration Reduction	Off
+MakerNotes	0x0006	VR Mode	Off
+MakerNotes	0x0008	VR Type	Unknown (0)
+MakerNotes	0x0022	Active D-Lighting	Auto
+MakerNotes	0x0000	Picture Control Version	0300
+MakerNotes	0x0008	Picture Control Name	Auto
+MakerNotes	0x001c	Picture Control Base	Auto
+MakerNotes	0x0036	Picture Control Adjust	Quick Adjust
+MakerNotes	0x0037	Picture Control Quick Adjust	n/a
+MakerNotes	0x003b	Mid Range Sharpness	n/a
+MakerNotes	0x003d	Clarity	n/a
+MakerNotes	0x0041	Brightness	n/a
+MakerNotes	0x0045	Hue	n/a
+MakerNotes	0x0047	Filter Effect	n/a
+MakerNotes	0x0048	Toning Effect	n/a
+MakerNotes	0x0049	Toning Saturation	n/a
+MakerNotes	0x0000	Time Zone	+08:00
+MakerNotes	0x0002	Daylight Savings	No
+MakerNotes	0x0003	Date Display Format	Y/M/D
+MakerNotes	0x0004	ISO Expansion	Off
+MakerNotes	0x0006	ISO2	159
+MakerNotes	0x000a	ISO Expansion 2	Off
+MakerNotes	0x002a	Vignette Control	Normal
+MakerNotes	0x0034	Shutter Mode	Auto (Electronic Front Curtain)
+MakerNotes	0x0037	Mechanical Shutter Count	977
+MakerNotes	0x003d	Black Level	1008 1008 1008 1008
+MakerNotes	0x003e	Image Size RAW	Large
+MakerNotes	0x003f	White Balance Fine Tune	0 0
+MakerNotes	0x0045	Crop Area	16 8 5568 3712
+MakerNotes	0x00fb	Secondary Slot Function	Overflow
+MakerNotes	0x0003	ISO Auto Shutter Time	1/60 s
+MakerNotes	0x000b	Flicker Reduction Shooting	Disable
+MakerNotes	0x0109	Bracket Set	AE/Flash
+MakerNotes	0x010a	Bracket Program	Disabled
+MakerNotes	0x000e	Movie ISO Auto Control Manual Mode	On
+MakerNotes	0x000f	Movie White Balance Same As Photo	Yes
+MakerNotes	0x001e	AF-S Priority Sel	Focus
+MakerNotes	0x0093	Block Shot AF Response	3 (Normal)
+MakerNotes	0x0022	AF Activation	Shutter/AF-On
+MakerNotes	0x0023	Focus Point Wrap	No Wrap
+MakerNotes	0x0025	Manual Focus Point Illumination	On
+MakerNotes	0x0099	Dynamic Area AF Assist	On
+MakerNotes	0x00da	Low Light AF	Off
+MakerNotes	0x0026	AF-Assist Illuminator	On
+MakerNotes	0x0027	Manual Focus Ring In AF Mode	On
+MakerNotes	0x002a	Exposure Control Step Size	1/3 EV
+MakerNotes	0x002b	Easy Exposure Compensation	Off
+MakerNotes	0x002f	Fine Tune Opt Matrix Metering	0
+MakerNotes	0x0030	Fine Tune Opt Center Weighted	0
+MakerNotes	0x0031	Fine Tune Opt Spot Metering	0
+MakerNotes	0x0032	Fine Tune Opt Highlight Weighted	0
+MakerNotes	0x0033	Shutter Release Button AE-L	Off
+MakerNotes	0x0035	Self Timer Time	10 s
+MakerNotes	0x0036	Self Timer Shot Count	1
+MakerNotes	0x0037	Self Timer Shot Interval	0.5 s
+MakerNotes	0x0038	Playback Monitor Off Time	10 s
+MakerNotes	0x0039	Menu Monitor Off Time	1 min
+MakerNotes	0x003b	Image Review Monitor Off Time	4 s
+MakerNotes	0x003e	CL Mode Shooting Speed	5 fps
+MakerNotes	0x003f	Max Continuous Release	100
+MakerNotes	0x009b	Sync Release Mode	Sync
+MakerNotes	0x0040	Exposure Delay Mode	Off
+MakerNotes	0x0150	Shutter Type	Auto
+MakerNotes	0x0042	File Number Sequence	On
+MakerNotes	0x00df	Apply Settings To Live View	On
+MakerNotes	0x0043	Framing Grid Display	On
+MakerNotes	0x00e0	Focus Peaking Level	Off
+MakerNotes	0x008d	Focus Peaking Highlight Color	Red
+MakerNotes	0x008e	Continuous Mode Display	On
+MakerNotes	0x0048	Flash Shutter Speed	1/60 s
+MakerNotes	0x0049	Flash Exposure Comp Area	Entire Frame
+MakerNotes	0x004a	Auto Flash ISO Sensitivity	Subject and Background
+MakerNotes	0x009c	Modeling Flash	Off
+MakerNotes	0x009d	Auto Bracket Mode M	Flash/Speed
+MakerNotes	0x00a4	Sub Selector	Focus Point Selection
+MakerNotes	0x0151	Lens Func 2 Button	AF-On
+MakerNotes	0x00ea	Lens Control Ring	Aperture
+MakerNotes	0x008f	Shutter Speed Lock	Off
+MakerNotes	0x0090	Aperture Lock	Off
+MakerNotes	0x008b	Cmd Dials Reverse Rotation	Exposure Compensation
+MakerNotes	0x005a	Cmd Dials Change Main Sub	Autofocus Off, Exposure Off
+MakerNotes	0x005b	Cmd Dials Menu And Playback	Off
+MakerNotes	0x005c	Sub Dial Frame Advance	10 Frames
+MakerNotes	0x005d	Release Button To Use Dial	Yes
+MakerNotes	0x005e	Reverse Indicators	- 0 +
+MakerNotes	0x00f9	Movie AF-On Button	AE/AF Lock
+MakerNotes	0x0062	Movie Shutter Button	Take Photo
+MakerNotes	0x00ed	Movie Multi Selector	Center Focus Point
+MakerNotes	0x00ee	Movie AF Speed	0
+MakerNotes	0x00ef	Movie AF Speed Apply	Always
+MakerNotes	0x00f0	Movie AF Tracking Sensitivity	4 (Normal)
+MakerNotes	0x00f1	Movie Highlight Display Pattern	Off
+MakerNotes	0x00fd	Extended Shutter Speeds	Off
+MakerNotes	0x0174	Focus Point Selection Speed	Normal
+MakerNotes	0x0091	Movie Highlight Display Threshold	248
+MakerNotes	0x0063	Language	Unknown (25)
+MakerNotes	0x010e	Monitor Brightness	3
+MakerNotes	0x0074	Flick Advance Direction	Left to Right
+MakerNotes	0x0075	HDMI Output Resolution	2160p
+MakerNotes	0x0077	HDMI Output Range	Auto
+MakerNotes	0x0092	HDMI External Recorder	On
+MakerNotes	0x0158	USB Power Delivery	Enable
+MakerNotes	0x0159	Energy Saving Mode	Off
+MakerNotes	0x016d	Save Focus	Off
+MakerNotes	0x004f	Color Temperature Auto	4160
+MakerNotes	0x0083	Lens Type	AF
+MakerNotes	0x0084	Lens	35mm f/1.7
+MakerNotes	0x0087	Flash Mode	Did Not Fire
+MakerNotes	0x0089	Shooting Mode	Single-Frame, Auto ISO
+MakerNotes	0x008b	Lens F Stops	6.33
+MakerNotes	0x008c	Contrast Curve	(Binary data 578 bytes, use -b option to extract)
+MakerNotes	0x0000	Shot Info Version	0807
+MakerNotes	0x0004	Firmware Version	01.20.a0
+MakerNotes	0x000e	Firmware Version 2	01.20.00
+MakerNotes	0x0018	Firmware Version 3	
+MakerNotes	0x0024	Number Offsets	31
+MakerNotes	0x0024	Interval Shooting	Off
+MakerNotes	0x002b	Image Area	FX (36x24)
+MakerNotes	0x0000	Roll Angle	92.0
+MakerNotes	0x0004	Pitch Angle	-100.6
+MakerNotes	0x0008	Yaw Angle	-10.5
+MakerNotes	0x005a	Single Frame	0
+MakerNotes	0x005c	Release Mode	Single Frame
+MakerNotes	0x00a0	Interval Duration Hours	0
+MakerNotes	0x00a4	Interval Duration Minutes	1
+MakerNotes	0x00a8	Interval Duration Seconds	0
+MakerNotes	0x00b0	Intervals	1
+MakerNotes	0x00b4	Shots Per Interval	1
+MakerNotes	0x00b8	Interval Exposure Smoothing	On
+MakerNotes	0x00ba	Interval Priority	Off
+MakerNotes	0x00dc	Focus Shift Number Shots	100
+MakerNotes	0x00e0	Focus Shift Step Width	5
+MakerNotes	0x00e4	Focus Shift Interval	0 Seconds
+MakerNotes	0x00e8	Focus Shift Exposure Lock	On
+MakerNotes	0x0142	Diffraction Compensation	On
+MakerNotes	0x0143	Auto Distortion Control	On
+MakerNotes	0x0146	Nikon Metering Mode	Matrix
+MakerNotes	0x0160	Flash Master Control Mode	TTL
+MakerNotes	0x0093	NEF Compression	Lossless
+MakerNotes	0x0095	Noise Reduction	Off
+MakerNotes	0x0096	NEF Linearization Table	(Binary data 46 bytes, use -b option to extract)
+MakerNotes	0x0000	Color Balance Version	0802
+MakerNotes	0x0000	Lens Data Version	0802
+MakerNotes	0x0030	Lens ID	Unknown (2826)
+MakerNotes	0x0034	Lens Firmware Version	1.0.4
+MakerNotes	0x0036	Max Aperture	1.7
+MakerNotes	0x004e	Focus Distance	4.42 m
+MakerNotes	0x005a	Lens Position Absolute	307
+MakerNotes	0x005f	Lens Mount Type	Z-mount
+MakerNotes	0x0099	Raw Image Center	2800 1864
+MakerNotes	0x009e	Retouch History	None
+MakerNotes	0x00a7	Shutter Count	994
+MakerNotes	0x0000	Flash Info Version	0300
+MakerNotes	0x0004	Flash Source	None
+MakerNotes	0x0006	External Flash Firmware	n/a
+MakerNotes	0x0008	External Flash Flags	(none)
+MakerNotes	0x0009	Flash Commander Mode	Off
+MakerNotes	0x0009	Flash Control Mode	Off
+MakerNotes	0x000f	Flash GN Distance	0
+MakerNotes	0x0010	Flash Color Filter	None
+MakerNotes	0x0011	Flash Group A Control Mode	Off
+MakerNotes	0x0012	Flash Group B Control Mode	Off
+MakerNotes	0x0012	Flash Group C Control Mode	Off
+MakerNotes	0x0025	Flash Illumination Pattern	Standard
+MakerNotes	0x0028	Flash Group A Compensation	+0.3
+MakerNotes	0x0029	Flash Group B Compensation	+0.3
+MakerNotes	0x002a	Flash Group C Compensation	+0.3
+MakerNotes	0x00ab	Vari Program	
+MakerNotes	0x0000	Multi Exposure Version	0102
+MakerNotes	0x0001	Multi Exposure Mode	Off
+MakerNotes	0x0002	Multi Exposure Shots	0
+MakerNotes	0x0003	Multi Exposure Overlay Mode	Add
+MakerNotes	0x00b1	High ISO Noise Reduction	Low
+MakerNotes	0x00b6	Power Up Time	0000:00:00 00:00:00
+MakerNotes	0x0000	AF Info 2 Version	0301
+MakerNotes	0x0004	AF Detection Method	Hybrid
+MakerNotes	0x0005	AF Area Mode	Auto (Animal)
+MakerNotes	0x0006	Focus Point Schema	Off
+MakerNotes	0x0007	AF Coordinates Available	Yes
+MakerNotes	0x002a	AF Image Width	5568
+MakerNotes	0x002c	AF Image Height	3712
+MakerNotes	0x002e	AF Area X Position	3446
+MakerNotes	0x002f	Focus Position Horizontal	3R of Center
+MakerNotes	0x0030	AF Area Y Position	1541
+MakerNotes	0x0031	Focus Position Vertical	1U from Center
+MakerNotes	0x0032	AF Area Width	554
+MakerNotes	0x0034	AF Area Height	554
+MakerNotes	0x0000	File Info Version	0100
+MakerNotes	0x0002	Memory Card Number	0
+MakerNotes	0x0003	Directory Number	100
+MakerNotes	0x0004	File Number	0873
+MakerNotes	0x0000	AF Fine Tune	Off
+MakerNotes	0x0001	AF Fine Tune Index	n/a
+MakerNotes	0x0002	AF Fine Tune Adj	0
+MakerNotes	0x0003	AF Fine Tune Adj Tele	0
+MakerNotes	0x0000	Retouch Info Version	0200
+MakerNotes	0x0005	Retouch NEF Processing	Off
+MakerNotes	0x00bf	Silent Photography	Off
+MakerNotes	-	Preview Image	(Binary data 125641 bytes, use -b option to extract)
+XMP	-	Creator Tool	NIKON Z 30 Ver.01.20
+XMP	-	Rating	0
+XMP	-	Exposure 2012	0.00
+XMP	-	Highlights 2012	-7
+XMP	-	Shadows 2012	10
+XMP	-	Luminance Smoothing	17
+XMP	-	Luminance Noise Reduction Detail	75
+XMP	-	Luminance Noise Reduction Contrast	0
+XMP	-	Color Noise Reduction	9
+XMP	-	Color Noise Reduction Detail	50
+XMP	-	Color Noise Reduction Smoothness	50
+XMP	-	Sharpen Radius	2.00
+XMP	-	Sharpen Detail	25
+XMP	-	Sharpen Edge Masking	0
+XMP	-	Contrast 2012	0
+XMP	-	Camera Profile	Camera Standard
+XMP	-	Hue Adjustment Red	0
+XMP	-	Hue Adjustment Orange	0
+XMP	-	Hue Adjustment Yellow	0
+XMP	-	Saturation Adjustment Red	0
+XMP	-	Saturation Adjustment Orange	0
+XMP	-	Saturation Adjustment Yellow	0
+XMP	-	Luminance Adjustment Red	0
+XMP	-	Luminance Adjustment Orange	0
+XMP	-	Luminance Adjustment Yellow	0
+Composite	-	Aperture	2.0
+Composite	-	Blue Balance	1.722656
+Composite	-	CFA Pattern	[Red,Green][Green,Blue]
+Composite	-	Image Size	5600x3728
+Composite	-	Megapixels	20.9
+Composite	-	Red Balance	1.65625
+Composite	-	Scale Factor To 35 mm Equivalent	1.5
+Composite	-	Shutter Speed	1/60
+Composite	-	Create Date	2026:05:02 18:44:55.28+08:00
+Composite	-	Date/Time Original	2026:05:02 18:44:55.28+08:00
+Composite	-	Modify Date	2026:05:02 18:44:55.28+08:00
+Composite	-	Auto Focus	On
+Composite	-	Contrast Detect AF	Off
+Composite	-	Lens Spec	35mm f/1.7 AF
+Composite	-	Phase Detect AF	Off
+Composite	-	Circle Of Confusion	0.020 mm
+Composite	-	Depth Of Field	1.31 m (3.86 - 5.16 m)
+Composite	-	Field Of View	37.9 deg (3.03 m)
+Composite	-	Focal Length	35.0 mm (35 mm equivalent: 52.0 mm)
+Composite	-	Hyperfocal Distance	30.29 m
+Composite	-	Light Value	5.9
