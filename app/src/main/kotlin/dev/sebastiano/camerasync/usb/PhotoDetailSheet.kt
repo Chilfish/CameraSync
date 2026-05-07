@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -22,43 +24,76 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
- * Bottom sheet showing photo preview and EXIF metadata from the MTP thumbnail (JPEG).
- * [thumbnailBytes] — the cached MTP thumbnail, already a valid JPEG with EXIF for NEF.
- * [photoInfo] — the PhotoInfo for this photo (filename, size, etc.).
+ * Bottom sheet: preview image from MTP thumbnail (instant), EXIF from full RAW file (loaded async).
+ *
+ * On open, downloads the full NEF/JPEG via [viewModel] to extract complete EXIF metadata.
+ * The preview image uses the cached MTP thumbnail for instant display — no waiting.
+ * EXIF fields appear with a loading spinner until the full file is downloaded.
+ *
+ * [viewModel] — used to download the full photo file for EXIF extraction.
+ * [photoInfo] — basic photo metadata (name, size, format, handle for full download).
+ * [thumbnailBytes] — cached MTP thumbnail for instant preview (may be null for unsupported formats).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoDetailSheet(
-    thumbnailBytes: ByteArray?,
+    viewModel: GalleryViewModel,
     photoInfo: NikonUsbManager.PhotoInfo,
+    thumbnailBytes: ByteArray?,  // instant MTP thumbnail for display while loading
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Decode the thumbnail for preview
-    val bitmap = remember(thumbnailBytes) {
-        thumbnailBytes?.let {
-            BitmapFactory.decodeByteArray(it, 0, it.size)
-        }
+    // Instant: MTP thumbnail preview
+    val thumbBitmap = remember(thumbnailBytes) {
+        thumbnailBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
     }
 
-    // Extract EXIF from the thumbnail bytes (valid JPEG for NEF)
-    val exifFields = remember(thumbnailBytes) { extractExif(thumbnailBytes) }
+    // Async: download full NEF/JPEG for complete EXIF
+    var fullImage by remember { mutableStateOf<ImageBitmap?>(null) }
+    var exifFields by remember { mutableStateOf<List<Pair<String, String?>>>(emptyList()) }
+    var exifLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(photoInfo.handle) {
+        exifLoading = true
+        val bytes = withContext(Dispatchers.IO) { viewModel.downloadFullPhoto(photoInfo.handle) }
+
+        // Extract EXIF from the full RAW/JPEG bytes
+        val fields = withContext(Dispatchers.IO) { extractExif(bytes) }
+        exifFields = fields
+
+        // Try to decode a high-quality preview from the full file bytes.
+        // For NEF, BitmapFactory can extract the embedded JPEG preview (~1.8 MB).
+        if (bytes != null) {
+            val decoded = withContext(Dispatchers.IO) {
+                val opts = BitmapFactory.Options().apply { inSampleSize = 2 } // half-res for preview
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+            }
+            fullImage = decoded?.asImageBitmap()
+        }
+        exifLoading = false
+    }
 
     LaunchedEffect(Unit) { sheetState.show() }
 
@@ -71,10 +106,11 @@ fun PhotoDetailSheet(
                         .padding(horizontal = 24.dp)
                         .padding(bottom = 32.dp)
             ) {
-                // Photo preview — from MTP thumbnail
-                if (bitmap != null) {
+                // Preview image: full-resolution if available, else MTP thumbnail, else placeholder
+                val displayBitmap = fullImage ?: thumbBitmap?.asImageBitmap()
+                if (displayBitmap != null) {
                     Image(
-                        bitmap = bitmap.asImageBitmap(),
+                        bitmap = displayBitmap,
                         contentDescription = photoInfo.name,
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
                         contentScale = ContentScale.Fit,
@@ -93,7 +129,7 @@ fun PhotoDetailSheet(
                     }
                 }
 
-                // Filename
+                // Filename and basic info
                 Text(photoInfo.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -102,13 +138,24 @@ fun PhotoDetailSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                if (exifFields.isNotEmpty()) {
-                    Spacer(Modifier.height(20.dp))
-                    HorizontalDivider()
-                    Spacer(Modifier.height(12.dp))
-                    Text("EXIF 信息", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
+                // EXIF section
+                Spacer(Modifier.height(20.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+                Text("EXIF 信息", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
 
+                if (exifLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.padding(8.dp))
+                        Text("正在读取 RAW 文件…", fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else if (exifFields.isNotEmpty()) {
                     for (field in exifFields) {
                         val label = field.first
                         val value = field.second
@@ -136,13 +183,13 @@ fun PhotoDetailSheet(
 }
 
 /**
- * Extracts human-readable EXIF fields from a JPEG byte array. Returns ordered list of (label,
- * value) pairs. Fields with null or blank values are filtered out by the caller.
+ * Extracts human-readable EXIF fields from a RAW/JPEG byte array.
+ * Works on both NEF (TIFF-based) and JPEG — Android's ExifInterface handles both.
  */
-private fun extractExif(jpegBytes: ByteArray?): List<Pair<String, String?>> {
-    if (jpegBytes == null) return emptyList()
+private fun extractExif(fileBytes: ByteArray?): List<Pair<String, String?>> {
+    if (fileBytes == null) return emptyList()
     return try {
-        val exif = ExifInterface(ByteArrayInputStream(jpegBytes))
+        val exif = ExifInterface(ByteArrayInputStream(fileBytes))
         val dateStr =
             exif.getAttribute(ExifInterface.TAG_DATETIME)?.let { raw ->
                 try {
@@ -155,7 +202,9 @@ private fun extractExif(jpegBytes: ByteArray?): List<Pair<String, String?>> {
                     raw
                 }
             }
+        // Build full field list; null/blank values filtered by caller
         listOf(
+            "文件名" to null,
             "分辨率" to
                 formatResolution(
                     exif.getAttributeInt(ExifInterface.TAG_IMAGE_WIDTH, 0),
@@ -187,6 +236,9 @@ private fun extractExif(jpegBytes: ByteArray?): List<Pair<String, String?>> {
                     exif.getAttribute(ExifInterface.TAG_MAKE),
                     exif.getAttribute(ExifInterface.TAG_MODEL),
                 ),
+            "拍摄者" to exif.getAttribute(ExifInterface.TAG_ARTIST),
+            "版权" to exif.getAttribute(ExifInterface.TAG_COPYRIGHT),
+            "软件" to exif.getAttribute(ExifInterface.TAG_SOFTWARE),
         )
     } catch (_: Exception) {
         emptyList()
@@ -248,7 +300,7 @@ private fun getOrientation(exif: ExifInterface): String? {
     return when (
         exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
     ) {
-        ExifInterface.ORIENTATION_NORMAL -> null // don't show "正常" — it's the default
+        ExifInterface.ORIENTATION_NORMAL -> null
         ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> "水平翻转"
         ExifInterface.ORIENTATION_ROTATE_180 -> "旋转 180°"
         ExifInterface.ORIENTATION_FLIP_VERTICAL -> "垂直翻转"

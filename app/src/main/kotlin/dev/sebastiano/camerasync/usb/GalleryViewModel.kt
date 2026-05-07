@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.exifinterface.media.ExifInterface
 import com.juul.khronicle.Log
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -481,6 +482,28 @@ class GalleryViewModel(private val app: Application) {
         } catch (_: Exception) {
             /* ExifInterface failed (not a JPEG) — leave uncached so PhotoCell
                falls back to dimension-based portrait detection */
+        }
+    }
+
+    /**
+     * Downloads the full photo file (NEF/JPEG/etc) to a ByteArray for EXIF extraction.
+     * Uses MTP importFile to temp, reads bytes, deletes temp. Returns null on failure.
+     */
+    suspend fun downloadFullPhoto(handle: Int): ByteArray? {
+        val m = mtp ?: return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val tempFile = File(app.cacheDir, "detail_$handle")
+                tempFile.parentFile?.mkdirs()
+                val ok = m.importFile(handle, tempFile.absolutePath)
+                if (!ok) return@withContext null
+                val bytes = tempFile.readBytes()
+                tempFile.delete()
+                bytes
+            } catch (e: Exception) {
+                Log.error(tag = "GalleryVM", throwable = e) { "downloadFullPhoto failed" }
+                null
+            }
         }
     }
 

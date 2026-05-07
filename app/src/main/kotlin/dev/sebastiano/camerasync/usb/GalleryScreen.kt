@@ -527,8 +527,9 @@ private fun BrowsingContent(
         val photo = group.jpg ?: group.raw ?: return@let
         val thumbBytes = vm.getThumbnail(group.previewHandle)
         PhotoDetailSheet(
-            thumbnailBytes = thumbBytes,
+            viewModel = vm,
             photoInfo = photo,
+            thumbnailBytes = thumbBytes,
             onDismiss = { detailGroup = null },
         )
     }
