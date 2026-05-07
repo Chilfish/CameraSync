@@ -18,15 +18,24 @@ class UsbSyncPreferences(context: Context) {
 
     /** Which photo formats to include when listing photos. */
     var downloadFormat: DownloadFormat
-        get() {
-            val name = prefs.getString(KEY_FORMAT, DownloadFormat.ALL.name)
-            return try {
-                DownloadFormat.valueOf(name!!)
-            } catch (_: Exception) {
-                DownloadFormat.ALL
-            }
-        }
+        get() = prefs.getString(KEY_FORMAT, DownloadFormat.ALL.name)?.let {
+            try { DownloadFormat.valueOf(it) } catch (_: Exception) { DownloadFormat.ALL }
+        } ?: DownloadFormat.ALL
         set(value) = prefs.edit().putString(KEY_FORMAT, value.name).apply()
+
+    /** How photos are grouped in the gallery view. */
+    var photoGrouping: PhotoGrouping
+        get() = prefs.getString(KEY_GROUPING, PhotoGrouping.BY_FOLDER.name)?.let {
+            try { PhotoGrouping.valueOf(it) } catch (_: Exception) { PhotoGrouping.BY_FOLDER }
+        } ?: PhotoGrouping.BY_FOLDER
+        set(value) = prefs.edit().putString(KEY_GROUPING, value.name).apply()
+
+    /** How photos are sorted in the gallery view. */
+    var photoSorting: PhotoSorting
+        get() = prefs.getString(KEY_SORTING, PhotoSorting.DATE_DESC.name)?.let {
+            try { PhotoSorting.valueOf(it) } catch (_: Exception) { PhotoSorting.DATE_DESC }
+        } ?: PhotoSorting.DATE_DESC
+        set(value) = prefs.edit().putString(KEY_SORTING, value.name).apply()
 
     /** Internal flag for auto-sync toggle changes. */
     val autoSyncFlow: SharedPreferences
@@ -40,6 +49,30 @@ class UsbSyncPreferences(context: Context) {
         JPEG_ONLY,
         /** Download RAW only (NEF). */
         RAW_ONLY,
+    }
+
+    /** How photos are grouped in the gallery grid. */
+    enum class PhotoGrouping {
+        /** Group by MTP folder hierarchy (default). */
+        BY_FOLDER,
+        /** Group by capture date (YYYY-MM-DD). */
+        BY_DATE,
+        /** No grouping — show all photos in a flat list. */
+        FLAT,
+    }
+
+    /** How photos are sorted within groups. */
+    enum class PhotoSorting {
+        /** Newest first (default). */
+        DATE_DESC,
+        /** Oldest first. */
+        DATE_ASC,
+        /** Alphabetical by filename (A-Z). */
+        NAME_ASC,
+        /** Alphabetical by filename (Z-A). */
+        NAME_DESC,
+        /** Largest file size first. */
+        SIZE_DESC,
     }
 
     /** Theme mode: "system" | "light" | "dark". */
@@ -75,6 +108,8 @@ class UsbSyncPreferences(context: Context) {
         private const val PREFS_NAME = "camera_sync_usb_prefs"
         private const val KEY_AUTO_SYNC = "auto_sync"
         private const val KEY_FORMAT = "download_format"
+        private const val KEY_GROUPING = "photo_grouping"
+        private const val KEY_SORTING = "photo_sorting"
         const val GRID_COLUMNS_DEFAULT = 3
         private const val TRANSFER_HISTORY_KEY = "transfer_history"
     }

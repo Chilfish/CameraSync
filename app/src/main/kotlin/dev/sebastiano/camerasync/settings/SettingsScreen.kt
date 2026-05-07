@@ -40,9 +40,15 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToOnboarding: () -> Unit,
+    onGroupingChanged: (UsbSyncPreferences.PhotoGrouping) -> Unit = {},
+    onSortingChanged: (UsbSyncPreferences.PhotoSorting) -> Unit = {},
+    onDownloadFormatChanged: (UsbSyncPreferences.DownloadFormat) -> Unit = {},
 ) {
     var autoSync by remember { mutableStateOf(prefs.autoSyncEnabled) }
     var gridCols by remember { mutableStateOf(prefs.getGridColumns()) }
+    var grouping by remember { mutableStateOf(prefs.photoGrouping) }
+    var sorting by remember { mutableStateOf(prefs.photoSorting) }
+    var downloadFormat by remember { mutableStateOf(prefs.downloadFormat) }
 
     Scaffold(
         topBar = {
@@ -93,6 +99,83 @@ fun SettingsScreen(
                                 selected = gridCols == cols,
                                 onClick = { gridCols = cols; prefs.setGridColumns(cols) },
                                 label = { Text("${cols}列") },
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Photo grouping
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("照片分组", fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            UsbSyncPreferences.PhotoGrouping.BY_FOLDER to "按文件夹",
+                            UsbSyncPreferences.PhotoGrouping.BY_DATE to "按日期",
+                            UsbSyncPreferences.PhotoGrouping.FLAT to "不分组",
+                        ).forEach { (mode, label) ->
+                            FilterChip(
+                                selected = grouping == mode,
+                                onClick = {
+                                    grouping = mode
+                                    prefs.photoGrouping = mode
+                                    onGroupingChanged(mode)
+                                },
+                                label = { Text(label, fontSize = 13.sp) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Photo sorting
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("照片排序", fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            UsbSyncPreferences.PhotoSorting.DATE_DESC to "最新优先",
+                            UsbSyncPreferences.PhotoSorting.NAME_ASC to "按名称",
+                            UsbSyncPreferences.PhotoSorting.SIZE_DESC to "按大小",
+                        ).forEach { (mode, label) ->
+                            FilterChip(
+                                selected = sorting == mode,
+                                onClick = {
+                                    sorting = mode
+                                    prefs.photoSorting = mode
+                                    onSortingChanged(mode)
+                                },
+                                label = { Text(label, fontSize = 13.sp) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Download format
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("默认下载格式", fontWeight = FontWeight.Medium)
+                    Text("连接相机后默认显示的照片类型", fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            UsbSyncPreferences.DownloadFormat.ALL to "全部",
+                            UsbSyncPreferences.DownloadFormat.JPEG_ONLY to "仅 JPEG",
+                            UsbSyncPreferences.DownloadFormat.RAW_ONLY to "仅 RAW",
+                        ).forEach { (format, label) ->
+                            FilterChip(
+                                selected = downloadFormat == format,
+                                onClick = {
+                                    downloadFormat = format
+                                    prefs.downloadFormat = format
+                                    onDownloadFormatChanged(format)
+                                },
+                                label = { Text(label, fontSize = 13.sp) },
                             )
                         }
                     }

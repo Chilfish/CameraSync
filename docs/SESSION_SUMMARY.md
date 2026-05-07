@@ -64,7 +64,7 @@ CameraSync (master)
 │   └── SettingsScreen.kt             (toggles + navigation links)
 ├── vendors/                          BLE GPS sync (secondary)
 │   ├── ricoh/, sony/                 (Ricoh GR, Sony Alpha — working)
-│   └── nikon/                        (BLE recognition only, no GPS sync)
+│   └── nikon/                        ❌ REMOVED — dead BLE SnapBridge code deleted
 ├── devicesync/                       BLE multi-device coordination
 ├── NavRoute.kt                       sealed interface: Gallery, GalleryFolder, Settings,
 │                                     TransferHistory, Onboarding, DevicesList, Pairing, LogViewer
@@ -106,13 +106,18 @@ ac86992 feat(sprint-2): EXIF detail sheet, camera delete, onboarding, grid densi
 e90034b feat(sprint-3): transfer history, settings, dark theme, battery, retry
 ```
 
+### Sprint 4 — Cleanup & Preferences (v2.3) ✅ 2026-05-07
+
+| # | Task | Files Changed |
+|---|------|---------------|
+| C1 | Remove Nikon BLE dead code | Deleted `vendors/nikon/*` (4 src + 3 test), updated `AppGraph.kt` |
+| F17 | Download format preference | `UsbSyncPreferences.kt`, `GalleryViewModel.kt`, `SettingsScreen.kt` |
+| F18 | Photo grouping (folder/date/flat) | `GalleryViewModel.kt` (DateSection, loadRoot), `GalleryScreen.kt`, `SettingsScreen.kt` |
+| F19 | Photo sorting (date/name/size) | `GalleryViewModel.kt` (applySorting), `GalleryScreen.kt`, `SettingsScreen.kt` |
+| F20 | Transfer preview sheet | `GalleryScreen.kt` (TransferPreviewSheet — thumbnails, counts, size breakdown) |
+
 ## What's Deferred
 
-- Photo grouping configurable (by folder / by date / flat)
-- Photo sorting configurable (by name / by date / by size)
-- Download format preference (RAW+NEF / RAW only / JPEG only)
-- Photo preview thumbnail before download
-- Code cleanup: remove dead Nikon BLE GPS sync code
 - Cloud backup integration
 - Video file support
 

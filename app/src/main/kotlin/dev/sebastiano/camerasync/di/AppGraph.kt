@@ -40,7 +40,6 @@ import dev.sebastiano.camerasync.util.AndroidBatteryOptimizationChecker
 import dev.sebastiano.camerasync.util.AndroidDeviceNameProvider
 import dev.sebastiano.camerasync.util.BatteryOptimizationChecker
 import dev.sebastiano.camerasync.util.DeviceNameProvider
-import dev.sebastiano.camerasync.vendors.nikon.NikonCameraVendor
 import dev.sebastiano.camerasync.vendors.ricoh.RicohCameraVendor
 import dev.sebastiano.camerasync.vendors.sony.SonyCameraVendor
 import dev.sebastiano.camerasync.widget.GlanceWidgetUpdateHelper
@@ -107,12 +106,16 @@ interface AppGraph {
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
 
     /**
-     * Creates the default camera vendor registry with all supported vendors.
+     * Creates the default camera vendor registry with all supported BLE vendors.
      *
      * Currently supports:
      * - Ricoh cameras (GR IIIx, GR III, etc.)
      * - Sony Alpha cameras (via DI Remote Control protocol)
-     * - Nikon cameras (Z series, DSLR — POC, SnapBridge UUIDs TBD)
+     *
+     * Nikon is not included — Nikon USB photo sync uses [dev.sebastiano.camerasync.usb] directly,
+     * bypassing the BLE vendor abstraction. The Nikon BLE SnapBridge code was removed in a cleanup
+     * pass because SnapBridge auth permanently blocks GPS/time sync, and USB photo sync provides
+     * far higher user value.
      *
      * To add support for additional camera vendors:
      * 1. Create a new vendor package (e.g., vendors/canon/)
@@ -123,7 +126,7 @@ interface AppGraph {
     @SingleIn(AppGraph::class)
     fun provideVendorRegistry(): CameraVendorRegistry =
         DefaultCameraVendorRegistry(
-            vendors = listOf(RicohCameraVendor, SonyCameraVendor, NikonCameraVendor)
+            vendors = listOf(RicohCameraVendor, SonyCameraVendor)
         )
 
     @Provides

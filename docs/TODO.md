@@ -170,10 +170,10 @@
 - [x] Thumbnail preloading (first 30 after load)
 - [x] EXIF metadata extraction and display — F7 PhotoDetailSheet (Sprint 2)
 - [x] Haptic feedback for selection
-- [ ] Photo grouping configurable (by folder / by date / flat) — deferred
-- [ ] Photo sorting configurable (by name / by date / by size) — deferred
+- [x] Photo grouping configurable (by folder / by date / flat) — Sprint 4 ✅
+- [x] Photo sorting configurable (by name / by date / by size) — Sprint 4 ✅
 - [x] Grid columns configurable (2/3/4) — F10 (Sprint 2)
-- [ ] Download format preference (RAW+NEF / RAW only / JPEG only) — deferred
+- [x] Download format preference (RAW+NEF / RAW only / JPEG only) — Sprint 4 ✅
 - [x] Auto-delete from camera after transfer — F8 (Sprint 2)
 
 ---
@@ -215,9 +215,11 @@
 | `settings/SettingsScreen.kt` | F15 Settings page |
 
 ### Deferred to Future
-- Photo grouping configurable (by folder / by date / flat)
-- Photo sorting configurable (by name / by date / by size)
-- Download format preference (RAW+NEF / RAW only / JPEG only)
+- ~~Photo grouping configurable (by folder / by date / flat)~~ ✅ Sprint 4
+- ~~Photo sorting configurable (by name / by date / by size)~~ ✅ Sprint 4
+- ~~Download format preference (RAW+NEF / RAW only / JPEG only)~~ ✅ Sprint 4
+- ~~Photo preview thumbnail before download~~ ✅ Sprint 4 (TransferPreviewSheet)
+- ~~Code cleanup: Nikon BLE dead code removal~~ ✅ Sprint 4
 - Cloud backup integration
 - Video file support
 
@@ -259,16 +261,13 @@
 
 ## Code Cleanup Backlog
 
-### Remove dead BLE/WiFi code
-- **NikonGattSpec** / **NikonProtocol** / **NikonConnectionDelegate**: GPS/date-time sync
-  paths are dead code (SnapBridge auth permanently blocks BLE writes). Retain only the
-  advertisement-recognition logic needed for BLE device name detection.
-- **PTP/IP debug remnants**: Verify all `ptp/*` files are fully deleted and no stale
-  imports or references remain in `AppGraph.kt`, `NavRoute.kt`, or manifest entries.
+### Remove dead BLE/WiFi code ✅ DONE
+- [x] **NikonGattSpec** / **NikonProtocol** / **NikonConnectionDelegate** / **NikonCameraVendor**:
+  All 4 source files + 3 test files deleted. AppGraph updated to remove Nikon from vendor registry.
+- [x] **PTP/IP debug remnants**: Verified all `ptp/*` files deleted, no stale imports remain.
 
 ### Delete remaining BLE documentation references from multi-vendor docs
-- `MULTI_VENDOR_SUPPORT.md` Section 1 diagram and directory reference still show
-  `vendors/nikon/` without distinguishing BLE-only vs. USB. These should be updated if
-  Nikon BLE vendor code is eventually removed or reduced to recognition-only.
-- `MULTI_DEVICE_ARCHITECTURE.md` references to `NikonCameraVendor` recognition should be
+- [ ] `MULTI_VENDOR_SUPPORT.md` Section 1 diagram and directory reference still show
+  `vendors/nikon/` without distinguishing BLE-only vs. USB. These should be updated.
+- [ ] `MULTI_DEVICE_ARCHITECTURE.md` references to `NikonCameraVendor` recognition should be
   cross-checked against the USB-centric reality.

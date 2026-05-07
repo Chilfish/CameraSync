@@ -275,6 +275,10 @@ private fun RootComposable(
                                 backStack.removeLastOrNull()
                                 backStack.add(NavRoute.Onboarding)
                             },
+                            // Grouping/sorting/format take effect on next refresh in GalleryViewModel
+                            onGroupingChanged = {},
+                            onSortingChanged = {},
+                            onDownloadFormatChanged = {},
                         )
                     }
 

@@ -102,6 +102,9 @@ fun GalleryScreen(
     val context = LocalContext.current
     val prefs = remember { UsbSyncPreferences(context) }
 
+    // Preview bottom sheet state
+    var showPreview by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -127,7 +130,7 @@ fun GalleryScreen(
             ) {
                 BottomAppBar {
                     Button(
-                        onClick = { viewModel.startTransfer() },
+                        onClick = { showPreview = true },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     ) { Text("传输 $selectionCount 张照片") }
                 }
@@ -145,6 +148,18 @@ fun GalleryScreen(
                 is GalleryState.Transferring -> TransferringContent(s)
                 is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
             }
+        }
+
+        // Transfer preview confirmation
+        if (showPreview && s is GalleryState.Browsing) {
+            TransferPreviewSheet(
+                viewModel = viewModel,
+                onConfirm = {
+                    showPreview = false
+                    viewModel.startTransfer()
+                },
+                onDismiss = { showPreview = false },
+            )
         }
     }
 }
@@ -170,6 +185,8 @@ fun GalleryFolderScreen(
     val context = LocalContext.current
     val prefs = remember { UsbSyncPreferences(context) }
 
+    var showPreview by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -193,7 +210,7 @@ fun GalleryFolderScreen(
             ) {
                 BottomAppBar {
                     Button(
-                        onClick = { viewModel.startTransfer() },
+                        onClick = { showPreview = true },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     ) { Text("传输 $selectionCount 张照片") }
                 }
@@ -212,6 +229,14 @@ fun GalleryFolderScreen(
                 is GalleryState.Transferring -> TransferringContent(s)
                 is GalleryState.TransferDone -> TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
                 else -> {}
+            }
+
+            if (showPreview && s is GalleryState.Browsing) {
+                TransferPreviewSheet(
+                    viewModel = viewModel,
+                    onConfirm = { showPreview = false; viewModel.startTransfer() },
+                    onDismiss = { showPreview = false },
+                )
             }
         }
     }
@@ -326,6 +351,7 @@ private fun BrowsingContent(
     val entries = state.entries
     val photos = entries.filterIsInstance<GalleryEntry.PhotoGroup>()
     val folders = entries.filterIsInstance<GalleryEntry.Folder>()
+    val dateSections = entries.filterIsInstance<GalleryEntry.DateSection>()
 
     if (entries.isEmpty()) { EmptyCameraContent(); return }
 
@@ -334,6 +360,7 @@ private fun BrowsingContent(
     val jpgCount = photos.count { it.jpg != null }
     val newCount = vm.getNewPhotoCount()
     val filteredPhotos = vm.getFilteredGroups()
+    val isFlatMode = vm.groupingMode != UsbSyncPreferences.PhotoGrouping.BY_FOLDER
 
     var detailGroup by remember { mutableStateOf<GalleryEntry.PhotoGroup?>(null) }
     var detailThumbBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -369,8 +396,8 @@ private fun BrowsingContent(
             }
         }
 
-        // Folders section — full width
-        if (folders.isNotEmpty()) {
+        // Folders section — full width (BY_FOLDER mode only)
+        if (folders.isNotEmpty() && !isFlatMode) {
             item(span = StaggeredGridItemSpan.FullLine) {
                 Text("文件夹", fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -385,28 +412,60 @@ private fun BrowsingContent(
             }
         }
 
-        // Photos header — full width
-        if (filteredPhotos.isNotEmpty()) {
-            item(span = StaggeredGridItemSpan.FullLine) {
-                Text("照片 (${filteredPhotos.size})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        // BY_DATE mode: render date sections + photos interleaved
+        if (dateSections.isNotEmpty()) {
+            for (section in dateSections) {
+                item(key = "ds_${section.date}", span = StaggeredGridItemSpan.FullLine) {
+                    Text(
+                        "${section.date}  (${section.count})",
+                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                // Find photos for this date section
+                val datePhotos = filteredPhotos.filter { group ->
+                    val ts = maxOf(group.raw?.dateModified ?: 0L, group.jpg?.dateModified ?: 0L)
+                    val dateFmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                    dateFmt.format(java.util.Date(ts)) == section.date
+                }
+                items(datePhotos, key = { it.baseName }) { group ->
+                    PhotoCell(
+                        group = group,
+                        isSelected = vm.isGroupSelected(group),
+                        onToggle = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            vm.toggleSelection(group)
+                        },
+                        getThumbnail = vm::getThumbnail,
+                        getOrientation = vm::getOrientation,
+                        onPhotoClick = { detailGroup = group; detailThumbBytes = vm.getThumbnail(group.previewHandle) },
+                    )
+                }
             }
-        }
+        } else {
+            // BY_FOLDER or FLAT: show photos
+            if (filteredPhotos.isNotEmpty()) {
+                item(span = StaggeredGridItemSpan.FullLine) {
+                    Text("照片 (${filteredPhotos.size})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                }
+            }
 
-        // Photos — 3-column grid (automatic)
-        items(filteredPhotos, key = { it.baseName }) { group ->
-            PhotoCell(
-                group = group,
-                isSelected = vm.isGroupSelected(group),
-                onToggle = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    vm.toggleSelection(group)
-                },
-                getThumbnail = vm::getThumbnail,
-                getOrientation = vm::getOrientation,
-                onPhotoClick = { detailGroup = group; detailThumbBytes = vm.getThumbnail(group.previewHandle) },
-            )
+            items(filteredPhotos, key = { it.baseName }) { group ->
+                PhotoCell(
+                    group = group,
+                    isSelected = vm.isGroupSelected(group),
+                    onToggle = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        vm.toggleSelection(group)
+                    },
+                    getThumbnail = vm::getThumbnail,
+                    getOrientation = vm::getOrientation,
+                    onPhotoClick = { detailGroup = group; detailThumbBytes = vm.getThumbnail(group.previewHandle) },
+                )
+            }
         }
     }
     } // PullToRefreshBox
@@ -936,5 +995,160 @@ private fun TransferDoneContent(
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
             },
         )
+    }
+}
+
+// ── Transfer Preview Sheet ─────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TransferPreviewSheet(
+    viewModel: GalleryViewModel,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    // Collect selected photo groups for preview
+    val selectedGroups = viewModel.getFilteredGroups()
+        .filter { viewModel.isGroupSelected(it) }
+        .take(6) // show first 6 thumbnails
+
+    val totalSelected = viewModel.selectedCount
+    val totalGroups = selectedGroups.size
+
+    // Compute total size of all selected photos
+    val allSelectedPhotos = viewModel.getFilteredGroups()
+        .flatMap { listOfNotNull(it.raw, it.jpg) }
+        .filter { photo -> viewModel.isSelected(photo.handle) }
+        .distinctBy { it.handle }
+    val totalSize = allSelectedPhotos.sumOf { it.size }
+    val rawCount = allSelectedPhotos.count { it.formatName == "NEF(RAW)" }
+    val jpgCount = allSelectedPhotos.count { it.formatName in setOf("JPEG", "EXIF_JPEG") }
+
+    LaunchedEffect(Unit) { sheetState.show() }
+
+    if (sheetState.isVisible) {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+            ) {
+                Text("确认传输", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${allSelectedPhotos.size} 个文件 (${totalGroups} 组照片)",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                // Format breakdown
+                if (rawCount > 0 || jpgCount > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        if (jpgCount > 0) Text("$jpgCount JPEG", fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (rawCount > 0) Text("$rawCount RAW", fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Text(
+                    "总大小: ${formatFileSize(totalSize)}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+
+                // Thumbnail previews
+                if (selectedGroups.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    Text("预览", fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        for (group in selectedGroups) {
+                            var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
+                            LaunchedEffect(group.previewHandle) {
+                                val bytes = withContext(Dispatchers.IO) {
+                                    viewModel.getThumbnail(group.previewHandle)
+                                }
+                                if (bytes != null) {
+                                    val bmp = withContext(Dispatchers.IO) {
+                                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                    }
+                                    if (bmp != null) {
+                                        val ori = viewModel.getOrientation(group.previewHandle)
+                                        val rotated = withContext(Dispatchers.IO) {
+                                            rotateByExif(bmp, bytes, ori)
+                                        }
+                                        thumb = rotated.asImageBitmap()
+                                    }
+                                }
+                            }
+                            Box(
+                                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (thumb != null) {
+                                    Image(
+                                        bitmap = thumb!!,
+                                        contentDescription = group.baseName,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop,
+                                    )
+                                } else {
+                                    CircularProgressIndicator(
+                                        Modifier.size(16.dp), strokeWidth = 2.dp,
+                                    )
+                                }
+                            }
+                        }
+                        // "+N more" indicator
+                        val remaining = totalGroups - selectedGroups.size
+                        if (remaining > 0) {
+                            Box(
+                                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    "+$remaining",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(24.dp))
+
+                // Confirm / Cancel buttons
+                Button(
+                    onClick = {
+                        scope.launch { sheetState.hide(); onConfirm() }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(painterResource(android.R.drawable.ic_menu_save), null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("开始传输")
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = {
+                    scope.launch { sheetState.hide(); onDismiss() }
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Text("取消")
+                }
+            }
+        }
     }
 }

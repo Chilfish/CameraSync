@@ -87,6 +87,7 @@ data class TransferProgress(
 
 sealed interface GalleryEntry {
     data class Folder(val info: NikonUsbManager.FolderInfo, val storageId: Int) : GalleryEntry
+    data class DateSection(val date: String, val count: Int) : GalleryEntry
     data class PhotoGroup(
         val baseName: String,
         val raw: NikonUsbManager.PhotoInfo?,
@@ -128,6 +129,17 @@ class GalleryViewModel(private val app: Application) {
 
     /** Current grid column count (2, 3, or 4). */
     var gridColumns: Int = 3
+        private set
+
+    /** Preferences (auto-sync, format, grouping, sorting, theme, history). */
+    val prefs = UsbSyncPreferences(app)
+
+    /** Current photo grouping mode. */
+    var groupingMode: UsbSyncPreferences.PhotoGrouping = prefs.photoGrouping
+        private set
+
+    /** Current photo sorting mode. */
+    var sortingMode: UsbSyncPreferences.PhotoSorting = prefs.photoSorting
         private set
 
     private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -236,17 +248,51 @@ class GalleryViewModel(private val app: Application) {
         _state.value = GalleryState.Loading("正在读取…")
 
         if (storages.isEmpty()) { _state.value = GalleryState.Empty; return }
+
+        // Re-read preferences on each load so settings take effect immediately
+        groupingMode = prefs.photoGrouping
+        sortingMode = prefs.photoSorting
+        filterMode = downloadFormatToFilter(prefs.downloadFormat)
+
         val entries = mutableListOf<GalleryEntry>()
-        for (s in storages) {
-            val folders = nikon.listFolders(m, s.id, 0)
-            entries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
-            // Also show loose photos at root
-            val photos = nikon.listPhotosInFolder(m, s.id, 0)
-            currentPhotos = groupByBaseFilename(photos)
-            entries.addAll(currentPhotos)
+
+        when (groupingMode) {
+            UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> {
+                for (s in storages) {
+                    val folders = nikon.listFolders(m, s.id, 0)
+                    entries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
+                    val photos = nikon.listPhotosInFolder(m, s.id, 0)
+                    currentPhotos = groupByBaseFilename(photos)
+                    entries.addAll(currentPhotos)
+                }
+            }
+            UsbSyncPreferences.PhotoGrouping.BY_DATE -> {
+                val allPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
+                for (s in storages) {
+                    allPhotos.addAll(nikon.listPhotos(m, s.id))
+                }
+                currentPhotos = groupByBaseFilename(allPhotos)
+                // Add date-section headers
+                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                val dateGroups = currentPhotos.groupBy { group ->
+                    val ts = maxOf(group.raw?.dateModified ?: 0L, group.jpg?.dateModified ?: 0L)
+                    dateFormat.format(java.util.Date(ts))
+                }
+                for ((date, groups) in dateGroups) {
+                    entries.add(GalleryEntry.DateSection(date, groups.size))
+                    entries.addAll(groups)
+                }
+            }
+            UsbSyncPreferences.PhotoGrouping.FLAT -> {
+                val allPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
+                for (s in storages) {
+                    allPhotos.addAll(nikon.listPhotos(m, s.id))
+                }
+                currentPhotos = groupByBaseFilename(allPhotos)
+                entries.addAll(currentPhotos)
+            }
         }
-        // Pre-fetch orientations for the first visible batch so PhotoCell
-        // gets correct initial aspect ratios (avoids staggered-grid letterboxing).
+
         prefetchOrientations(50)
         _state.value = GalleryState.Browsing(cameraInfo, storages, entries)
         preloadThumbnails()
@@ -344,7 +390,7 @@ class GalleryViewModel(private val app: Application) {
 
     // ── Filtering ──────────────────────────────────────────────────────────
 
-    var filterMode: PhotoFilter = PhotoFilter.ALL
+    var filterMode: PhotoFilter = downloadFormatToFilter(prefs.downloadFormat)
         private set
 
     fun setFilter(mode: PhotoFilter) {
@@ -352,7 +398,7 @@ class GalleryViewModel(private val app: Application) {
     }
 
     fun getFilteredGroups(): List<GalleryEntry.PhotoGroup> {
-        return when (filterMode) {
+        val filtered = when (filterMode) {
             PhotoFilter.ALL -> currentPhotos
             PhotoFilter.NEW -> currentPhotos.filter { group ->
                 val handles = listOfNotNull(group.raw?.handle, group.jpg?.handle)
@@ -360,6 +406,47 @@ class GalleryViewModel(private val app: Application) {
             }
             PhotoFilter.RAW_ONLY -> currentPhotos.filter { it.hasRaw }
             PhotoFilter.JPEG_ONLY -> currentPhotos.filter { it.jpg != null }
+        }
+        return applySorting(filtered)
+    }
+
+    // ── Grouping ───────────────────────────────────────────────────────────
+
+    fun setGrouping(mode: UsbSyncPreferences.PhotoGrouping) {
+        groupingMode = mode
+        prefs.photoGrouping = mode
+    }
+
+    fun setSorting(mode: UsbSyncPreferences.PhotoSorting) {
+        sortingMode = mode
+        prefs.photoSorting = mode
+    }
+
+    fun setDownloadFormat(format: UsbSyncPreferences.DownloadFormat) {
+        prefs.downloadFormat = format
+        filterMode = downloadFormatToFilter(format)
+    }
+
+    private fun applySorting(photos: List<GalleryEntry.PhotoGroup>): List<GalleryEntry.PhotoGroup> {
+        return when (sortingMode) {
+            UsbSyncPreferences.PhotoSorting.DATE_DESC ->
+                photos.sortedByDescending { maxOf(it.raw?.dateModified ?: 0L, it.jpg?.dateModified ?: 0L) }
+            UsbSyncPreferences.PhotoSorting.DATE_ASC ->
+                photos.sortedBy { maxOf(it.raw?.dateModified ?: 0L, it.jpg?.dateModified ?: 0L) }
+            UsbSyncPreferences.PhotoSorting.NAME_ASC ->
+                photos.sortedBy { it.baseName }
+            UsbSyncPreferences.PhotoSorting.NAME_DESC ->
+                photos.sortedByDescending { it.baseName }
+            UsbSyncPreferences.PhotoSorting.SIZE_DESC ->
+                photos.sortedByDescending { (it.raw?.size ?: 0L) + (it.jpg?.size ?: 0L) }
+        }
+    }
+
+    private fun downloadFormatToFilter(format: UsbSyncPreferences.DownloadFormat): PhotoFilter {
+        return when (format) {
+            UsbSyncPreferences.DownloadFormat.ALL -> PhotoFilter.ALL
+            UsbSyncPreferences.DownloadFormat.JPEG_ONLY -> PhotoFilter.JPEG_ONLY
+            UsbSyncPreferences.DownloadFormat.RAW_ONLY -> PhotoFilter.RAW_ONLY
         }
     }
 
