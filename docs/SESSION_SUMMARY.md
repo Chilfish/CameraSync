@@ -1,8 +1,10 @@
-# Session Summary — 2026-05-06/07
+# Session Summary — 2026-05-06/07/08
 
 > **Next session**: Read this first. It captures everything done, learned, and the current state.
 
 ## TL;DR
+
+Sprint 4 delivered. 5 deferred features done. Then deep code review found and fixed 13 runtime bugs + 8 architecture issues. 19 messy commits cleaned to 7. PhotoDetailSheet now downloads full RAW for preview with EXIF. Cache and import indicator added.
 
 Three sprints delivered. CameraSync is now a polished USB photo sync app for Nikon cameras with 16 features across 3 sprints. All merged to `master`. Ready for next phase.
 
@@ -137,7 +139,53 @@ e90034b feat(sprint-3): transfer history, settings, dark theme, battery, retry
 | `docs/MULTI_DEVICE_ARCHITECTURE.md` | Full architecture with USB + BLE layers |
 | `docs/SESSION_SUMMARY.md` | This file — session context for next conversation |
 
+---
+
+## Post-Sprint-4: Code Review & Bug Fixes (2026-05-07 late)
+
+### Architecture Refactoring
+- Strings migration: 80% hardcoded Chinese → stringResource (+25 keys)
+- Screen merge: GalleryScreen + GalleryFolderScreen → 1 parametrized composable (-400 duplicate lines)
+- Compose State: filterMode, groupingMode, sortingMode, gridColumns, currentPhotos → mutableStateOf
+- Shared composables: ThumbnailImage, formatFileSize consolidation
+- OnboardingScreen now uses Scaffold, navigation unified to removeLastOrNull()
+
+### Runtime Bug Fixes (6 + 7 = 13 total)
+**Crash fixes:**
+- thumbCache thread-safety (LinkedHashMap → synchronizedMap)
+- getThumbnail race condition vs closeMtp (local capture + try/catch)
+
+**Layout/Display:**
+- StorageBar/FilterChips/grid stacking fix (wrap in Column with weight)
+- Date grouping sorted newest-first
+- refresh() folder context preservation
+- Portrait NEF orientation from thumbPix dimensions + imagePixWidth/Height
+
+**Selection/Preview:**
+- Selection mode tap behavior (select instead of preview)
+- TransferPreviewSheet uses unfiltered currentPhotos
+- PhotoDetailSheet downloads full RAW (NEF) via MTP importFile for preview + complete EXIF
+- Expand EXIF to 13 fields (aperture, ISO, focal length, lens model, etc.)
+
+**Download:**
+- Remove date folder from MediaStore path
+
+### Photo Preview Cache + Import Indicator (2026-05-08)
+- fullPhotoCache: LRU 12 entries (~300MB max), cleared on disconnect
+- Green ✓ badge on already-imported photos in gallery grid
+- isGroupImported() helper in ViewModel
+
+### Commit History Cleanup
+- 19 commits (4 garbage merges) → 7 clean commits
+- git rebase -i (drop merges, fixup squash) + filter-branch (rewrite messages)
+- Each commit has complete body describing features/bugs
+
+### Known UX Issues (TODO)
+- RAW+JPEG selection should follow download format preference
+- Settings changes (grid columns) require app restart to take effect
+
 ## Environment Notes
 - User uses **PowerShell** on Windows (`;` not `&&` for chaining)
 - Project root: `I:\CameraSync`
 - Test device: Pixel 9 + Android 15 + Nikon Z30 (C2C cable)
+- exiftool at `D:\Scoop\apps\exifglass\current\exiftool.exe` for NEF metadata verification
