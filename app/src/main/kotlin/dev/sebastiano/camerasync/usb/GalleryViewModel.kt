@@ -590,11 +590,16 @@ class GalleryViewModel(private val app: Application) {
         for (group in currentPhotos) {
             val handle = group.previewHandle
             if (orientationCache.containsKey(handle)) continue
-            // Use the JPEG info if available (more reliable), else RAW
             val info = group.jpg ?: group.raw ?: continue
-            if (info.imagePixWidth > 0 && info.imagePixHeight > 0 &&
-                info.imagePixWidth < info.imagePixHeight
-            ) {
+            // Nikon Z30 always reports sensor dimensions (5568×3712) for imagePix,
+            // so imagePix alone won't detect portrait. Use imagePix first, then
+            // fall back to thumbPix (which IS swapped for portrait on Z30: 120×160).
+            val isPortrait =
+                (info.imagePixWidth > 0 && info.imagePixHeight > 0 &&
+                    info.imagePixWidth < info.imagePixHeight) ||
+                    (info.thumbPixWidth > 0 && info.thumbPixHeight > 0 &&
+                        info.thumbPixWidth < info.thumbPixHeight)
+            if (isPortrait) {
                 orientationCache[handle] = ExifInterface.ORIENTATION_ROTATE_90
             }
         }

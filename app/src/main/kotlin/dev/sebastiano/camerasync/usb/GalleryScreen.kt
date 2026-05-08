@@ -736,22 +736,30 @@ private fun PhotoCell(
     val handle = group.previewHandle
     val cachedOri = getOrientation(handle)
 
-    // Compute initial aspect ratio from available info so the staggered
-    // grid measures the cell correctly before the thumbnail loads.
+    // Compute initial aspect ratio from the actual full-resolution dimensions
+    // (imagePixWidth/Height from MtpObjectInfo). These reflect the real photo
+    // proportions (3:2 for Nikon Z30: 5568×3712 landscape, 3712×5568 portrait).
+    // thumbPix is 160×120 (4:3) which would make all cells slightly too square.
     val photoInfo = group.jpg ?: group.raw
-    val thumbPixW = photoInfo?.thumbPixWidth ?: 0
-    val thumbPixH = photoInfo?.thumbPixHeight ?: 0
+    val imgW = photoInfo?.imagePixWidth ?: 0
+    val imgH = photoInfo?.imagePixHeight ?: 0
+    val thumbW = photoInfo?.thumbPixWidth ?: 0
+    val thumbH = photoInfo?.thumbPixHeight ?: 0
+    val pixW = if (imgW > 0) imgW else thumbW
+    val pixH = if (imgH > 0) imgH else thumbH
     val baseAspect =
         when {
-            cachedOri != null -> orientationToAspect(cachedOri, thumbPixW, thumbPixH)
-            thumbPixW > 0 && thumbPixH > 0 -> {
-                // When orientation is unknown (e.g. NEF TIFF thumbnail), use
-                // thumbPix dimensions to detect portrait photos. If width < height
-                // the photo is portrait — swap the aspect ratio accordingly.
-                if (thumbPixW < thumbPixH) {
-                    thumbPixH.toFloat() / thumbPixW.toFloat()
+            cachedOri != null -> orientationToAspect(cachedOri, pixW, pixH)
+            pixW > 0 && pixH > 0 -> {
+                val rawAspect = pixW.toFloat() / pixH.toFloat()
+                // When orientation is unknown: imagePix on Z30 always reports sensor
+                // dimensions (5568×3712, landscape). If thumbPix says portrait
+                // (120×160, width < height), override to prevent landscape-shaped
+                // cells for portrait photos.
+                if (rawAspect > 1f && thumbW > 0 && thumbH > 0 && thumbW < thumbH) {
+                    thumbW.toFloat() / thumbH.toFloat()
                 } else {
-                    thumbPixW.toFloat() / thumbPixH.toFloat()
+                    rawAspect
                 }
             }
             else -> 3f / 2f
