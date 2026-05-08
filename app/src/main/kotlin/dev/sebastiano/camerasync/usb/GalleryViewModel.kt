@@ -398,6 +398,7 @@ class GalleryViewModel(private val app: Application) {
                         enteredBrowsing = true
                         val partial = groupByBaseFilename(accumPhotos.toList())
                         currentPhotos = partial
+                        populateOrientationsFromDimensions()
                         _state.value = GalleryState.Browsing(
                             cameraInfo, storages, buildEntries(partial, accumPhotos.toList()),
                         )
@@ -511,6 +512,9 @@ class GalleryViewModel(private val app: Application) {
      * the cell at a wrong default ratio.
      */
     private suspend fun prefetchOrientations(count: Int) {
+        // First, use MtpObjectInfo dimensions as fallback for any handles
+        // whose EXIF orientation is still unknown.
+        populateOrientationsFromDimensions()
         val handles = currentPhotos.take(count).map { it.previewHandle }
         for (h in handles) {
             // orientation already cached? skip
@@ -568,6 +572,31 @@ class GalleryViewModel(private val app: Application) {
         } catch (_: Exception) {
             /* ExifInterface failed (not a JPEG) — leave uncached so PhotoCell
                falls back to dimension-based portrait detection */
+        }
+    }
+
+    /**
+     * Populates [orientationCache] from [MtpObjectInfo.imagePixWidth/imagePixHeight]
+     * for handles whose EXIF orientation is still unknown (cache miss).
+     *
+     * [MtpObjectInfo] dimensions are more reliable than thumbnail-based heuristics
+     * because they reflect the actual full-resolution image orientation. Nikon Z30
+     * reports 5568×3712 for landscape and 3712×5568 for portrait.
+     *
+     * Call this after [groupByBaseFilename] so each [PhotoGroup] has its [PhotoInfo]
+     * with imagePix dimensions available.
+     */
+    fun populateOrientationsFromDimensions() {
+        for (group in currentPhotos) {
+            val handle = group.previewHandle
+            if (orientationCache.containsKey(handle)) continue
+            // Use the JPEG info if available (more reliable), else RAW
+            val info = group.jpg ?: group.raw ?: continue
+            if (info.imagePixWidth > 0 && info.imagePixHeight > 0 &&
+                info.imagePixWidth < info.imagePixHeight
+            ) {
+                orientationCache[handle] = ExifInterface.ORIENTATION_ROTATE_90
+            }
         }
     }
 

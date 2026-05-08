@@ -827,8 +827,16 @@ private fun rotateByExif(
     bitmap: Bitmap,
     jpegBytes: ByteArray,
     fallbackOrientation: Int? = null,
-): Bitmap =
-    try {
+): Bitmap {
+    fun rotate(deg: Float) =
+        if (deg == 0f) bitmap
+        else
+            Bitmap.createBitmap(
+                bitmap, 0, 0, bitmap.width, bitmap.height,
+                Matrix().apply { postRotate(deg) }, true,
+            )
+
+    return try {
         val exif = ExifInterface(ByteArrayInputStream(jpegBytes))
         var orientation =
             exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -848,20 +856,19 @@ private fun rotateByExif(
                 ExifInterface.ORIENTATION_ROTATE_270 -> 270f
                 else -> 0f
             }
-        if (degrees == 0f) bitmap
-        else
-            Bitmap.createBitmap(
-                bitmap,
-                0,
-                0,
-                bitmap.width,
-                bitmap.height,
-                Matrix().apply { postRotate(degrees) },
-                true,
-            )
+        rotate(degrees)
     } catch (_: Exception) {
-        bitmap
+        // EXIF read failed (e.g. TIFF thumbnail). Use fallback if available.
+        val degrees =
+            when (fallbackOrientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+        rotate(degrees)
     }
+}
 
 /** Converts an EXIF orientation to an aspect ratio (width/height). */
 private fun orientationToAspect(orientation: Int, thumbPixW: Int, thumbPixH: Int): Float {
