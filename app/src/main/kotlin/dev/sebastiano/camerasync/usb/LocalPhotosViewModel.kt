@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Environment
+import android.provider.MediaStore
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,36 +76,56 @@ class LocalPhotosViewModel(private val app: Application) {
 
     // ── Directory scanning ──────────────────────────────────────────────────
 
+    /**
+     * Scans exported photos. Uses both direct file listing AND MediaStore query
+     * because Android 13+ may restrict `listFiles()` on shared Pictures/ dir.
+     */
     private fun scanDirectories(): List<LocalPhotoGroup> {
+        val fileSet = linkedSetOf<File>()
+
+        // Path 1: direct file listing (fast, works for recently-written files)
         val base = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "CameraSync")
-        if (!base.exists() || !base.isDirectory) {
-            Log.info(tag = TAG) { "CameraSync directory not found: ${base.absolutePath}" }
-            return emptyList()
+        if (base.exists() && base.isDirectory) {
+            collectFiles(base, fileSet)
         }
+        Log.info(tag = TAG) { "Files from listFiles(): ${fileSet.size}" }
 
-        // CameraSync/{camera model}/{date folder}/*.jpg|*.nef
-        val allFiles = mutableListOf<File>()
-        base.listFiles()?.filter { it.isDirectory }?.forEach { cameraDir ->
-            walkDateDirs(cameraDir, allFiles)
-        }
+        // Path 2: MediaStore query (reliable on Android 11+, catches all files)
+        queryMediaStoreFiles(fileSet)
+        Log.info(tag = TAG) { "Files total (with MediaStore): ${fileSet.size}" }
 
-        return groupByBaseName(allFiles).sortedByDescending { group ->
-            maxOf(
-                group.jpg?.dateModified ?: 0L,
-                group.raw?.dateModified ?: 0L,
-            )
+        return groupByBaseName(fileSet.toList()).sortedByDescending { group ->
+            maxOf(group.jpg?.dateModified ?: 0L, group.raw?.dateModified ?: 0L)
         }
     }
 
-    private fun walkDateDirs(dir: File, out: MutableList<File>) {
-        dir.listFiles()?.forEach { child ->
+    private fun collectFiles(dir: File, out: MutableSet<File>) {
+        val children = dir.listFiles() ?: return
+        for (child in children) {
             if (child.isDirectory) {
-                walkDateDirs(child, out)
+                collectFiles(child, out)
             } else {
                 val name = child.name.lowercase()
                 if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".nef")) {
                     out.add(child)
                 }
+            }
+        }
+    }
+
+    private fun queryMediaStoreFiles(out: MutableSet<File>) {
+        val projection = arrayOf(MediaStore.Images.Media.DATA)
+        val selection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?"
+        val args = arrayOf("Pictures/CameraSync/%")
+        val cursor = app.contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            projection, selection, args, null
+        ) ?: return
+        cursor.use {
+            val dataCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+            while (it.moveToNext()) {
+                val path = it.getString(dataCol) ?: continue
+                out.add(File(path))
             }
         }
     }
