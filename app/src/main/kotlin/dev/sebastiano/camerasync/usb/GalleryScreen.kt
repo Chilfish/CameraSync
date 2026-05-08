@@ -129,6 +129,18 @@ fun GalleryScreen(
     var showLocal by remember { mutableStateOf(false) }
     val app = context.applicationContext as Application
     val localVm = remember { LocalPhotosViewModel(app) }
+    // Auto-switch to local when camera disconnects, back to camera when it connects
+    LaunchedEffect(s) {
+        when (s) {
+            is GalleryState.Disconnected -> {
+                if (!showLocal) localVm.load()
+            }
+            is GalleryState.Connecting, is GalleryState.Loading, is GalleryState.Browsing -> {
+                showLocal = false
+            }
+            else -> {}
+        }
+    }
 
     // Preview bottom sheet state
     var showPreview by remember { mutableStateOf(false) }
