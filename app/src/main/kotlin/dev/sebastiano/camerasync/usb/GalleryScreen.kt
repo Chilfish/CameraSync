@@ -1,5 +1,6 @@
 package dev.sebastiano.camerasync.usb
 
+import android.app.Application
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -124,6 +125,11 @@ fun GalleryScreen(
 
     val inFolder = storageId != null
 
+    // Local photos mode (available when camera is disconnected)
+    var showLocal by remember { mutableStateOf(false) }
+    val app = context.applicationContext as Application
+    val localVm = remember { LocalPhotosViewModel(app) }
+
     // Preview bottom sheet state
     var showPreview by remember { mutableStateOf(false) }
 
@@ -168,22 +174,31 @@ fun GalleryScreen(
         },
     ) { innerPadding ->
         Box(Modifier.padding(innerPadding).fillMaxSize()) {
-            when (s) {
-                is GalleryState.Disconnected -> {
-                    if (inFolder) LaunchedEffect(Unit) { onNavigateBack() }
-                    else DisconnectedContent()
+            // Local photos mode — shown when user taps "查看本机照片"
+            if (showLocal) {
+                LocalBrowsingContent(
+                    localVm = localVm,
+                    gridColumns = viewModel.gridColumns,
+                    onBack = { showLocal = false },
+                )
+            } else {
+                when (s) {
+                    is GalleryState.Disconnected -> {
+                        if (inFolder) LaunchedEffect(Unit) { onNavigateBack() }
+                        else DisconnectedContent(onViewLocal = { showLocal = true })
+                    }
+                    is GalleryState.Connecting -> {
+                        if (!inFolder) ConnectingContent()
+                    }
+                    is GalleryState.Loading -> LoadingContent(s)
+                    is GalleryState.Browsing ->
+                        BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
+                    is GalleryState.Empty -> EmptyCameraContent()
+                    is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
+                    is GalleryState.Transferring -> TransferringContent(s)
+                    is GalleryState.TransferDone ->
+                        TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
                 }
-                is GalleryState.Connecting -> {
-                    if (!inFolder) ConnectingContent()
-                }
-                is GalleryState.Loading -> LoadingContent(s)
-                is GalleryState.Browsing ->
-                    BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
-                is GalleryState.Empty -> EmptyCameraContent()
-                is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
-                is GalleryState.Transferring -> TransferringContent(s)
-                is GalleryState.TransferDone ->
-                    TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
             }
         }
 
@@ -304,7 +319,7 @@ private fun GalleryTopBar(
 // ── Disconnected / Connecting / Loading ────────────────────────────────────
 
 @Composable
-private fun DisconnectedContent() {
+private fun DisconnectedContent(onViewLocal: () -> Unit = {}) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
@@ -326,6 +341,10 @@ private fun DisconnectedContent() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
+            Spacer(Modifier.height(24.dp))
+            TextButton(onClick = onViewLocal) {
+                Text("查看本机照片", fontSize = 15.sp)
+            }
         }
     }
 }
@@ -1464,6 +1483,93 @@ private fun TransferPreviewSheet(
                     Text(stringResource(R.string.general_cancel))
                 }
             }
+        }
+    }
+}
+
+// ── Local Photos (MediaStore) ──────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocalBrowsingContent(
+    localVm: LocalPhotosViewModel,
+    gridColumns: Int,
+    onBack: () -> Unit,
+) {
+    LaunchedEffect(Unit) { localVm.load() }
+
+    val photos = localVm.photos
+    val loading = localVm.loading.value
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("本机照片", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(painterResource(R.drawable.ic_arrow_back_24dp), "返回")
+                    }
+                },
+            )
+        }
+    ) { padding ->
+        if (loading) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (photos.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("没有已导出的照片", fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(gridColumns),
+                contentPadding = PaddingValues(bottom = 80.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalItemSpacing = 2.dp,
+                modifier = Modifier.fillMaxSize().padding(padding),
+            ) {
+                items(photos) { photo ->
+                    LocalPhotoCell(photo)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocalPhotoCell(photo: LocalPhoto) {
+    val ctx = LocalContext.current
+    var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
+    val baseAspect =
+        if (photo.width > 0 && photo.height > 0) photo.width.toFloat() / photo.height.toFloat()
+        else 3f / 2f
+
+    LaunchedEffect(photo.uri) {
+        val bitmap =
+            withContext(Dispatchers.IO) {
+                try {
+                    val opts = BitmapFactory.Options().apply { inSampleSize = 4 }
+                    ctx.contentResolver.openInputStream(photo.uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream, null, opts)
+                    }
+                } catch (_: Exception) { null }
+            }
+        thumb = bitmap?.asImageBitmap()
+    }
+
+    Box(
+        modifier =
+            Modifier.fillMaxWidth()
+                .aspectRatio(baseAspect)
+                .clip(RoundedCornerShape(8.dp))
+                .combinedClickable(onClick = {}),
+    ) {
+        if (thumb != null) {
+            Image(thumb!!, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
         }
     }
 }
