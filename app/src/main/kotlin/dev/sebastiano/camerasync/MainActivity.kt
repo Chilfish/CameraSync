@@ -286,6 +286,7 @@ private fun RootComposable(
                             onGroupingChanged = { galleryViewModel.requestReload() },
                             onSortingChanged = { galleryViewModel.requestReload() },
                             onDownloadFormatChanged = { galleryViewModel.requestReload() },
+                            onGridColumnsChanged = { galleryViewModel.gridColumns = it },
                         )
                     }
 

@@ -158,7 +158,7 @@ class GalleryViewModel(private val app: Application) {
      * Current grid column count (2, 3, or 4). Compose-reactive so the LazyVerticalStaggeredGrid
      * recomposes when columns change.
      */
-    var gridColumns by mutableStateOf(3)
+    var gridColumns by mutableStateOf(prefs.getGridColumns())
 
     /** Set to true by [requestReload] to signal the UI to reload the gallery. */
     var needsReload by mutableStateOf(false)
@@ -530,8 +530,16 @@ class GalleryViewModel(private val app: Application) {
 
     // ── Selection ──────────────────────────────────────────────────────────
 
+    /** Returns the handles to select for a group, respecting [prefs.downloadFormat]. */
+    private fun handlesForFormat(group: GalleryEntry.PhotoGroup): List<Int> =
+        when (prefs.downloadFormat) {
+            UsbSyncPreferences.DownloadFormat.ALL -> listOfNotNull(group.raw?.handle, group.jpg?.handle)
+            UsbSyncPreferences.DownloadFormat.RAW_ONLY -> listOfNotNull(group.raw?.handle)
+            UsbSyncPreferences.DownloadFormat.JPEG_ONLY -> listOfNotNull(group.jpg?.handle)
+        }
+
     fun toggleSelection(group: GalleryEntry.PhotoGroup) {
-        val handles = listOfNotNull(group.raw?.handle, group.jpg?.handle)
+        val handles = handlesForFormat(group)
         if (handles.isEmpty()) return
         if (handles.all { it in _selected }) handles.forEach { _selected.remove(it) }
         else handles.forEach { _selected.add(it) }
@@ -539,7 +547,7 @@ class GalleryViewModel(private val app: Application) {
 
     fun selectAll() {
         currentPhotos
-            .flatMap { listOfNotNull(it.raw?.handle, it.jpg?.handle) }
+            .flatMap { handlesForFormat(it) }
             .forEach { if (it !in _selected) _selected.add(it) }
     }
 

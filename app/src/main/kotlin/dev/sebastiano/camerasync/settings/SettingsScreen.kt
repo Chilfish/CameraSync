@@ -43,6 +43,7 @@ fun SettingsScreen(
     onGroupingChanged: (UsbSyncPreferences.PhotoGrouping) -> Unit = {},
     onSortingChanged: (UsbSyncPreferences.PhotoSorting) -> Unit = {},
     onDownloadFormatChanged: (UsbSyncPreferences.DownloadFormat) -> Unit = {},
+    onGridColumnsChanged: (Int) -> Unit = {},
 ) {
     var autoSync by remember { mutableStateOf(prefs.autoSyncEnabled) }
     var gridCols by remember { mutableStateOf(prefs.getGridColumns()) }
@@ -106,6 +107,7 @@ fun SettingsScreen(
                                 onClick = {
                                     gridCols = cols
                                     prefs.setGridColumns(cols)
+                                    onGridColumnsChanged(cols)
                                 },
                                 label = { Text("${cols}列") },
                             )
