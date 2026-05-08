@@ -177,7 +177,7 @@ fun GalleryScreen(
                 is GalleryState.Connecting -> {
                     if (!inFolder) ConnectingContent()
                 }
-                is GalleryState.Loading -> LoadingContent(s.message)
+                is GalleryState.Loading -> LoadingContent(s)
                 is GalleryState.Browsing ->
                     BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
                 is GalleryState.Empty -> EmptyCameraContent()
@@ -343,15 +343,32 @@ private fun ConnectingContent() {
 }
 
 @Composable
-private fun LoadingContent(message: String) {
+private fun LoadingContent(state: GalleryState.Loading) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(32.dp),
         ) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(12.dp))
-            Text(message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (state.total > 0) {
+                LinearProgressIndicator(
+                    progress = { state.progress.toFloat() / state.total },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "已扫描 ${state.progress} / ${state.total} 张",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    state.message,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

@@ -45,7 +45,11 @@ sealed interface GalleryState {
 
     data object Connecting : GalleryState
 
-    data class Loading(val message: String) : GalleryState
+    data class Loading(
+        val message: String,
+        val progress: Int = 0,
+        val total: Int = 0,
+    ) : GalleryState
 
     data class Browsing(
         val cameraInfo: NikonUsbManager.CameraInfo?,
@@ -154,9 +158,13 @@ class GalleryViewModel(private val app: Application) {
     var batteryLevel: Int? = null
         private set
 
+    /** Preferences (auto-sync, format, grouping, sorting, theme, history). */
+    val prefs = UsbSyncPreferences(app)
+
     /**
      * Current grid column count (2, 3, or 4). Compose-reactive so the LazyVerticalStaggeredGrid
-     * recomposes when columns change.
+     * recomposes when columns change. Initialized from [prefs] so the last chosen value survives
+     * app restarts.
      */
     var gridColumns by mutableStateOf(prefs.getGridColumns())
 
@@ -167,9 +175,6 @@ class GalleryViewModel(private val app: Application) {
     fun requestReload() {
         needsReload = true
     }
-
-    /** Preferences (auto-sync, format, grouping, sorting, theme, history). */
-    val prefs = UsbSyncPreferences(app)
 
     /** Current photo grouping mode. */
     var groupingMode: UsbSyncPreferences.PhotoGrouping by mutableStateOf(prefs.photoGrouping)
@@ -337,11 +342,10 @@ class GalleryViewModel(private val app: Application) {
             }
     }
 
-    /** Load root level: all storages → folders + loose photos */
+    /** Load root level: all storages → folders + loose photos, progressively. */
     suspend fun loadRoot() {
         currentFolder = null
         val m = mtp ?: return
-        _state.value = GalleryState.Loading("正在读取…")
 
         if (storages.isEmpty()) {
             _state.value = GalleryState.Empty
@@ -353,72 +357,143 @@ class GalleryViewModel(private val app: Application) {
         sortingMode = prefs.photoSorting
         filterMode = downloadFormatToFilter(prefs.downloadFormat)
 
-        val entries = mutableListOf<GalleryEntry>()
-
         when (groupingMode) {
-            UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> {
-                for (s in storages) {
-                    val folders = nikon.listFolders(m, s.id, 0)
-                    entries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
-                    val photos = nikon.listPhotosInFolder(m, s.id, 0)
-                    currentPhotos = groupByBaseFilename(photos)
-                    entries.addAll(currentPhotos)
-                }
+            UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> loadRootByFolder(m)
+            UsbSyncPreferences.PhotoGrouping.BY_DATE -> loadRootProgressive(m) { groups, _ ->
+                buildDateSections(groups)
             }
-            UsbSyncPreferences.PhotoGrouping.BY_DATE -> {
-                val allPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
-                for (s in storages) {
-                    allPhotos.addAll(nikon.listPhotos(m, s.id))
-                }
-                currentPhotos = groupByBaseFilename(allPhotos)
-                // Add date-section headers
-                val dateFormat =
-                    java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                val dateGroups =
-                    currentPhotos.groupBy { group ->
-                        val ts = maxOf(group.raw?.dateModified ?: 0L, group.jpg?.dateModified ?: 0L)
-                        dateFormat.format(java.util.Date(ts))
+            UsbSyncPreferences.PhotoGrouping.FLAT -> loadRootProgressive(m) { groups, _ -> groups }
+        }
+    }
+
+    /**
+     * Progressive loader for BY_DATE and FLAT modes.
+     *
+     * 1. Counts total photos quickly (no getObjectInfo per photo)
+     * 2. Enumerates photos with [onProgress], updating Loading state
+     * 3. After FIRST_BATCH (30) photos: transitions to Browsing so the user sees photos immediately
+     * 4. Remaining photos continue loading in background, updating currentPhotos as they arrive
+     * 5. When done: sorts, finalizes entries, prefetches orientations and thumbnails
+     */
+    private suspend fun loadRootProgressive(
+        m: MtpDevice,
+        buildEntries: (groups: List<GalleryEntry.PhotoGroup>, allPhotos: List<NikonUsbManager.PhotoInfo>) -> List<GalleryEntry>,
+    ) {
+        val accumPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
+        var globalScanned = 0
+        var globalTotal = 0
+        var enteredBrowsing = false
+
+        for (s in storages) {
+            val prevSize = accumPhotos.size
+            nikon.listPhotos(
+                m, s.id,
+                accumulator = accumPhotos,
+                onProgress = { scanned, total ->
+                    globalScanned = prevSize + scanned
+                    globalTotal = prevSize + total
+
+                    // After 30 photos: transition to Browsing so the user sees photos immediately
+                    if (!enteredBrowsing && accumPhotos.size >= 30) {
+                        enteredBrowsing = true
+                        val partial = groupByBaseFilename(accumPhotos.toList())
+                        currentPhotos = partial
+                        _state.value = GalleryState.Browsing(
+                            cameraInfo, storages, buildEntries(partial, accumPhotos.toList()),
+                        )
+                    } else if (!enteredBrowsing) {
+                        _state.value =
+                            GalleryState.Loading("正在扫描…", globalScanned, globalTotal)
                     }
-                // Sort dates descending (newest first)
-                val sortedDates =
-                    dateGroups.entries.sortedByDescending { (date, _) ->
-                        try {
-                            dateFormat.parse(date)?.time ?: 0L
-                        } catch (_: Exception) {
-                            0L
-                        }
-                    }
-                for ((date, groups) in sortedDates) {
-                    entries.add(GalleryEntry.DateSection(date, groups.size))
-                    entries.addAll(groups)
-                }
-            }
-            UsbSyncPreferences.PhotoGrouping.FLAT -> {
-                val allPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
-                for (s in storages) {
-                    allPhotos.addAll(nikon.listPhotos(m, s.id))
-                }
-                currentPhotos = groupByBaseFilename(allPhotos)
-                entries.addAll(currentPhotos)
-            }
+                    // After entering Browsing, photos continue streaming in via accumulator
+                    // — currentPhotos will be finalized below.
+                },
+            )
         }
 
+        // All photos collected — group, finalize, pre-fetch
+        val groups = groupByBaseFilename(accumPhotos)
+        currentPhotos = groups
+        val entries = buildEntries(groups, accumPhotos)
         prefetchOrientations(50)
         _state.value = GalleryState.Browsing(cameraInfo, storages, entries)
         preloadThumbnails()
+    }
+
+    /** Fast folder-first loading: show folder list immediately, load root-level photos after. */
+    private suspend fun loadRootByFolder(m: MtpDevice) {
+        val entries = mutableListOf<GalleryEntry>()
+        val allRootPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
+
+        // Phase 1: collect folders (cheap — just list folder names)
+        for (s in storages) {
+            val folders = nikon.listFolders(m, s.id, 0)
+            entries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
+        }
+        // Show folders immediately even before photos are enumerated
+        _state.value = GalleryState.Loading("正在读取文件夹…")
+        currentPhotos = emptyList()
+        _state.value = GalleryState.Browsing(cameraInfo, storages, entries.toList())
+
+        // Phase 2: load root-level photos, updating the grid as they come in
+        for (s in storages) {
+            nikon.listPhotosInFolder(m, s.id, 0).let { photos ->
+                allRootPhotos.addAll(photos)
+                currentPhotos = groupByBaseFilename(allRootPhotos)
+                entries.addAll(currentPhotos)
+            }
+        }
+        // Final update with sorted photos
+        currentPhotos = groupByBaseFilename(allRootPhotos)
+        val finalEntries = mutableListOf<GalleryEntry>()
+        for (s in storages) {
+            val folders = nikon.listFolders(m, s.id, 0)
+            finalEntries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
+        }
+        finalEntries.addAll(currentPhotos)
+        prefetchOrientations(50)
+        _state.value = GalleryState.Browsing(cameraInfo, storages, finalEntries)
+        preloadThumbnails()
+    }
+
+    /** Build date-section entries from grouped photos. */
+    private fun buildDateSections(groups: List<GalleryEntry.PhotoGroup>): List<GalleryEntry> {
+        val entries = mutableListOf<GalleryEntry>()
+        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val dateGroups =
+            groups.groupBy { group ->
+                val ts = maxOf(group.raw?.dateModified ?: 0L, group.jpg?.dateModified ?: 0L)
+                dateFormat.format(java.util.Date(ts))
+            }
+        val sortedDates =
+            dateGroups.entries.sortedByDescending { (date, _) ->
+                try {
+                    dateFormat.parse(date)?.time ?: 0L
+                } catch (_: Exception) {
+                    0L
+                }
+            }
+        for ((date, gs) in sortedDates) {
+            entries.add(GalleryEntry.DateSection(date, gs.size))
+            entries.addAll(gs)
+        }
+        return entries
     }
 
     /** Load photos inside a specific folder. Called when entering a folder route. */
     suspend fun loadFolder(storageId: Int, folderHandle: Int) {
         currentFolder = storageId to folderHandle
         val m = mtp ?: return
-        _state.value = GalleryState.Loading("正在读取照片…")
+        _state.value = GalleryState.Loading("正在读取文件夹…")
+
+        // Show sub-folders first (cheap)
+        val subFolders = nikon.listFolders(m, storageId, folderHandle)
+        _state.value =
+            GalleryState.Loading("正在读取照片…", 0, 0)
 
         val photos = nikon.listPhotosInFolder(m, storageId, folderHandle)
         currentPhotos = groupByBaseFilename(photos)
         val entries = mutableListOf<GalleryEntry>()
-        // Show sub-folders first
-        val subFolders = nikon.listFolders(m, storageId, folderHandle)
         entries.addAll(subFolders.map { GalleryEntry.Folder(it, storageId) })
         entries.addAll(currentPhotos)
         // Pre-fetch orientations for the first visible batch so PhotoCell
