@@ -243,12 +243,7 @@ class GalleryViewModel(private val app: Application) {
                 when (intent.action) {
                     UsbManager.ACTION_USB_DEVICE_ATTACHED ->
                         getDevice(intent)?.let { onPlugged(it) }
-                    UsbManager.ACTION_USB_DEVICE_DETACHED -> {
-                        syncJob?.cancel()
-                        closeMtp()
-                        _selected.clear()
-                        _state.value = GalleryState.Disconnected
-                    }
+                    UsbManager.ACTION_USB_DEVICE_DETACHED -> closeMtpAndClear()
                     ACTION_USB_PERMISSION -> {
                         if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false))
                             getDevice(intent)?.let { connectAndBrowse() }
@@ -264,7 +259,11 @@ class GalleryViewModel(private val app: Application) {
             i.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
         else i.getParcelableExtra(UsbManager.EXTRA_DEVICE)
 
+    private var started = false
+
     fun start() {
+        if (started) return
+        started = true
         app.registerReceiver(
             receiver,
             IntentFilter().apply {
@@ -277,14 +276,27 @@ class GalleryViewModel(private val app: Application) {
         usbManager.deviceList.values.firstOrNull { it.vendorId == 0x04B0 }?.let { onPlugged(it) }
     }
 
+    /** Only unregisters the receiver — does NOT close MTP. */
     fun stop() {
         syncJob?.cancel()
         scope.cancel()
-        closeMtp()
         try {
             app.unregisterReceiver(receiver)
         } catch (_: Exception) {}
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        started = false
+    }
+
+    /** Closes MTP and clears all state. Called on USB detach. */
+    private fun closeMtpAndClear() {
+        syncJob?.cancel()
+        closeMtp()
+        _selected.clear()
+        _state.value = GalleryState.Disconnected
+        currentPhotos = emptyList()
+        thumbCache.clear()
+        fullPhotoCache.clear()
+        orientationCache.clear()
     }
 
     private fun onPlugged(device: UsbDevice) {

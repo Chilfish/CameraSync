@@ -66,11 +66,19 @@ fun PhotoDetailSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Instant: MTP thumbnail preview, rotated by EXIF
+    // Instant: MTP thumbnail preview. Camera may pre-rotate the pixel data,
+    // so skip extra rotation if the bitmap already matches the expected orientation.
     val thumbBitmap = remember(thumbnailBytes, orientationFallback) {
         thumbnailBytes?.let {
             val raw = BitmapFactory.decodeByteArray(it, 0, it.size) ?: return@let null
-            rotateByExif(raw, it, orientationFallback)
+            val needsRotation = orientationFallback == null ||
+                when (orientationFallback) {
+                    ExifInterface.ORIENTATION_ROTATE_90,
+                    ExifInterface.ORIENTATION_ROTATE_270,
+                    -> raw.width > raw.height
+                    else -> true
+                }
+            if (needsRotation) rotateByExif(raw, it, orientationFallback) else raw
         }
     }
 

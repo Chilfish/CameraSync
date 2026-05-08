@@ -100,10 +100,9 @@ fun GalleryScreen(
     folderName: String = "",
     onNavigateBack: () -> Unit = {},
 ) {
-    DisposableEffect(Unit) {
-        viewModel.start()
-        onDispose { viewModel.stop() }
-    }
+    // Register broadcast receiver once — never close MTP on navigation.
+    // USB detach events are handled by the BroadcastReceiver in the ViewModel.
+    LaunchedEffect(Unit) { viewModel.start() }
 
     // Load folder contents when in folder mode
     if (storageId != null && folderHandle != null) {
@@ -701,7 +700,23 @@ private fun ThumbnailImage(
                 }
 
         val fallback = getOrientation(handle)
-        val rotated = withContext(Dispatchers.IO) { rotateByExif(raw, bytes, fallback) }
+
+        // Nikon cameras often pre-rotate MTP thumbnail pixel data (e.g. a portrait
+        // photo's thumbnail is already 120×160). If we blindly apply the fallback
+        // orientation we'd double-rotate. Check: if the fallback says "portrait"
+        // but the bitmap is already portrait → skip extra rotation.
+        val needsRotation =
+            fallback == null || when (fallback) {
+                ExifInterface.ORIENTATION_ROTATE_90,
+                ExifInterface.ORIENTATION_ROTATE_270,
+                -> raw.width > raw.height // only rotate if bitmap is landscape
+                else -> true
+            }
+
+        val rotated =
+            withContext(Dispatchers.IO) {
+                if (needsRotation) rotateByExif(raw, bytes, fallback) else raw
+            }
         thumb = rotated.asImageBitmap()
     }
 
