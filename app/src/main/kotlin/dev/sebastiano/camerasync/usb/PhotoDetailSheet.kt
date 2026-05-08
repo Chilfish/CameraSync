@@ -215,7 +215,7 @@ fun PhotoDetailSheet(
  * Extracts human-readable EXIF fields from a RAW/JPEG byte array.
  * Works on both NEF (TIFF-based) and JPEG — Android's ExifInterface handles both.
  */
-private fun extractExif(fileBytes: ByteArray?): List<Pair<String, String?>> {
+internal fun extractExif(fileBytes: ByteArray?): List<Pair<String, String?>> {
     if (fileBytes == null) return emptyList()
     return try {
         val exif = ExifInterface(ByteArrayInputStream(fileBytes))

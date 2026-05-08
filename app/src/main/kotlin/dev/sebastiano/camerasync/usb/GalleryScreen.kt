@@ -148,11 +148,10 @@ fun GalleryScreen(
         topBar = {
             GalleryTopBar(
                 title = if (inFolder) folderName
-                        else if (showLocal) "本机照片"
                         else stringResource(R.string.usb_title),
                 hasBack = inFolder,
-                showSettings = !inFolder && !showLocal,
-                showLogs = !inFolder && !showLocal,
+                showSettings = !inFolder,
+                showLogs = !inFolder,
                 selectionCount = selectionCount,
                 onBackClick = {
                     viewModel.deselectAll()
@@ -1637,8 +1636,8 @@ private fun LocalPhotoDetail(
                 rotated.asImageBitmap()
             }
 
-            // Extract EXIF
-            exifFields = extractLocalExif(file)
+            // Extract EXIF — reuse the same rich parser as camera photos
+            exifFields = extractExif(file.readBytes())
             loading = false
         }
     }
@@ -1696,20 +1695,4 @@ private fun LocalPhotoDetail(
     }
 }
 
-/** Extracts basic EXIF from a local file. */
-private fun extractLocalExif(file: File): List<Pair<String, String?>> {
-    return try {
-        val exif = ExifInterface(FileInputStream(file))
-        listOf(
-            "文件名" to file.name,
-            "日期" to exif.getAttribute(ExifInterface.TAG_DATETIME),
-            "快门" to exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME),
-            "光圈" to exif.getAttribute(ExifInterface.TAG_F_NUMBER)?.let { "f/$it" },
-            "ISO" to (exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)
-                ?: exif.getAttribute(ExifInterface.TAG_ISO_SPEED_RATINGS)),
-            "焦距" to exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH)?.let { "${it}mm" },
-            "镜头" to exif.getAttribute(ExifInterface.TAG_LENS_MODEL),
-            "相机" to "${exif.getAttribute(ExifInterface.TAG_MAKE) ?: ""} ${exif.getAttribute(ExifInterface.TAG_MODEL) ?: ""}".trim(),
-        )
-    } catch (_: Exception) { emptyList() }
-}
+
