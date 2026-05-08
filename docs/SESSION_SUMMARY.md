@@ -25,6 +25,17 @@ All sprints + bug fixes + UX polish done. CameraSync is production-quality. Last
 - **0 known issues** — TODO.md cleared
 - **Deferred**: Cloud backup, video support (not blocking)
 
+### 2026-05-08 Night: Progressive Photo Loading
+- Problem: MTP `getObjectInfo()` is serial per-photo RTT. 500 photos = 500 round-trips = 10–30s of staring at an indeterminate spinner
+- Fix:
+  - `countObjectsInStorage()` — fast handle-counting without `getObjectInfo()`
+  - `listPhotos()` now accepts `accumulator` + `onProgress` callback
+  - `Loading` state gained `progress/total` fields → determinate progress bar "已扫描 45/500 张"
+  - `loadRootProgressive()` transitions to `Browsing` after first 30 photos so the user sees content immediately while remaining photos load in background
+  - BY_FOLDER mode: shows folders instantly, then streams in root photos
+- Files: `NikonUsbManager.kt`, `GalleryViewModel.kt`, `GalleryScreen.kt`
+- Branch: `feat/progressive-loading` (merged to master)
+
 ## What Was Built
 
 ### Documentation Overhaul (Pre-Sprint)
