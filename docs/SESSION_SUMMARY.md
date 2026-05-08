@@ -4,9 +4,26 @@
 
 ## TL;DR
 
-Sprint 4 delivered. 5 deferred features done. Then deep code review found and fixed 13 runtime bugs + 8 architecture issues. 19 messy commits cleaned to 7. PhotoDetailSheet now downloads full RAW for preview with EXIF. Cache and import indicator added.
+All sprints + bug fixes + UX polish done. CameraSync is production-quality. Last two known UX issues resolved 2026-05-08 evening.
 
-Three sprints delivered. CameraSync is now a polished USB photo sync app for Nikon cameras with 16 features across 3 sprints. All merged to `master`. Ready for next phase.
+### 2026-05-08 Evening: Final UX Fixes
+
+**Fix 1: RAW+JPEG selection follows format preference**
+- Problem: `toggleSelection()` and `selectAll()` always selected both RAW+JPEG handles regardless of `downloadFormat` setting
+- Fix: Added `handlesForFormat()` helper in `GalleryViewModel.kt` that returns handles based on `prefs.downloadFormat` (ALL→both, RAW_ONLY→only raw, JPEG_ONLY→only jpg)
+- Files: `GalleryViewModel.kt`
+
+**Fix 2: Settings not applying immediately (grid columns)**
+- Problem: `gridColumns` was hardcoded `3` on init, never read from prefs. SettingsScreen had no callback to notify ViewModel
+- Fix: 
+  - `gridColumns` now init from `prefs.getGridColumns()` 
+  - Added `onGridColumnsChanged` callback to `SettingsScreen`
+  - Wired in `MainActivity`: `onGridColumnsChanged = { galleryViewModel.gridColumns = it }`
+- Files: `GalleryViewModel.kt`, `SettingsScreen.kt`, `MainActivity.kt`
+
+### Current State
+- **0 known issues** — TODO.md cleared
+- **Deferred**: Cloud backup, video support (not blocking)
 
 ## What Was Built
 

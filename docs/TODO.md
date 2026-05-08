@@ -223,17 +223,15 @@
 - Cloud backup integration
 - Video file support
 
-## Known UX Issues (2026-05-08)
+## Known UX Issues
 
-### RAW+JPEG selection follows format preference
-- Current: long-press selects BOTH raw and jpg handles together
-- Expected: follow `downloadFormat` setting — ALL → both, RAW_ONLY → only raw, JPEG_ONLY → only jpg
-- Location: `GalleryViewModel.toggleSelection()` / `selectAll()`
+### RAW+JPEG selection follows format preference ✅ FIXED 2026-05-08
+- ~~toggleSelection() / selectAll() always picked both raw+jpg handles~~
+- Fixed: `handlesForFormat()` helper respects `prefs.downloadFormat`
 
-### Settings not applying immediately
-- Current: grid column count changes only take effect after app restart
-- Expected: immediate visual change on SettingsScreen selection
-- Possibly: GalleryViewModel created with `remember{}` in MainActivity keeps stale `gridColumns` value; need to re-read prefs on composition or use `mutableStateOf` correctly
+### Settings not applying immediately ✅ FIXED 2026-05-08
+- ~~Grid column count changes only took effect after app restart~~
+- Fixed: `gridColumns` init from `prefs.getGridColumns()` + `onGridColumnsChanged` callback from Settings → ViewModel
 
 
 ---
