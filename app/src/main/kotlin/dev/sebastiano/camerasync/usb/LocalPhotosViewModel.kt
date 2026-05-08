@@ -140,22 +140,22 @@ class LocalPhotosViewModel(private val app: Application) {
 
     // ── EXIF orientation ────────────────────────────────────────────────────
 
-    /** Reads EXIF orientation from JPEG files in parallel. */
+    /** Reads EXIF orientation from JPEG (or RAW as fallback) in parallel. */
     private suspend fun preloadOrientations(groups: List<LocalPhotoGroup>) {
         groups.map { group ->
             scope.async {
-                val jpgFile = group.jpg?.file
-                if (jpgFile != null && !orientationCache.containsKey(group.cacheKey)) {
-                    try {
-                        val exif = ExifInterface(FileInputStream(jpgFile))
-                        val ori = exif.getAttributeInt(
-                            ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
-                        )
-                        if (ori != ExifInterface.ORIENTATION_NORMAL) {
-                            orientationCache[group.cacheKey] = ori
-                        }
-                    } catch (_: Exception) { /* ignore */ }
-                }
+                if (orientationCache.containsKey(group.cacheKey)) return@async
+                // Try JPEG first — reliable EXIF
+                val file = group.jpg?.file ?: group.raw?.file ?: return@async
+                try {
+                    val exif = ExifInterface(FileInputStream(file))
+                    val ori = exif.getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+                    )
+                    if (ori != ExifInterface.ORIENTATION_NORMAL) {
+                        orientationCache[group.cacheKey] = ori
+                    }
+                } catch (_: Exception) { /* ignore */ }
             }
         }.awaitAll()
         Log.info(tag = TAG) { "Preloaded ${orientationCache.size} orientations" }

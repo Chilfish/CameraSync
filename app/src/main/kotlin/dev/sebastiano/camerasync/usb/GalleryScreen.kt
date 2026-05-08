@@ -6,6 +6,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.widget.Toast
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileInputStream
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -24,10 +27,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
@@ -43,6 +48,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -129,19 +135,10 @@ fun GalleryScreen(
 
     val inFolder = storageId != null
 
-    // Tab state: 0 = camera, 1 = local photos
-    var selectedTab by remember { mutableIntStateOf(0) }
+    // Local photos — auto-shown when camera is disconnected
     val app = context.applicationContext as Application
     val localVm = remember { LocalPhotosViewModel(app) }
-    // Auto-switch to camera tab when USB connects
-    LaunchedEffect(s) {
-        when (s) {
-            is GalleryState.Connecting, is GalleryState.Loading, is GalleryState.Browsing -> {
-                selectedTab = 0
-            }
-            else -> {}
-        }
-    }
+    val showLocal = s is GalleryState.Disconnected && !inFolder
 
     // Preview bottom sheet state
     var showPreview by remember { mutableStateOf(false) }
@@ -150,10 +147,12 @@ fun GalleryScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             GalleryTopBar(
-                title = if (inFolder) folderName else stringResource(R.string.usb_title),
+                title = if (inFolder) folderName
+                        else if (showLocal) "本机照片"
+                        else stringResource(R.string.usb_title),
                 hasBack = inFolder,
-                showSettings = !inFolder,
-                showLogs = !inFolder,
+                showSettings = !inFolder && !showLocal,
+                showLogs = !inFolder && !showLocal,
                 selectionCount = selectionCount,
                 onBackClick = {
                     viewModel.deselectAll()
@@ -186,33 +185,11 @@ fun GalleryScreen(
             }
         },
     ) { innerPadding ->
-        Column(Modifier.padding(innerPadding).fillMaxSize()) {
-            // TabRow — only in root view (not folder browsing)
-            if (!inFolder) {
-                TabRow(selectedTabIndex = selectedTab) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                    ) { Text("相机") }
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = {
-                            selectedTab = 1
-                            localVm.load()
-                        },
-                    ) { Text("本机") }
-                }
-            }
-
-            // Content area
-            AnimatedContent(
-                targetState = selectedTab,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            ) { tab ->
-                when (tab) {
-                    0 -> CameraTabContent(s, viewModel, inFolder, onFolderClick, onNavigateBack)
-                    1 -> LocalTabContent(localVm, viewModel.gridColumns)
-                }
+        Box(Modifier.padding(innerPadding).fillMaxSize()) {
+            if (showLocal) {
+                LocalTabContent(localVm, viewModel.gridColumns)
+            } else {
+                CameraTabContent(s, viewModel, inFolder, onFolderClick, onNavigateBack)
             }
         }
 
@@ -1537,6 +1514,7 @@ private fun LocalTabContent(
 
     val groups = localVm.groups
     val loadState = localVm.loading.value
+    var detailGroup by remember { mutableStateOf<LocalPhotoGroup?>(null) }
 
     if (loadState) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1555,14 +1533,31 @@ private fun LocalTabContent(
             verticalItemSpacing = 2.dp,
         ) {
             items(groups, key = { it.cacheKey }) { group ->
-                LocalPhotoCell(group = group, localVm = localVm)
+                LocalPhotoCell(
+                    group = group,
+                    localVm = localVm,
+                    onClick = { detailGroup = group },
+                )
             }
         }
+    }
+
+    // Detail bottom sheet
+    detailGroup?.let { group ->
+        LocalPhotoDetail(
+            group = group,
+            localVm = localVm,
+            onDismiss = { detailGroup = null },
+        )
     }
 }
 
 @Composable
-private fun LocalPhotoCell(group: LocalPhotoGroup, localVm: LocalPhotosViewModel) {
+private fun LocalPhotoCell(
+    group: LocalPhotoGroup,
+    localVm: LocalPhotosViewModel,
+    onClick: () -> Unit,
+) {
     val file = group.jpg?.file ?: group.raw?.file ?: return
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     val orientation = localVm.getOrientation(group.cacheKey)
@@ -1599,7 +1594,7 @@ private fun LocalPhotoCell(group: LocalPhotoGroup, localVm: LocalPhotosViewModel
             Modifier.fillMaxWidth()
                 .aspectRatio(baseAspect)
                 .clip(RoundedCornerShape(8.dp))
-                .combinedClickable(onClick = {}),
+                .combinedClickable(onClick = onClick),
     ) {
         if (thumb != null) {
             Image(thumb!!, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -1607,4 +1602,114 @@ private fun LocalPhotoCell(group: LocalPhotoGroup, localVm: LocalPhotosViewModel
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
         }
     }
+}
+
+// ── Local Photo Detail ──────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocalPhotoDetail(
+    group: LocalPhotoGroup,
+    localVm: LocalPhotosViewModel,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val file = group.jpg?.file ?: group.raw?.file ?: return
+    val context = LocalContext.current
+
+    var fullImage by remember { mutableStateOf<ImageBitmap?>(null) }
+    var exifFields by remember { mutableStateOf<List<Pair<String, String?>>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(file) {
+        withContext(Dispatchers.IO) {
+            // Load full image
+            val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+            val raw = BitmapFactory.decodeFile(file.absolutePath, opts)
+            val orientation = localVm.getOrientation(group.cacheKey)
+            fullImage = raw?.let {
+                val bytes = it.let { bmp ->
+                    val out = java.io.ByteArrayOutputStream()
+                    bmp.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                    out.toByteArray()
+                }
+                val rotated = rotateByExif(raw, bytes, orientation)
+                rotated.asImageBitmap()
+            }
+
+            // Extract EXIF
+            exifFields = extractLocalExif(file)
+            loading = false
+        }
+    }
+
+    LaunchedEffect(Unit) { sheetState.show() }
+
+    if (sheetState.isVisible) {
+        ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp),
+            ) {
+                if (fullImage != null) {
+                    Image(fullImage!!, null, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Fit)
+                    Spacer(Modifier.height(16.dp))
+                } else if (loading) {
+                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                Text(group.baseName, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Text(formatFileSize(file.length()), fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                if (loading) {
+                    Spacer(Modifier.height(20.dp))
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else if (exifFields.isNotEmpty()) {
+                    Spacer(Modifier.height(20.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(12.dp))
+                    Text("EXIF 信息", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    for ((label, value) in exifFields) {
+                        if (label == "文件名") continue
+                        if (!value.isNullOrBlank()) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(label, fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(value, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Extracts basic EXIF from a local file. */
+private fun extractLocalExif(file: File): List<Pair<String, String?>> {
+    return try {
+        val exif = ExifInterface(FileInputStream(file))
+        listOf(
+            "文件名" to file.name,
+            "日期" to exif.getAttribute(ExifInterface.TAG_DATETIME),
+            "快门" to exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME),
+            "光圈" to exif.getAttribute(ExifInterface.TAG_F_NUMBER)?.let { "f/$it" },
+            "ISO" to (exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)
+                ?: exif.getAttribute(ExifInterface.TAG_ISO_SPEED_RATINGS)),
+            "焦距" to exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH)?.let { "${it}mm" },
+            "镜头" to exif.getAttribute(ExifInterface.TAG_LENS_MODEL),
+            "相机" to "${exif.getAttribute(ExifInterface.TAG_MAKE) ?: ""} ${exif.getAttribute(ExifInterface.TAG_MODEL) ?: ""}".trim(),
+        )
+    } catch (_: Exception) { emptyList() }
 }
