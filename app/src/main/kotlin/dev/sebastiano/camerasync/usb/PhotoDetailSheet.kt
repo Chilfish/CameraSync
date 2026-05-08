@@ -15,12 +15,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,49 +38,50 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.text.SimpleDateFormat
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Bottom sheet: preview image from MTP thumbnail (instant), EXIF from full RAW file (loaded async).
  *
- * On open, downloads the full NEF/JPEG via [viewModel] to extract complete EXIF metadata.
- * The preview image uses the cached MTP thumbnail for instant display — no waiting.
- * EXIF fields appear with a loading spinner until the full file is downloaded.
+ * On open, downloads the full NEF/JPEG via [viewModel] to extract complete EXIF metadata. The
+ * preview image uses the cached MTP thumbnail for instant display — no waiting. EXIF fields appear
+ * with a loading spinner until the full file is downloaded.
  *
- * [viewModel] — used to download the full photo file for EXIF extraction.
- * [photoInfo] — basic photo metadata (name, size, format, handle for full download).
- * [thumbnailBytes] — cached MTP thumbnail for instant preview (may be null for unsupported formats).
+ * [viewModel] — used to download the full photo file for EXIF extraction. [photoInfo] — basic photo
+ * metadata (name, size, format, handle for full download). [thumbnailBytes] — cached MTP thumbnail
+ * for instant preview (may be null for unsupported formats).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoDetailSheet(
     viewModel: GalleryViewModel,
     photoInfo: NikonUsbManager.PhotoInfo,
-    thumbnailBytes: ByteArray?,  // instant MTP thumbnail for display while loading
-    orientationFallback: Int? = null,  // from orientationCache for EXIF rotation
+    thumbnailBytes: ByteArray?, // instant MTP thumbnail for display while loading
+    orientationFallback: Int? = null, // from orientationCache for EXIF rotation
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Instant: MTP thumbnail preview. Camera may pre-rotate the pixel data,
     // so skip extra rotation if the bitmap already matches the expected orientation.
-    val thumbBitmap = remember(thumbnailBytes, orientationFallback) {
-        thumbnailBytes?.let {
-            val raw = BitmapFactory.decodeByteArray(it, 0, it.size) ?: return@let null
-            val needsRotation = orientationFallback == null ||
-                when (orientationFallback) {
-                    ExifInterface.ORIENTATION_ROTATE_90,
-                    ExifInterface.ORIENTATION_ROTATE_270,
-                    -> raw.width > raw.height
-                    else -> true
-                }
-            if (needsRotation) rotateByExif(raw, it, orientationFallback) else raw
+    val thumbBitmap =
+        remember(thumbnailBytes, orientationFallback) {
+            thumbnailBytes?.let {
+                val raw = BitmapFactory.decodeByteArray(it, 0, it.size) ?: return@let null
+                val needsRotation =
+                    orientationFallback == null ||
+                        when (orientationFallback) {
+                            ExifInterface.ORIENTATION_ROTATE_90,
+                            ExifInterface.ORIENTATION_ROTATE_270 -> raw.width > raw.height
+                            else -> true
+                        }
+                if (needsRotation) rotateByExif(raw, it, orientationFallback) else raw
+            }
         }
-    }
 
     // Async: download full NEF/JPEG for complete EXIF
     var fullImage by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -108,11 +109,12 @@ fun PhotoDetailSheet(
         // not find orientation in the TIFF structure, so pass the cached
         // orientation from the JPEG counterpart as fallback.
         val cachedOri = orientationFallback
-        val decoded = withContext(Dispatchers.IO) {
-            val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-            val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-            raw?.let { rotateByExif(it, bytes, cachedOri) }
-        }
+        val decoded =
+            withContext(Dispatchers.IO) {
+                val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+                val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                raw?.let { rotateByExif(it, bytes, cachedOri) }
+            }
         fullImage = decoded?.asImageBitmap()
         exifLoading = false
     }
@@ -179,10 +181,16 @@ fun PhotoDetailSheet(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                         horizontalArrangement = Arrangement.Center,
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
                         Spacer(Modifier.padding(8.dp))
-                        Text("正在读取 RAW 文件…", fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "正在读取 RAW 文件…",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 } else if (exifFields.isNotEmpty()) {
                     for (field in exifFields) {
@@ -212,8 +220,8 @@ fun PhotoDetailSheet(
 }
 
 /**
- * Extracts human-readable EXIF fields from a RAW/JPEG byte array.
- * Works on both NEF (TIFF-based) and JPEG — Android's ExifInterface handles both.
+ * Extracts human-readable EXIF fields from a RAW/JPEG byte array. Works on both NEF (TIFF-based)
+ * and JPEG — Android's ExifInterface handles both.
  */
 internal fun extractExif(fileBytes: ByteArray?): List<Pair<String, String?>> {
     if (fileBytes == null) return emptyList()
@@ -275,13 +283,13 @@ internal fun extractExif(fileBytes: ByteArray?): List<Pair<String, String?>> {
 }
 
 /** Formats EXIF image dimensions as "W×H". Returns null if both are 0. */
-private fun formatResolution(width: Int, height: Int): String? {
+internal fun formatResolution(width: Int, height: Int): String? {
     if (width <= 0 || height <= 0) return null
     return "${width}×${height}"
 }
 
 /** Formats an EXIF exposure time string (e.g. "1/250" or "0.0025") into a human-readable form. */
-private fun formatShutterSpeed(value: String): String {
+internal fun formatShutterSpeed(value: String): String {
     val d = value.toDoubleOrNull() ?: return value
     if (d >= 1.0) return "${"%.1f".format(d)}s"
     val denominator = (1.0 / d).toInt()
@@ -289,14 +297,14 @@ private fun formatShutterSpeed(value: String): String {
 }
 
 /** Formats exposure compensation from the EXIF rational string. */
-private fun formatExposureCompensation(exif: ExifInterface): String? {
+internal fun formatExposureCompensation(exif: ExifInterface): String? {
     val raw = exif.getAttribute(ExifInterface.TAG_EXPOSURE_BIAS_VALUE) ?: return null
     val d = raw.toDoubleOrNull() ?: return raw
     return if (d >= 0) "+${"%.1f".format(d)}" else "${"%.1f".format(d)}"
 }
 
 /** Converts EXIF metering mode code to a human-readable Chinese label. */
-private fun getMeteringMode(exif: ExifInterface): String? {
+internal fun getMeteringMode(exif: ExifInterface): String? {
     val code = exif.getAttributeInt(ExifInterface.TAG_METERING_MODE, -1)
     return when (code) {
         0 -> "未知"
@@ -313,7 +321,7 @@ private fun getMeteringMode(exif: ExifInterface): String? {
 }
 
 /** Converts EXIF flash code to a human-readable Chinese label. */
-private fun getFlash(exif: ExifInterface): String? {
+internal fun getFlash(exif: ExifInterface): String? {
     val raw = exif.getAttribute(ExifInterface.TAG_FLASH)
     if (raw == null) return null
     val code = raw.toIntOrNull() ?: return raw
@@ -325,7 +333,7 @@ private fun getFlash(exif: ExifInterface): String? {
 }
 
 /** Converts EXIF orientation code to a human-readable Chinese label. */
-private fun getOrientation(exif: ExifInterface): String? {
+internal fun getOrientation(exif: ExifInterface): String? {
     return when (
         exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
     ) {
@@ -343,7 +351,7 @@ private fun getOrientation(exif: ExifInterface): String? {
 }
 
 /** Formats camera make and model into a single string, filtering nulls. */
-private fun formatCamera(make: String?, model: String?): String? {
+internal fun formatCamera(make: String?, model: String?): String? {
     if (make == null && model == null) return null
     if (make == null) return model
     if (model == null) return make

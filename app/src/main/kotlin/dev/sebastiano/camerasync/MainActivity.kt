@@ -29,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavEntry
@@ -56,7 +57,6 @@ import dev.sebastiano.camerasync.usb.GalleryViewModel
 import dev.sebastiano.camerasync.usb.TransferHistoryScreen
 import dev.sebastiano.camerasync.usb.UsbSyncPreferences
 import dev.zacsweers.metro.Inject
-import androidx.core.content.edit
 
 @Inject
 class MainActivity : ComponentActivity() {
@@ -277,10 +277,9 @@ private fun RootComposable(
                             onNavigateBack = { backStack.removeLastOrNull() },
                             onNavigateToHistory = { backStack.add(NavRoute.TransferHistory) },
                             onNavigateToOnboarding = {
-                                ctx.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
-                                    .edit {
-                                        putBoolean("completed", false)
-                                    }
+                                ctx.getSharedPreferences("onboarding", Context.MODE_PRIVATE).edit {
+                                    putBoolean("completed", false)
+                                }
                                 backStack.removeLastOrNull()
                                 backStack.add(NavRoute.Onboarding)
                             },

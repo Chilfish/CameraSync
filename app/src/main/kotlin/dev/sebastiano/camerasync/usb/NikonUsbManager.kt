@@ -140,8 +140,8 @@ class NikonUsbManager(private val usbManager: UsbManager) {
     }
 
     /**
-     * Recursively enumerates all photo objects via BFS folder traversal, calling
-     * [onProgress] after each photo so callers can update a progress indicator.
+     * Recursively enumerates all photo objects via BFS folder traversal, calling [onProgress] after
+     * each photo so callers can update a progress indicator.
      *
      * `getObjectHandles(storageId, format, parentHandle)` returns only DIRECT children of
      * `parentHandle`. `parentHandle=0` means root. To get everything we must recurse into folders
@@ -218,13 +218,13 @@ class NikonUsbManager(private val usbManager: UsbManager) {
     }
 
     /**
-     * Fast approximate count of photo objects (non-folders) in [storageId].
-     * Avoids calling [MtpDevice.getObjectInfo] — only uses the cheap
-     * [MtpDevice.getObjectHandles]. Used for progress bar estimates.
+     * Fast approximate count of photo objects (non-folders) in [storageId]. Avoids calling
+     * [MtpDevice.getObjectInfo] — only uses the cheap [MtpDevice.getObjectHandles]. Used for
+     * progress bar estimates.
      *
-     * Perfect accuracy would require getObjectInfo() per handle to distinguish files
-     * from folders, which defeats the purpose. In practice folders are <5% of total
-     * objects, so the progress bar gets close enough.
+     * Perfect accuracy would require getObjectInfo() per handle to distinguish files from folders,
+     * which defeats the purpose. In practice folders are <5% of total objects, so the progress bar
+     * gets close enough.
      */
     private fun countObjectsInStorage(mtpDevice: MtpDevice, storageId: Int): Int {
         var count = 0

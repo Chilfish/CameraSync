@@ -5,11 +5,9 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.net.Uri
+import android.provider.Settings
 import android.widget.Toast
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.FileInputStream
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -27,18 +25,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
@@ -56,18 +54,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -92,6 +86,9 @@ import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import dev.sebastiano.camerasync.R
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.text.SimpleDateFormat
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -150,8 +147,7 @@ fun GalleryScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             GalleryTopBar(
-                title = if (inFolder) folderName
-                        else stringResource(R.string.usb_title),
+                title = if (inFolder) folderName else stringResource(R.string.usb_title),
                 hasBack = inFolder,
                 showSettings = !inFolder,
                 showLogs = !inFolder,
@@ -714,12 +710,13 @@ private fun ThumbnailImage(
         // orientation we'd double-rotate. Check: if the fallback says "portrait"
         // but the bitmap is already portrait → skip extra rotation.
         val needsRotation =
-            fallback == null || when (fallback) {
-                ExifInterface.ORIENTATION_ROTATE_90,
-                ExifInterface.ORIENTATION_ROTATE_270,
-                -> raw.width > raw.height // only rotate if bitmap is landscape
-                else -> true
-            }
+            fallback == null ||
+                when (fallback) {
+                    ExifInterface.ORIENTATION_ROTATE_90,
+                    ExifInterface.ORIENTATION_ROTATE_270 ->
+                        raw.width > raw.height // only rotate if bitmap is landscape
+                    else -> true
+                }
 
         val rotated =
             withContext(Dispatchers.IO) {
@@ -837,9 +834,7 @@ private fun PhotoCell(
                     .background(Color(0xFF4CAF50).copy(alpha = 0.85f), CircleShape),
                 Alignment.Center,
             ) {
-                Text(
-                    "✓", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                )
+                Text("✓", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -859,8 +854,13 @@ internal fun rotateByExif(
         if (deg == 0f) bitmap
         else
             Bitmap.createBitmap(
-                bitmap, 0, 0, bitmap.width, bitmap.height,
-                Matrix().apply { postRotate(deg) }, true,
+                bitmap,
+                0,
+                0,
+                bitmap.width,
+                bitmap.height,
+                Matrix().apply { postRotate(deg) },
+                true,
             )
 
     return try {
@@ -897,11 +897,12 @@ internal fun rotateByExif(
     }
 }
 
-/** Converts an EXIF orientation to an aspect ratio (width/height).
+/**
+ * Converts an EXIF orientation to an aspect ratio (width/height).
  *
- * [pixW]/[pixH] are the full-resolution pixel dimensions (imagePixWidth/Height
- * from MtpObjectInfo, NOT thumbPix). For rotated orientations, the dimensions
- * are swapped so the aspect ratio reflects the DISPLAY orientation.
+ * [pixW]/[pixH] are the full-resolution pixel dimensions (imagePixWidth/Height from MtpObjectInfo,
+ * NOT thumbPix). For rotated orientations, the dimensions are swapped so the aspect ratio reflects
+ * the DISPLAY orientation.
  */
 private fun orientationToAspect(orientation: Int, pixW: Int, pixH: Int): Float {
     if (pixW > 0 && pixH > 0) {
@@ -1488,15 +1489,13 @@ private fun CameraTabContent(
 ) {
     when (s) {
         is GalleryState.Disconnected -> {
-            if (inFolder) LaunchedEffect(Unit) { onNavigateBack() }
-            else DisconnectedContent()
+            if (inFolder) LaunchedEffect(Unit) { onNavigateBack() } else DisconnectedContent()
         }
         is GalleryState.Connecting -> {
             if (!inFolder) ConnectingContent()
         }
         is GalleryState.Loading -> LoadingContent(s)
-        is GalleryState.Browsing ->
-            BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
+        is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
         is GalleryState.Empty -> EmptyCameraContent()
         is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
         is GalleryState.Transferring -> TransferringContent(s)
@@ -1508,28 +1507,55 @@ private fun CameraTabContent(
 // ── Local Photos Tab ────────────────────────────────────────────────────────
 
 @Composable
-private fun LocalTabContent(
-    localVm: LocalPhotosViewModel,
-    gridColumns: Int,
-) {
+private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
     val groups = localVm.groups
     val loadState = localVm.loading.value
+    val isRefreshing = localVm.isRefreshing
     var detailGroup by remember { mutableStateOf<LocalPhotoGroup?>(null) }
+    val context = LocalContext.current
 
-    if (loadState) {
+    if (loadState && !isRefreshing) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-    } else if (groups.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("没有已导出的照片", fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else if (groups.isEmpty() && !isRefreshing) {
+        Column(
+            Modifier.fillMaxSize().padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text("没有已导出的照片", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(16.dp))
+            // Hint about storage permission
+            Card(
+                Modifier.fillMaxWidth(),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "提示：如果 Pictures/CameraSync 目录下有文件但没有显示，请在系统设置中授予「所有文件访问权限」。",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val intent =
+                                Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                                    .apply { data = Uri.parse("package:${context.packageName}") }
+                            context.startActivity(intent)
+                        }
+                    ) {
+                        Text("打开设置", fontSize = 13.sp)
+                    }
+                }
+            }
         }
     } else {
-        PullToRefreshBox(
-            isRefreshing = false,
-            onRefresh = { localVm.load() },
-        ) {
+        PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = { localVm.load() }) {
             LazyVerticalStaggeredGrid(
                 columns = StaggeredGridCells.Fixed(gridColumns),
                 contentPadding = PaddingValues(bottom = 80.dp),
@@ -1541,19 +1567,15 @@ private fun LocalTabContent(
                         group = group,
                         localVm = localVm,
                         onClick = { detailGroup = group },
-                )
-            }
+                    )
+                }
             } // LazyVerticalStaggeredGrid
         } // PullToRefreshBox
     }
 
     // Detail bottom sheet
     detailGroup?.let { group ->
-        LocalPhotoDetail(
-            group = group,
-            localVm = localVm,
-            onDismiss = { detailGroup = null },
-        )
+        LocalPhotoDetail(group = group, localVm = localVm, onDismiss = { detailGroup = null })
     }
 }
 
@@ -1567,28 +1589,46 @@ private fun LocalPhotoCell(
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     val orientation = localVm.getOrientation(group.cacheKey)
 
-    val baseAspect =
-        when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90,
-            ExifInterface.ORIENTATION_ROTATE_270,
-            -> 2f / 3f
-            else -> 3f / 2f
-        }
+    // Aspect ratio: use cached orientation if available, otherwise probe
+    // the file's real dimensions via BitmapFactory (header-only, fast).
+    // Default to 3:2 landscape when nothing is known yet.
+    var baseAspect by remember { mutableStateOf(3f / 2f) }
 
     LaunchedEffect(file) {
+        // Determine aspect ratio from actual file dimensions (fast, no full decode)
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        try {
+            withContext(Dispatchers.IO) { BitmapFactory.decodeFile(file.absolutePath, opts) }
+        } catch (_: Exception) {
+            /* fall through to orientation-based */
+        }
+        val w = opts.outWidth
+        val h = opts.outHeight
+        val detectedOri = localVm.getOrientation(group.cacheKey)
+        baseAspect =
+            when {
+                detectedOri == ExifInterface.ORIENTATION_ROTATE_90 ||
+                    detectedOri == ExifInterface.ORIENTATION_ROTATE_270 -> h.toFloat() / w.toFloat()
+                w > 0 && h > 0 -> w.toFloat() / h.toFloat()
+                else -> 3f / 2f
+            }
+
+        // Load and display the thumbnail
         val bytes = localVm.loadThumbnail(file)
         if (bytes != null) {
-            val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            val raw =
+                withContext(Dispatchers.IO) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
             if (raw != null) {
-                val needsRotation = orientation == null ||
-                    when (orientation) {
-                        ExifInterface.ORIENTATION_ROTATE_90,
-                        ExifInterface.ORIENTATION_ROTATE_270,
-                        -> raw.width > raw.height
-                        else -> true
-                    }
+                // Always trust the cached orientation: if it says rotate, always rotate.
                 val rotated =
-                    if (needsRotation) rotateByExif(raw, bytes, orientation) else raw
+                    when (detectedOri) {
+                        ExifInterface.ORIENTATION_ROTATE_90,
+                        ExifInterface.ORIENTATION_ROTATE_270 ->
+                            rotateByExif(raw, bytes, detectedOri)
+                        ExifInterface.ORIENTATION_ROTATE_180 ->
+                            rotateByExif(raw, bytes, detectedOri)
+                        else -> raw
+                    }
                 thumb = rotated.asImageBitmap()
             }
         }
@@ -1599,7 +1639,7 @@ private fun LocalPhotoCell(
             Modifier.fillMaxWidth()
                 .aspectRatio(baseAspect)
                 .clip(RoundedCornerShape(8.dp))
-                .combinedClickable(onClick = onClick),
+                .combinedClickable(onClick = onClick)
     ) {
         if (thumb != null) {
             Image(thumb!!, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -1620,7 +1660,7 @@ private fun LocalPhotoDetail(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val file = group.jpg?.file ?: group.raw?.file ?: return
-    val context = LocalContext.current
+    val cachedOri = localVm.getOrientation(group.cacheKey)
 
     var fullImage by remember { mutableStateOf<ImageBitmap?>(null) }
     var exifFields by remember { mutableStateOf<List<Pair<String, String?>>>(emptyList()) }
@@ -1628,22 +1668,30 @@ private fun LocalPhotoDetail(
 
     LaunchedEffect(file) {
         withContext(Dispatchers.IO) {
-            // Load full image
+            // Load preview image
             val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
             val raw = BitmapFactory.decodeFile(file.absolutePath, opts)
-            val orientation = localVm.getOrientation(group.cacheKey)
-            fullImage = raw?.let {
-                val bytes = it.let { bmp ->
-                    val out = java.io.ByteArrayOutputStream()
-                    bmp.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                    out.toByteArray()
-                }
-                val rotated = rotateByExif(raw, bytes, orientation)
-                rotated.asImageBitmap()
+            if (raw != null) {
+                // Compress to JPEG bytes for rotateByExif, passing cached orientation
+                // as fallback since the JPEG-compressed bytes have no EXIF.
+                val bytes =
+                    ByteArrayOutputStream().use { out ->
+                        raw.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                        out.toByteArray()
+                    }
+                val rotated = rotateByExif(raw, bytes, cachedOri)
+                fullImage = rotated.asImageBitmap()
             }
 
-            // Extract EXIF — reuse the same rich parser as camera photos
-            exifFields = extractExif(file.readBytes())
+            // Extract EXIF using the file path constructor — ExifInterface seeks
+            // within the file without loading all bytes into memory.
+            val exif =
+                try {
+                    ExifInterface(file.absolutePath)
+                } catch (_: Exception) {
+                    null
+                }
+            exifFields = extractExifFromInterface(exif)
             loading = false
         }
     }
@@ -1653,25 +1701,36 @@ private fun LocalPhotoDetail(
     if (sheetState.isVisible) {
         ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
             Column(
-                modifier = Modifier.fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp),
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp)
             ) {
                 if (fullImage != null) {
-                    Image(fullImage!!, null, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
-                        contentScale = ContentScale.Fit)
+                    Image(
+                        fullImage!!,
+                        null,
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Fit,
+                    )
                     Spacer(Modifier.height(16.dp))
                 } else if (loading) {
-                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier.fillMaxWidth().height(200.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         CircularProgressIndicator()
                     }
                 }
 
                 Text(group.baseName, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
-                Text(formatFileSize(file.length()), fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    formatFileSize(file.length()),
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
 
                 if (loading) {
                     Spacer(Modifier.height(20.dp))
@@ -1689,8 +1748,11 @@ private fun LocalPhotoDetail(
                                 Modifier.fillMaxWidth().padding(vertical = 3.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
-                                Text(label, fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    label,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                                 Text(value, fontSize = 13.sp)
                             }
                         }
@@ -1701,4 +1763,64 @@ private fun LocalPhotoDetail(
     }
 }
 
-
+/**
+ * Extracts human-readable EXIF fields from an already-opened [ExifInterface]. Mirrors [extractExif]
+ * but takes the interface directly instead of raw bytes, so local file detail can use the
+ * path-based constructor (no 26MB read).
+ */
+internal fun extractExifFromInterface(exif: ExifInterface?): List<Pair<String, String?>> {
+    if (exif == null) return emptyList()
+    return try {
+        val dateStr =
+            exif.getAttribute(ExifInterface.TAG_DATETIME)?.let { raw ->
+                try {
+                    val parsed =
+                        SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).parse(raw)
+                    if (parsed != null)
+                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(parsed)
+                    else raw
+                } catch (_: Exception) {
+                    raw
+                }
+            }
+        listOf(
+            "文件名" to null,
+            "分辨率" to
+                formatResolution(
+                    exif.getAttributeInt(ExifInterface.TAG_IMAGE_WIDTH, 0),
+                    exif.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, 0),
+                ),
+            "日期" to dateStr,
+            "快门" to
+                exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME)?.let { formatShutterSpeed(it) },
+            "光圈" to
+                exif.getAttribute(ExifInterface.TAG_F_NUMBER)?.let {
+                    "f/${it.toDoubleOrNull()?.let { v -> "%.1f".format(v) } ?: it}"
+                },
+            "ISO" to
+                (exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)
+                    ?: exif.getAttribute(ExifInterface.TAG_ISO_SPEED_RATINGS)),
+            "焦距" to
+                exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH)?.let {
+                    it.toDoubleOrNull()?.let { v -> "${"%.0f".format(v)}mm" } ?: "$it mm"
+                },
+            "35mm 等效" to
+                exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM)?.let { "${it}mm" },
+            "镜头" to exif.getAttribute(ExifInterface.TAG_LENS_MODEL),
+            "曝光补偿" to formatExposureCompensation(exif),
+            "测光模式" to getMeteringMode(exif),
+            "闪光灯" to getFlash(exif),
+            "方向" to getOrientation(exif),
+            "相机" to
+                formatCamera(
+                    exif.getAttribute(ExifInterface.TAG_MAKE),
+                    exif.getAttribute(ExifInterface.TAG_MODEL),
+                ),
+            "拍摄者" to exif.getAttribute(ExifInterface.TAG_ARTIST),
+            "版权" to exif.getAttribute(ExifInterface.TAG_COPYRIGHT),
+            "软件" to exif.getAttribute(ExifInterface.TAG_SOFTWARE),
+        )
+    } catch (_: Exception) {
+        emptyList()
+    }
+}

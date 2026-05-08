@@ -45,11 +45,8 @@ sealed interface GalleryState {
 
     data object Connecting : GalleryState
 
-    data class Loading(
-        val message: String,
-        val progress: Int = 0,
-        val total: Int = 0,
-    ) : GalleryState
+    data class Loading(val message: String, val progress: Int = 0, val total: Int = 0) :
+        GalleryState
 
     data class Browsing(
         val cameraInfo: NikonUsbManager.CameraInfo?,
@@ -371,16 +368,14 @@ class GalleryViewModel(private val app: Application) {
 
         when (groupingMode) {
             UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> loadRootByFolder(m)
-            UsbSyncPreferences.PhotoGrouping.BY_DATE -> loadRootProgressive(m) { groups, _ ->
-                buildDateSections(groups)
-            }
+            UsbSyncPreferences.PhotoGrouping.BY_DATE ->
+                loadRootProgressive(m) { groups, _ -> buildDateSections(groups) }
             UsbSyncPreferences.PhotoGrouping.FLAT -> loadRootProgressive(m) { groups, _ -> groups }
         }
     }
 
     /**
      * Progressive loader for BY_DATE and FLAT modes.
-     *
      * 1. Counts total photos quickly (no getObjectInfo per photo)
      * 2. Enumerates photos with [onProgress], updating Loading state
      * 3. After FIRST_BATCH (30) photos: transitions to Browsing so the user sees photos immediately
@@ -389,7 +384,10 @@ class GalleryViewModel(private val app: Application) {
      */
     private suspend fun loadRootProgressive(
         m: MtpDevice,
-        buildEntries: (groups: List<GalleryEntry.PhotoGroup>, allPhotos: List<NikonUsbManager.PhotoInfo>) -> List<GalleryEntry>,
+        buildEntries:
+            (
+                groups: List<GalleryEntry.PhotoGroup>, allPhotos: List<NikonUsbManager.PhotoInfo>,
+            ) -> List<GalleryEntry>,
     ) {
         val accumPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
         var globalScanned = 0
@@ -399,7 +397,8 @@ class GalleryViewModel(private val app: Application) {
         for (s in storages) {
             val prevSize = accumPhotos.size
             nikon.listPhotos(
-                m, s.id,
+                m,
+                s.id,
                 accumulator = accumPhotos,
                 onProgress = { scanned, total ->
                     globalScanned = prevSize + scanned
@@ -411,12 +410,14 @@ class GalleryViewModel(private val app: Application) {
                         val partial = groupByBaseFilename(accumPhotos.toList())
                         currentPhotos = partial
                         populateOrientationsFromDimensions()
-                        _state.value = GalleryState.Browsing(
-                            cameraInfo, storages, buildEntries(partial, accumPhotos.toList()),
-                        )
-                    } else if (!enteredBrowsing) {
                         _state.value =
-                            GalleryState.Loading("正在扫描…", globalScanned, globalTotal)
+                            GalleryState.Browsing(
+                                cameraInfo,
+                                storages,
+                                buildEntries(partial, accumPhotos.toList()),
+                            )
+                    } else if (!enteredBrowsing) {
+                        _state.value = GalleryState.Loading("正在扫描…", globalScanned, globalTotal)
                     }
                     // After entering Browsing, photos continue streaming in via accumulator
                     // — currentPhotos will be finalized below.
@@ -501,8 +502,7 @@ class GalleryViewModel(private val app: Application) {
 
         // Show sub-folders first (cheap)
         val subFolders = nikon.listFolders(m, storageId, folderHandle)
-        _state.value =
-            GalleryState.Loading("正在读取照片…", 0, 0)
+        _state.value = GalleryState.Loading("正在读取照片…", 0, 0)
 
         val photos = nikon.listPhotosInFolder(m, storageId, folderHandle)
         currentPhotos = groupByBaseFilename(photos)
@@ -603,15 +603,15 @@ class GalleryViewModel(private val app: Application) {
     }
 
     /**
-     * Populates [orientationCache] from [MtpObjectInfo.imagePixWidth/imagePixHeight]
-     * for handles whose EXIF orientation is still unknown (cache miss).
+     * Populates [orientationCache] from [MtpObjectInfo.imagePixWidth/imagePixHeight] for handles
+     * whose EXIF orientation is still unknown (cache miss).
      *
-     * [MtpObjectInfo] dimensions are more reliable than thumbnail-based heuristics
-     * because they reflect the actual full-resolution image orientation. Nikon Z30
-     * reports 5568×3712 for landscape and 3712×5568 for portrait.
+     * [MtpObjectInfo] dimensions are more reliable than thumbnail-based heuristics because they
+     * reflect the actual full-resolution image orientation. Nikon Z30 reports 5568×3712 for
+     * landscape and 3712×5568 for portrait.
      *
-     * Call this after [groupByBaseFilename] so each [PhotoGroup] has its [PhotoInfo]
-     * with imagePix dimensions available.
+     * Call this after [groupByBaseFilename] so each [PhotoGroup] has its [PhotoInfo] with imagePix
+     * dimensions available.
      */
     fun populateOrientationsFromDimensions() {
         for (group in currentPhotos) {
@@ -627,9 +627,11 @@ class GalleryViewModel(private val app: Application) {
             // so imagePix alone won't detect portrait. Use imagePix first, then
             // fall back to thumbPix (which IS swapped for portrait on Z30: 120×160).
             val isPortrait =
-                (info.imagePixWidth > 0 && info.imagePixHeight > 0 &&
+                (info.imagePixWidth > 0 &&
+                    info.imagePixHeight > 0 &&
                     info.imagePixWidth < info.imagePixHeight) ||
-                    (info.thumbPixWidth > 0 && info.thumbPixHeight > 0 &&
+                    (info.thumbPixWidth > 0 &&
+                        info.thumbPixHeight > 0 &&
                         info.thumbPixWidth < info.thumbPixHeight)
             if (isPortrait) {
                 orientationCache[handle] = ExifInterface.ORIENTATION_ROTATE_90
@@ -638,12 +640,14 @@ class GalleryViewModel(private val app: Application) {
     }
 
     /**
-     * Downloads the full photo file (NEF/JPEG/etc) to a ByteArray for EXIF extraction.
-     * Uses MTP importFile to temp, reads bytes, deletes temp. Returns null on failure.
+     * Downloads the full photo file (NEF/JPEG/etc) to a ByteArray for EXIF extraction. Uses MTP
+     * importFile to temp, reads bytes, deletes temp. Returns null on failure.
      */
     suspend fun downloadFullPhoto(handle: Int): ByteArray? {
         // Check cache first — avoids re-downloading 26MB NEF files
-        fullPhotoCache[handle]?.let { return it }
+        fullPhotoCache[handle]?.let {
+            return it
+        }
 
         val m = mtp ?: return null
         return withContext(Dispatchers.IO) {
@@ -674,7 +678,8 @@ class GalleryViewModel(private val app: Application) {
     /** Returns the handles to select for a group, respecting [prefs.downloadFormat]. */
     private fun handlesForFormat(group: GalleryEntry.PhotoGroup): List<Int> =
         when (prefs.downloadFormat) {
-            UsbSyncPreferences.DownloadFormat.ALL -> listOfNotNull(group.raw?.handle, group.jpg?.handle)
+            UsbSyncPreferences.DownloadFormat.ALL ->
+                listOfNotNull(group.raw?.handle, group.jpg?.handle)
             UsbSyncPreferences.DownloadFormat.RAW_ONLY -> listOfNotNull(group.raw?.handle)
             UsbSyncPreferences.DownloadFormat.JPEG_ONLY -> listOfNotNull(group.jpg?.handle)
         }
