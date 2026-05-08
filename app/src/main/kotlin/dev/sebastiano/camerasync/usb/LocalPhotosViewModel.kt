@@ -114,20 +114,41 @@ class LocalPhotosViewModel(private val app: Application) {
     }
 
     private fun queryMediaStoreFiles(out: MutableSet<File>) {
-        val projection = arrayOf(MediaStore.Images.Media.DATA)
+        val projection = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DATA,
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.RELATIVE_PATH,
+        )
         val selection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?"
         val args = arrayOf("Pictures/CameraSync/%")
         val cursor = app.contentResolver.query(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             projection, selection, args, null
-        ) ?: return
+        )
+        if (cursor == null) {
+            Log.warn(tag = TAG) { "MediaStore query returned null cursor" }
+            return
+        }
         cursor.use {
             val dataCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+            val nameCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+            val relCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH)
             while (it.moveToNext()) {
-                val path = it.getString(dataCol) ?: continue
-                out.add(File(path))
+                val dataPath = it.getString(dataCol)
+                if (!dataPath.isNullOrBlank()) {
+                    out.add(File(dataPath))
+                } else {
+                    // DATA is null (Android 10+ scoped storage) — reconstruct path
+                    val relPath = it.getString(relCol) ?: continue
+                    val name = it.getString(nameCol) ?: continue
+                    val fullPath =
+                        "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).parent}/$relPath/$name"
+                    out.add(File(fullPath))
+                }
             }
         }
+        Log.info(tag = TAG) { "MediaStore found ${out.size} files" }
     }
 
     private fun groupByBaseName(files: List<File>): List<LocalPhotoGroup> {

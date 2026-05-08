@@ -1526,20 +1526,25 @@ private fun LocalTabContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
-        LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Fixed(gridColumns),
-            contentPadding = PaddingValues(bottom = 80.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalItemSpacing = 2.dp,
+        PullToRefreshBox(
+            isRefreshing = false,
+            onRefresh = { localVm.load() },
         ) {
-            items(groups, key = { it.cacheKey }) { group ->
-                LocalPhotoCell(
-                    group = group,
-                    localVm = localVm,
-                    onClick = { detailGroup = group },
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(gridColumns),
+                contentPadding = PaddingValues(bottom = 80.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalItemSpacing = 2.dp,
+            ) {
+                items(groups, key = { it.cacheKey }) { group ->
+                    LocalPhotoCell(
+                        group = group,
+                        localVm = localVm,
+                        onClick = { detailGroup = group },
                 )
             }
-        }
+            } // LazyVerticalStaggeredGrid
+        } // PullToRefreshBox
     }
 
     // Detail bottom sheet
