@@ -140,6 +140,9 @@ fun GalleryScreen(
     val localVm = remember { LocalPhotosViewModel(app) }
     val showLocal = s is GalleryState.Disconnected && !inFolder
 
+    // Reload local photos every time we enter the local view
+    LaunchedEffect(showLocal) { if (showLocal) localVm.load() }
+
     // Preview bottom sheet state
     var showPreview by remember { mutableStateOf(false) }
 
@@ -1509,8 +1512,6 @@ private fun LocalTabContent(
     localVm: LocalPhotosViewModel,
     gridColumns: Int,
 ) {
-    LaunchedEffect(Unit) { localVm.load() }
-
     val groups = localVm.groups
     val loadState = localVm.loading.value
     var detailGroup by remember { mutableStateOf<LocalPhotoGroup?>(null) }
