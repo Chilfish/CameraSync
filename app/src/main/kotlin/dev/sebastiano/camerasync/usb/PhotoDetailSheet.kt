@@ -96,11 +96,14 @@ fun PhotoDetailSheet(
         exifFields = fields
 
         // Try to decode a high-quality preview from the full file bytes,
-        // rotating by EXIF if needed.
+        // rotating by EXIF. For NEF, ExifInterface on the full file may
+        // not find orientation in the TIFF structure, so pass the cached
+        // orientation from the JPEG counterpart as fallback.
+        val cachedOri = orientationFallback
         val decoded = withContext(Dispatchers.IO) {
             val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
             val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-            raw?.let { rotateByExif(it, bytes, null) }
+            raw?.let { rotateByExif(it, bytes, cachedOri) }
         }
         fullImage = decoded?.asImageBitmap()
         exifLoading = false

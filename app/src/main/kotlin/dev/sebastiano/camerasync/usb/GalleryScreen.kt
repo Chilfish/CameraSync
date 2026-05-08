@@ -778,6 +778,7 @@ private fun PhotoCell(
         modifier =
             Modifier.fillMaxWidth()
                 .aspectRatio(cellAspect)
+                .background(Color.Black, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
                 .combinedClickable(
                     onClick = { onPhotoClick?.invoke() },

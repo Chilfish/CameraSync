@@ -525,6 +525,18 @@ class GalleryViewModel(private val app: Application) {
                 /* best-effort */
             }
         }
+        // For RAW+JPEG pairs: the JPEG thumbnail has reliable EXIF orientation
+        // (including ROTATE_90 vs ROTATE_270 distinction). Copy it to the RAW
+        // handle so NEF previews rotate correctly even when the NEF's own MTP
+        // thumbnail is TIFF-based (no EXIF) or pre-rotated (EXIF=Normal).
+        for (group in currentPhotos) {
+            val jpgHandle = group.jpg?.handle ?: continue
+            val rawHandle = group.raw?.handle ?: continue
+            val jpgOri = orientationCache[jpgHandle] ?: continue
+            if (!orientationCache.containsKey(rawHandle)) {
+                orientationCache[rawHandle] = jpgOri
+            }
+        }
     }
 
     /** Preload thumbnails for the first [count] photo groups (background). */
