@@ -2,6 +2,7 @@ package dev.sebastiano.camerasync.usb
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 /**
  * Tracks which MTP photo handles have already been imported, enabling deduplication across sync
@@ -22,20 +23,20 @@ class PhotoSyncManager(context: Context) {
 
     /** Marks a photo as imported so future syncs skip it. */
     fun markAsImported(storageId: Int, handle: Int) {
-        prefs.edit().putBoolean(key(storageId, handle), true).apply()
+        prefs.edit { putBoolean(key(storageId, handle), true) }
     }
 
     /** Clears all imported handles (e.g., when camera storage is reformatted). */
     fun clearAll() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
     }
 
     /** Removes tracked handles for a specific storage. */
     fun clearStorage(storageId: Int) {
-        val editor = prefs.edit()
-        val prefix = "s${storageId}_"
-        prefs.all.keys.filter { it.startsWith(prefix) }.forEach { editor.remove(it) }
-        editor.apply()
+        prefs.edit {
+            val prefix = "s${storageId}_"
+            prefs.all.keys.filter { it.startsWith(prefix) }.forEach { remove(it) }
+        }
     }
 
     /** Returns the total number of tracked handles. */

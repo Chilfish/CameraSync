@@ -414,13 +414,13 @@ private fun BrowsingContent(
         PullToRefreshBox(
             isRefreshing = false,
             onRefresh = { vm.refresh() },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).background(Color.Black),
         ) {
             LazyVerticalStaggeredGrid(
                 columns = StaggeredGridCells.Fixed(vm.gridColumns),
                 contentPadding = PaddingValues(bottom = 80.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalItemSpacing = 4.dp,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalItemSpacing = 2.dp,
             ) {
                 // Device info — full width (root only)
                 if (isRoot) {

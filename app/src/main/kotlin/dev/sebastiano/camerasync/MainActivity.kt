@@ -56,6 +56,7 @@ import dev.sebastiano.camerasync.usb.GalleryViewModel
 import dev.sebastiano.camerasync.usb.TransferHistoryScreen
 import dev.sebastiano.camerasync.usb.UsbSyncPreferences
 import dev.zacsweers.metro.Inject
+import androidx.core.content.edit
 
 @Inject
 class MainActivity : ComponentActivity() {
@@ -277,9 +278,9 @@ private fun RootComposable(
                             onNavigateToHistory = { backStack.add(NavRoute.TransferHistory) },
                             onNavigateToOnboarding = {
                                 ctx.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
-                                    .edit()
-                                    .putBoolean("completed", false)
-                                    .apply()
+                                    .edit {
+                                        putBoolean("completed", false)
+                                    }
                                 backStack.removeLastOrNull()
                                 backStack.add(NavRoute.Onboarding)
                             },

@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,7 +47,7 @@ fun SettingsScreen(
     onGridColumnsChanged: (Int) -> Unit = {},
 ) {
     var autoSync by remember { mutableStateOf(prefs.autoSyncEnabled) }
-    var gridCols by remember { mutableStateOf(prefs.getGridColumns()) }
+    var gridCols by remember { mutableIntStateOf(prefs.getGridColumns()) }
     var grouping by remember { mutableStateOf(prefs.photoGrouping) }
     var sorting by remember { mutableStateOf(prefs.photoSorting) }
     var downloadFormat by remember { mutableStateOf(prefs.downloadFormat) }

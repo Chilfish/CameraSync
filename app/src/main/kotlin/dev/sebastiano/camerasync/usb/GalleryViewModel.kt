@@ -601,7 +601,12 @@ class GalleryViewModel(private val app: Application) {
     fun populateOrientationsFromDimensions() {
         for (group in currentPhotos) {
             val handle = group.previewHandle
-            if (orientationCache.containsKey(handle)) continue
+            val cached = orientationCache[handle]
+            // Only skip if a REAL rotation (not NORMAL) is already cached.
+            // NORMAL means "no rotation found" (either the thumbnail had no
+            // EXIF tags, or the camera pre-rotated the pixel data). In both
+            // cases we should still try to detect portrait from dimensions.
+            if (cached != null && cached != ExifInterface.ORIENTATION_NORMAL) continue
             val info = group.jpg ?: group.raw ?: continue
             // Nikon Z30 always reports sensor dimensions (5568×3712) for imagePix,
             // so imagePix alone won't detect portrait. Use imagePix first, then
