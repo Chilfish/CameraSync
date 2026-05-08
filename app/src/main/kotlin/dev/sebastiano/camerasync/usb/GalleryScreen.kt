@@ -545,10 +545,12 @@ private fun BrowsingContent(
     detailGroup?.let { group ->
         val photo = group.jpg ?: group.raw ?: return@let
         val thumbBytes = vm.getThumbnail(group.previewHandle)
+        val orientation = vm.getOrientation(group.previewHandle)
         PhotoDetailSheet(
             viewModel = vm,
             photoInfo = photo,
             thumbnailBytes = thumbBytes,
+            orientationFallback = orientation,
             onDismiss = { detailGroup = null },
         )
     }
@@ -831,7 +833,7 @@ private fun PhotoCell(
  * NORMAL (or is missing) but we have [fallbackOrientation] (e.g. extracted earlier from the JPEG
  * counterpart), the fallback is used instead.
  */
-private fun rotateByExif(
+internal fun rotateByExif(
     bitmap: Bitmap,
     jpegBytes: ByteArray,
     fallbackOrientation: Int? = null,
@@ -878,14 +880,18 @@ private fun rotateByExif(
     }
 }
 
-/** Converts an EXIF orientation to an aspect ratio (width/height). */
-private fun orientationToAspect(orientation: Int, thumbPixW: Int, thumbPixH: Int): Float {
-    // If we have real thumbnail dimensions, swap them for rotated orientations
-    if (thumbPixW > 0 && thumbPixH > 0) {
+/** Converts an EXIF orientation to an aspect ratio (width/height).
+ *
+ * [pixW]/[pixH] are the full-resolution pixel dimensions (imagePixWidth/Height
+ * from MtpObjectInfo, NOT thumbPix). For rotated orientations, the dimensions
+ * are swapped so the aspect ratio reflects the DISPLAY orientation.
+ */
+private fun orientationToAspect(orientation: Int, pixW: Int, pixH: Int): Float {
+    if (pixW > 0 && pixH > 0) {
         return when (orientation) {
             ExifInterface.ORIENTATION_ROTATE_90,
-            ExifInterface.ORIENTATION_ROTATE_270 -> thumbPixH.toFloat() / thumbPixW.toFloat()
-            else -> thumbPixW.toFloat() / thumbPixH.toFloat()
+            ExifInterface.ORIENTATION_ROTATE_270 -> pixH.toFloat() / pixW.toFloat()
+            else -> pixW.toFloat() / pixH.toFloat()
         }
     }
     // Fallback: 3:2 landscape or 2:3 portrait

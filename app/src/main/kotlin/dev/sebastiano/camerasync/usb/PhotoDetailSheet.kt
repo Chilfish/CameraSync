@@ -61,37 +61,48 @@ fun PhotoDetailSheet(
     viewModel: GalleryViewModel,
     photoInfo: NikonUsbManager.PhotoInfo,
     thumbnailBytes: ByteArray?,  // instant MTP thumbnail for display while loading
+    orientationFallback: Int? = null,  // from orientationCache for EXIF rotation
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Instant: MTP thumbnail preview
-    val thumbBitmap = remember(thumbnailBytes) {
-        thumbnailBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+    // Instant: MTP thumbnail preview, rotated by EXIF
+    val thumbBitmap = remember(thumbnailBytes, orientationFallback) {
+        thumbnailBytes?.let {
+            val raw = BitmapFactory.decodeByteArray(it, 0, it.size) ?: return@let null
+            rotateByExif(raw, it, orientationFallback)
+        }
     }
 
     // Async: download full NEF/JPEG for complete EXIF
     var fullImage by remember { mutableStateOf<ImageBitmap?>(null) }
     var exifFields by remember { mutableStateOf<List<Pair<String, String?>>>(emptyList()) }
     var exifLoading by remember { mutableStateOf(true) }
+    var downloadError by remember { mutableStateOf(false) }
 
     LaunchedEffect(photoInfo.handle) {
         exifLoading = true
+        downloadError = false
         val bytes = withContext(Dispatchers.IO) { viewModel.downloadFullPhoto(photoInfo.handle) }
+
+        if (bytes == null) {
+            downloadError = true
+            exifLoading = false
+            return@LaunchedEffect
+        }
 
         // Extract EXIF from the full RAW/JPEG bytes
         val fields = withContext(Dispatchers.IO) { extractExif(bytes) }
         exifFields = fields
 
-        // Try to decode a high-quality preview from the full file bytes.
-        // For NEF, BitmapFactory can extract the embedded JPEG preview (~1.8 MB).
-        if (bytes != null) {
-            val decoded = withContext(Dispatchers.IO) {
-                val opts = BitmapFactory.Options().apply { inSampleSize = 2 } // half-res for preview
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-            }
-            fullImage = decoded?.asImageBitmap()
+        // Try to decode a high-quality preview from the full file bytes,
+        // rotating by EXIF if needed.
+        val decoded = withContext(Dispatchers.IO) {
+            val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+            val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+            raw?.let { rotateByExif(it, bytes, null) }
         }
+        fullImage = decoded?.asImageBitmap()
         exifLoading = false
     }
 
@@ -145,7 +156,14 @@ fun PhotoDetailSheet(
                 Text("EXIF 信息", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))
 
-                if (exifLoading) {
+                if (downloadError) {
+                    Text(
+                        "读取失败 — 请确认相机仍处于连接状态",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(vertical = 16.dp),
+                    )
+                } else if (exifLoading) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                         horizontalArrangement = Arrangement.Center,
