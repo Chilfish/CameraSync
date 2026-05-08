@@ -414,7 +414,7 @@ private fun BrowsingContent(
         PullToRefreshBox(
             isRefreshing = false,
             onRefresh = { vm.refresh() },
-            modifier = Modifier.weight(1f).background(Color.Black),
+            modifier = Modifier.weight(1f),
         ) {
             LazyVerticalStaggeredGrid(
                 columns = StaggeredGridCells.Fixed(vm.gridColumns),
@@ -682,7 +682,6 @@ private fun ThumbnailImage(
     getOrientation: (Int) -> Int?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
-    onAspectReady: ((Float) -> Unit)? = null,
 ) {
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var loadingFailed by remember { mutableStateOf(false) }
@@ -704,7 +703,6 @@ private fun ThumbnailImage(
         val fallback = getOrientation(handle)
         val rotated = withContext(Dispatchers.IO) { rotateByExif(raw, bytes, fallback) }
         thumb = rotated.asImageBitmap()
-        onAspectReady?.invoke(rotated.width.toFloat() / rotated.height.toFloat())
     }
 
     if (thumb != null) {
@@ -767,18 +765,14 @@ private fun PhotoCell(
             else -> 3f / 2f
         }
 
-    // cellAspect: initially computed from orientation cache / thumbPix dimensions.
-    // Once the real thumbnail loads and is rotated, the actual bitmap dimensions
-    // take over (stored in loadedAspect). This avoids the staggered grid measuring
-    // the cell at a wrong default ratio.
-    var loadedAspect by remember { mutableStateOf<Float?>(null) }
-    val cellAspect = loadedAspect ?: baseAspect
-
+    // Use ONLY the calculated base aspect — never let the thumbnail's pixel
+    // dimensions override the correct 3:2 ratio from imagePix. The MTP thumbnail
+    // is 160×120 (4:3), not 3:2, so letting it change the cell size would make
+    // all cells slightly too square and cause visible re-layout flicker.
     Box(
         modifier =
             Modifier.fillMaxWidth()
-                .aspectRatio(cellAspect)
-                .background(Color.Black, RoundedCornerShape(8.dp))
+                .aspectRatio(baseAspect)
                 .clip(RoundedCornerShape(8.dp))
                 .combinedClickable(
                     onClick = { onPhotoClick?.invoke() },
@@ -791,7 +785,6 @@ private fun PhotoCell(
             getOrientation = getOrientation,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
-            onAspectReady = { loadedAspect = it },
         )
 
         if (isSelected) {

@@ -578,12 +578,15 @@ class GalleryViewModel(private val app: Application) {
                     ExifInterface.TAG_ORIENTATION,
                     ExifInterface.ORIENTATION_NORMAL,
                 )
-            // Always cache, even NORMAL — the MTP thumbnail for NEF IS a valid
-            // JPEG with proper EXIF orientation, so ExifInterface succeeds for it.
-            orientationCache[handle] = ori
+            // Only cache REAL rotations. NORMAL means either:
+            // 1. The thumbnail truly has no rotation needed (landscape, pre-rotated)
+            // 2. The MTP thumbnail has no EXIF orientation tag at all
+            // In case 2, caching NORMAL would block dimension-based fallback.
+            if (ori != ExifInterface.ORIENTATION_NORMAL) {
+                orientationCache[handle] = ori
+            }
         } catch (_: Exception) {
-            /* ExifInterface failed (not a JPEG) — leave uncached so PhotoCell
-               falls back to dimension-based portrait detection */
+            /* ExifInterface failed (TIFF thumbnail) — leave uncached */
         }
     }
 
