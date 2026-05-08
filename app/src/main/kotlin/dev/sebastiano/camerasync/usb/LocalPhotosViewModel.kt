@@ -114,41 +114,51 @@ class LocalPhotosViewModel(private val app: Application) {
     }
 
     private fun queryMediaStoreFiles(out: MutableSet<File>) {
-        val projection = arrayOf(
-            MediaStore.Images.Media._ID,
-            MediaStore.Images.Media.DATA,
-            MediaStore.Images.Media.DISPLAY_NAME,
-            MediaStore.Images.Media.RELATIVE_PATH,
-        )
-        val selection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?"
-        val args = arrayOf("Pictures/CameraSync/%")
-        val cursor = app.contentResolver.query(
+        // Query MediaStore.Images for JPEG/PNG/etc. AND MediaStore.Files for NEF/RAW.
+        // NEF files are not indexed as images by MediaStore.
+        queryMediaStoreUri(
+            out,
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            projection, selection, args, null
+            arrayOf(MediaStore.Images.Media.DATA, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.RELATIVE_PATH),
         )
-        if (cursor == null) {
-            Log.warn(tag = TAG) { "MediaStore query returned null cursor" }
-            return
-        }
+        queryMediaStoreUri(
+            out,
+            MediaStore.Files.getContentUri("external"),
+            arrayOf(MediaStore.Files.FileColumns.DATA, MediaStore.Files.FileColumns.DISPLAY_NAME, MediaStore.Files.FileColumns.RELATIVE_PATH),
+        )
+        Log.info(tag = TAG) { "MediaStore found ${out.size} files" }
+    }
+
+    private fun queryMediaStoreUri(
+        out: MutableSet<File>,
+        uri: android.net.Uri,
+        projection: Array<String>,
+    ) {
+        // RELATIVE_PATH column might be named differently in Files vs Images
+        val selRelPath = if (uri == MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+            MediaStore.Images.Media.RELATIVE_PATH
+        else
+            MediaStore.Files.FileColumns.RELATIVE_PATH
+
+        val selection = "$selRelPath LIKE ?"
+        val args = arrayOf("Pictures/CameraSync/%")
+        val cursor = app.contentResolver.query(uri, projection, selection, args, null) ?: return
         cursor.use {
-            val dataCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
-            val nameCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-            val relCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH)
+            val dataCol = it.getColumnIndexOrThrow(projection[0])
+            val nameCol = it.getColumnIndexOrThrow(projection[1])
+            val relCol = it.getColumnIndexOrThrow(projection[2])
             while (it.moveToNext()) {
                 val dataPath = it.getString(dataCol)
                 if (!dataPath.isNullOrBlank()) {
                     out.add(File(dataPath))
                 } else {
-                    // DATA is null (Android 10+ scoped storage) — reconstruct path
                     val relPath = it.getString(relCol) ?: continue
                     val name = it.getString(nameCol) ?: continue
-                    val fullPath =
-                        "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).parent}/$relPath/$name"
-                    out.add(File(fullPath))
+                    val storageRoot = Environment.getExternalStorageDirectory().absolutePath
+                    out.add(File("$storageRoot/$relPath/$name"))
                 }
             }
         }
-        Log.info(tag = TAG) { "MediaStore found ${out.size} files" }
     }
 
     private fun groupByBaseName(files: List<File>): List<LocalPhotoGroup> {
