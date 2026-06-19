@@ -84,6 +84,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
+import coil3.compose.AsyncImage
+import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
 import dev.sebastiano.camerasync.R
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -138,7 +141,7 @@ fun GalleryScreen(
     val showLocal = s is GalleryState.Disconnected && !inFolder
 
     // Reload local photos every time we enter the local view
-    LaunchedEffect(showLocal) { if (showLocal) localVm.load() }
+    LaunchedEffect(showLocal) { if (showLocal) localVm.loadRoot() }
 
     // Preview bottom sheet state
     var showPreview by remember { mutableStateOf(false) }
@@ -547,8 +550,9 @@ private fun BrowsingContent(
 
     detailGroup?.let { group ->
         val photo = group.jpg ?: group.raw ?: return@let
-        val thumbBytes = vm.getThumbnail(group.previewHandle)
-        val orientation = vm.getOrientation(group.previewHandle)
+        val handle = group.previewHandle ?: return@let
+        val thumbBytes = vm.getThumbnail(handle)
+        val orientation = vm.getOrientation(handle)
         PhotoDetailSheet(
             viewModel = vm,
             photoInfo = photo,
@@ -753,7 +757,7 @@ private fun PhotoCell(
     getOrientation: (Int) -> Int?,
     onPhotoClick: (() -> Unit)? = null,
 ) {
-    val handle = group.previewHandle
+    val handle = group.previewHandle ?: return
     val cachedOri = getOrientation(handle)
 
     // Compute initial aspect ratio from the actual full-resolution dimensions
@@ -1411,8 +1415,9 @@ private fun TransferPreviewSheet(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         for (group in selectedGroups) {
+                            val handle = group.previewHandle ?: continue
                             ThumbnailImage(
-                                handle = group.previewHandle,
+                                handle = handle,
                                 getThumbnail = viewModel::getThumbnail,
                                 getOrientation = viewModel::getOrientation,
                                 modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)),
@@ -1487,204 +1492,318 @@ private fun CameraTabContent(
     onFolderClick: (GalleryEntry.Folder) -> Unit,
     onNavigateBack: () -> Unit,
 ) {
-    when (s) {
-        is GalleryState.Disconnected -> {
-            if (inFolder) LaunchedEffect(Unit) { onNavigateBack() } else DisconnectedContent()
+    Column(Modifier.fillMaxSize()) {
+        // Inline error banner — overlays on top instead of replacing the screen
+        viewModel.errorBanner?.let { msg ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painterResource(R.drawable.ic_error_24dp),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        msg,
+                        fontSize = 13.sp,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 3
+                    )
+                    IconButton(
+                        onClick = { viewModel.clearErrorBanner() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_close_24dp),
+                            contentDescription = "关闭",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
         }
-        is GalleryState.Connecting -> {
-            if (!inFolder) ConnectingContent()
+        // Content
+        when (s) {
+            is GalleryState.Disconnected -> {
+                if (inFolder) LaunchedEffect(Unit) { onNavigateBack() } else DisconnectedContent()
+            }
+            is GalleryState.Connecting -> {
+                if (!inFolder) ConnectingContent()
+            }
+            is GalleryState.Loading -> LoadingContent(s)
+            is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
+            is GalleryState.Empty -> EmptyCameraContent()
+            is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
+            is GalleryState.Transferring -> TransferringContent(s)
+            is GalleryState.TransferDone ->
+                TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
         }
-        is GalleryState.Loading -> LoadingContent(s)
-        is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
-        is GalleryState.Empty -> EmptyCameraContent()
-        is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
-        is GalleryState.Transferring -> TransferringContent(s)
-        is GalleryState.TransferDone ->
-            TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
     }
 }
 
 // ── Local Photos Tab ────────────────────────────────────────────────────────
 
+/**
+ * Tab content for locally-stored photos under Pictures/CameraSync.
+ *
+ * Modes:
+ * - **Folder list** (default): shows sub-directories as cards with photo counts.
+ * - **Photo grid**: shown when user enters a folder — [AsyncImage]-backed grid.
+ *
+ * Uses Coil for all image loading — no hand-rolled [BitmapFactory].
+ */
 @Composable
 private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
+    val folders = localVm.folders
     val groups = localVm.groups
     val loadState = localVm.loading.value
     val isRefreshing = localVm.isRefreshing
+    val isBrowsingFolder = localVm.isBrowsingFolder
     var detailGroup by remember { mutableStateOf<LocalPhotoGroup?>(null) }
-    val context = LocalContext.current
 
-    if (loadState && !isRefreshing) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+    Column(modifier = Modifier.fillMaxSize()) {
+        // ── Breadcrumb (shown when inside a folder) ──
+        if (isBrowsingFolder) {
+            LocalBreadcrumb(
+                currentPath = localVm.currentPath ?: "",
+                onBack = { localVm.goBack() },
+                onRefresh = { localVm.refresh() },
+            )
         }
-    } else if (groups.isEmpty() && !isRefreshing) {
-        Column(
-            Modifier.fillMaxSize().padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text("没有已导出的照片", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(16.dp))
-            // Hint about storage permission
-            Card(
-                Modifier.fillMaxWidth(),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
+
+        if (loadState && !isRefreshing) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (folders.isEmpty() && groups.isEmpty() && !isRefreshing && !isBrowsingFolder) {
+            // Root-level empty state
+            Column(
+                Modifier.fillMaxSize().padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        "提示：如果 Pictures/CameraSync 目录下有文件但没有显示，请在系统设置中授予「所有文件访问权限」。",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = {
-                            val intent =
-                                Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                                    .apply { data = Uri.parse("package:${context.packageName}") }
-                            context.startActivity(intent)
+                Text(
+                    "没有已导出的照片",
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else if (isBrowsingFolder && folders.isEmpty() && groups.isEmpty()) {
+            // Folder-level empty state
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "此目录下没有照片",
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { localVm.refresh() },
+            ) {
+                LazyVerticalStaggeredGrid(
+                    columns = StaggeredGridCells.Fixed(gridColumns),
+                    contentPadding = PaddingValues(bottom = 80.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalItemSpacing = 2.dp,
+                ) {
+                    // ── Folder cards (only at root level when not browsing a folder) ──
+                    if (!isBrowsingFolder && folders.isNotEmpty()) {
+                        items(
+                            folders,
+                            key = { it.relativePath },
+                            span = { StaggeredGridItemSpan.FullLine },
+                        ) { folder ->
+                            LocalFolderCell(
+                                folder = folder,
+                                onClick = { localVm.enterFolder(folder.relativePath) },
+                            )
                         }
-                    ) {
-                        Text("打开设置", fontSize = 13.sp)
+                    }
+
+                    // ── Photo grid ──
+                    items(groups, key = { it.cacheKey }) { group ->
+                        LocalPhotoCell(
+                            group = group,
+                            onClick = { detailGroup = group },
+                        )
                     }
                 }
             }
         }
-    } else {
-        PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = { localVm.load() }) {
-            LazyVerticalStaggeredGrid(
-                columns = StaggeredGridCells.Fixed(gridColumns),
-                contentPadding = PaddingValues(bottom = 80.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalItemSpacing = 2.dp,
-            ) {
-                items(groups, key = { it.cacheKey }) { group ->
-                    LocalPhotoCell(
-                        group = group,
-                        localVm = localVm,
-                        onClick = { detailGroup = group },
-                    )
-                }
-            } // LazyVerticalStaggeredGrid
-        } // PullToRefreshBox
     }
 
     // Detail bottom sheet
     detailGroup?.let { group ->
-        LocalPhotoDetail(group = group, localVm = localVm, onDismiss = { detailGroup = null })
+        LocalPhotoDetail(group = group, onDismiss = { detailGroup = null })
     }
 }
 
+/** Breadcrumb bar showing current folder path with back button. */
+@Composable
+private fun LocalBreadcrumb(
+    currentPath: String,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    val displayPath =
+        currentPath
+            .trimEnd('/')
+            .removePrefix("Pictures/CameraSync/")
+            .ifEmpty { "CameraSync" }
+
+    Row(
+        modifier =
+            Modifier.fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
+            Text("←", fontSize = 18.sp)
+        }
+        Text(
+            displayPath,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
+            Text("↻", fontSize = 18.sp)
+        }
+    }
+}
+
+/** A tappable card representing a sub-folder with its photo count. */
+@Composable
+private fun LocalFolderCell(folder: LocalFolder, onClick: () -> Unit) {
+    Card(
+        modifier =
+            Modifier.fillMaxWidth()
+                .padding(4.dp)
+                .combinedClickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("📁", fontSize = 32.sp)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                folder.name,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${folder.photoCount} 张",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * Photo cell powered by Coil [AsyncImage]. Replaces the old hand-rolled
+ * [BitmapFactory] approach.
+ *
+ * Key improvements:
+ * - Coil handles decoding, downsampling, memory cache, and EXIF orientation
+ *   automatically (via [ExifInterface] built into its decoder).
+ * - [AsyncImage] is lifecycle-aware via [LazyVerticalStaggeredGrid] —
+ *   requests are cancelled when scrolled off-screen.
+ * - Fallback to grey placeholder on decode failure (e.g., corrupted NEF preview).
+ */
 @Composable
 private fun LocalPhotoCell(
     group: LocalPhotoGroup,
-    localVm: LocalPhotosViewModel,
     onClick: () -> Unit,
 ) {
-    val file = group.jpg?.file ?: group.raw?.file ?: return
-    var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
-    val orientation = localVm.getOrientation(group.cacheKey)
-
-    // Aspect ratio: use cached orientation if available, otherwise probe
-    // the file's real dimensions via BitmapFactory (header-only, fast).
-    // Default to 3:2 landscape when nothing is known yet.
-    var baseAspect by remember { mutableStateOf(3f / 2f) }
-
-    LaunchedEffect(file) {
-        // Determine aspect ratio from actual file dimensions (fast, no full decode)
-        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        try {
-            withContext(Dispatchers.IO) { BitmapFactory.decodeFile(file.absolutePath, opts) }
-        } catch (_: Exception) {
-            /* fall through to orientation-based */
-        }
-        val w = opts.outWidth
-        val h = opts.outHeight
-        val detectedOri = localVm.getOrientation(group.cacheKey)
-        baseAspect =
-            when {
-                detectedOri == ExifInterface.ORIENTATION_ROTATE_90 ||
-                    detectedOri == ExifInterface.ORIENTATION_ROTATE_270 -> h.toFloat() / w.toFloat()
-                w > 0 && h > 0 -> w.toFloat() / h.toFloat()
-                else -> 3f / 2f
-            }
-
-        // Load and display the thumbnail
-        val bytes = localVm.loadThumbnail(file)
-        if (bytes != null) {
-            val raw =
-                withContext(Dispatchers.IO) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
-            if (raw != null) {
-                // Always trust the cached orientation: if it says rotate, always rotate.
-                val rotated =
-                    when (detectedOri) {
-                        ExifInterface.ORIENTATION_ROTATE_90,
-                        ExifInterface.ORIENTATION_ROTATE_270 ->
-                            rotateByExif(raw, bytes, detectedOri)
-                        ExifInterface.ORIENTATION_ROTATE_180 ->
-                            rotateByExif(raw, bytes, detectedOri)
-                        else -> raw
-                    }
-                thumb = rotated.asImageBitmap()
-            }
-        }
-    }
+    val file = group.displayFile
 
     Box(
         modifier =
             Modifier.fillMaxWidth()
-                .aspectRatio(baseAspect)
+                .aspectRatio(3f / 2f) // reasonable default for camera photos
                 .clip(RoundedCornerShape(8.dp))
                 .combinedClickable(onClick = onClick)
     ) {
-        if (thumb != null) {
-            Image(thumb!!, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        } else {
-            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
+        AsyncImage(
+            model =
+                ImageRequest.Builder(LocalContext.current)
+                    .data(file)
+                    .size(360)
+                    .build(),
+            contentDescription = group.baseName,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            // Show a subdued placeholder while loading or on error
+            placeholder = rememberAsyncImagePainter(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(file)
+                    .size(60)
+                    .build()
+            ),
+            error = rememberAsyncImagePainter(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(file)
+                    .size(60)
+                    .build()
+            ),
+        )
+
+        // RAW badge
+        if (group.raw != null) {
+            Box(
+                modifier =
+                    Modifier.align(Alignment.BottomStart)
+                        .padding(4.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    "RAW",
+                    fontSize = 10.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
 
 // ── Local Photo Detail ──────────────────────────────────────────────────────
 
+/**
+ * Detail bottom sheet for a local photo. Uses Coil [AsyncImage] for the
+ * full-resolution preview and [ExifInterface] (path-based, no full read) for metadata.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LocalPhotoDetail(
     group: LocalPhotoGroup,
-    localVm: LocalPhotosViewModel,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val file = group.jpg?.file ?: group.raw?.file ?: return
-    val cachedOri = localVm.getOrientation(group.cacheKey)
 
-    var fullImage by remember { mutableStateOf<ImageBitmap?>(null) }
     var exifFields by remember { mutableStateOf<List<Pair<String, String?>>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+    var exifLoaded by remember { mutableStateOf(false) }
 
+    // Load EXIF in background (path-based constructor — efficient, no full file read)
     LaunchedEffect(file) {
         withContext(Dispatchers.IO) {
-            // Load preview image
-            val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-            val raw = BitmapFactory.decodeFile(file.absolutePath, opts)
-            if (raw != null) {
-                // Compress to JPEG bytes for rotateByExif, passing cached orientation
-                // as fallback since the JPEG-compressed bytes have no EXIF.
-                val bytes =
-                    ByteArrayOutputStream().use { out ->
-                        raw.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                        out.toByteArray()
-                    }
-                val rotated = rotateByExif(raw, bytes, cachedOri)
-                fullImage = rotated.asImageBitmap()
-            }
-
-            // Extract EXIF using the file path constructor — ExifInterface seeks
-            // within the file without loading all bytes into memory.
             val exif =
                 try {
                     ExifInterface(file.absolutePath)
@@ -1692,7 +1811,7 @@ private fun LocalPhotoDetail(
                     null
                 }
             exifFields = extractExifFromInterface(exif)
-            loading = false
+            exifLoaded = true
         }
     }
 
@@ -1707,22 +1826,17 @@ private fun LocalPhotoDetail(
                         .padding(horizontal = 24.dp)
                         .padding(bottom = 32.dp)
             ) {
-                if (fullImage != null) {
-                    Image(
-                        fullImage!!,
-                        null,
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
-                        contentScale = ContentScale.Fit,
-                    )
-                    Spacer(Modifier.height(16.dp))
-                } else if (loading) {
-                    Box(
-                        Modifier.fillMaxWidth().height(200.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
+                // Full-resolution preview via Coil
+                AsyncImage(
+                    model = file,
+                    contentDescription = group.baseName,
+                    modifier =
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Fit,
+                )
+
+                Spacer(Modifier.height(16.dp))
 
                 Text(group.baseName, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
@@ -1732,7 +1846,7 @@ private fun LocalPhotoDetail(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                if (loading) {
+                if (!exifLoaded) {
                     Spacer(Modifier.height(20.dp))
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else if (exifFields.isNotEmpty()) {

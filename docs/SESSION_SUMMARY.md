@@ -1,10 +1,45 @@
-# Session Summary — 2026-05-06/07/08
+# Session Summary — 2026-05-06/07/08/09
 
 > **Next session**: Read this first. It captures everything done, learned, and the current state.
 
 ## TL;DR
 
-All sprints + bug fixes + UX polish done. CameraSync is production-quality. Last two known UX issues resolved 2026-05-08 evening.
+All sprints + bug fixes + UX polish done. CameraSync is production-quality. Last known UX issues resolved 2026-05-09 early morning.
+
+### 2026-05-09 Early Morning: Local Photos — Scoped Storage & Display Fixes
+
+**Bug: Local photos gallery showed 0 files despite directory having NEF+JPG**
+- Root cause: Android 13+ scoped storage. No storage permissions (`READ_MEDIA_IMAGES`, `MANAGE_EXTERNAL_STORAGE`) declared in manifest → `File.listFiles()` silently returned empty array. MediaStore fallback had been removed in prior cleanup.
+- Fix: Restored dual-path scanning in `LocalPhotosViewModel`:
+  - **Path 1**: `File.listFiles()` — fast, works when `MANAGE_EXTERNAL_STORAGE` granted
+  - **Path 2**: `MediaStore.Images` + `MediaStore.Files` queries via `RELATIVE_PATH LIKE 'Pictures/CameraSync/%'` — catches app-exported JPEG+NEF on scoped storage
+- Files: `AndroidManifest.xml` (+4 permissions), `LocalPhotosViewModel.kt`, `GalleryScreen.kt` (+permission hint card linking to system settings)
+
+**Bug 2: EXIF orientation not applied to local RAWs**
+- Android's `ExifInterface` can't parse NEF (TIFF-based proprietary) orientation
+- Fix: Added `populateOrientationsFromDimensions()` — uses `BitmapFactory.Options.inJustDecodeBounds` (header-only, fast) to detect portrait via width<height
+- Files: `LocalPhotosViewModel.kt`
+
+**Bug 3: LocalPhotoCell aspect ratio wrong for portrait**
+- Fallback defaulted to 3:2 (landscape) when orientation unknown
+- Fix: Probes actual file dimensions via `inJustDecodeBounds` before computing aspect ratio
+
+**Bug 4: Rotation logic inconsistent**
+- Complex heuristic tried to detect pre-rotated bitmaps, sometimes skipped needed rotation
+- Fix: Simplified — always trusts cached orientation. If ROTATE_90/270/180, always rotate.
+
+**Bug 5: LocalPhotoDetail broken**
+- `file.readBytes()` loaded entire NEF (26MB) into memory for EXIF
+- EXIF display was minimal (only filename + size)
+- Fix: Uses `ExifInterface(file.absolutePath)` (path-based, no full read); extracted `extractExifFromInterface()` for rich EXIF display (aperture/shutter/ISO/focal length/lens/metering mode/etc.)
+- 7 EXIF helper functions in `PhotoDetailSheet.kt` promoted from `private` to `internal`
+
+**Bug 6: Pull-to-refresh hardcoded**
+- `isRefreshing = false` was hardcoded
+- Fix: Added `isRefreshing` state to `LocalPhotosViewModel`, set true on load start/false in finally
+
+**All files**: `AndroidManifest.xml`, `LocalPhotosViewModel.kt`, `GalleryScreen.kt`, `PhotoDetailSheet.kt`, `GalleryViewModel.kt`, `NikonUsbManager.kt`, `MainActivity.kt`
+**Commit**: `52a550d`
 
 ### 2026-05-08 Evening: Final UX Fixes
 

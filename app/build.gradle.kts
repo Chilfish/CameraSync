@@ -120,6 +120,8 @@ dependencies {
     implementation(libs.protobuf.kotlin.lite)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
     debugImplementation(libs.androidx.ui.test.manifest)
     debugImplementation(libs.androidx.ui.tooling)

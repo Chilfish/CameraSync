@@ -71,4 +71,11 @@ class LogViewerViewModel(
     fun setFilterLevel(level: LogLevel?) {
         _filterLevel.value = level
     }
+
+    /** Formats all current log entries as a plain-text string for export/share. */
+    fun getLogsAsText(): String {
+        return logs.value.joinToString("\n") { entry ->
+            "${entry.timestamp} ${entry.level.name.take(1)}/${entry.tag}: ${entry.message}"
+        }
+    }
 }

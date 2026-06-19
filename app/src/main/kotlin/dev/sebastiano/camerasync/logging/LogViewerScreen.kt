@@ -1,8 +1,7 @@
 package dev.sebastiano.camerasync.logging
 
+import android.content.Intent
 import android.content.res.Configuration
-import androidx.compose.foundation.ScrollIndicatorFactory
-import androidx.compose.foundation.ScrollIndicatorState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.scrollIndicator
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -53,6 +51,7 @@ import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -72,6 +71,7 @@ fun LogViewerScreen(viewModel: LogViewerViewModel, onNavigateBack: () -> Unit) {
     val filterText by viewModel.filterText.collectAsState()
     val filterLevel by viewModel.filterLevel.collectAsState()
     val isRefreshing by viewModel.isRefreshing
+    val context = LocalContext.current
 
     LogViewerScreenContent(
         logs = logs,
@@ -82,6 +82,15 @@ fun LogViewerScreen(viewModel: LogViewerViewModel, onNavigateBack: () -> Unit) {
         onFilterTextChange = viewModel::setFilterText,
         onFilterLevelChange = viewModel::setFilterLevel,
         onRefresh = viewModel::refresh,
+        onExport = {
+            val text = viewModel.getLogsAsText()
+            val sendIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                putExtra(Intent.EXTRA_TEXT, text)
+                type = "text/plain"
+            }
+            context.startActivity(Intent.createChooser(sendIntent, "分享日志"))
+        },
     )
 }
 
@@ -96,6 +105,7 @@ private fun LogViewerScreenContent(
     onFilterTextChange: (String) -> Unit,
     onFilterLevelChange: (LogLevel?) -> Unit,
     onRefresh: () -> Unit,
+    onExport: () -> Unit = {},
 ) {
     var showFilterMenu by remember { mutableStateOf(false) }
     var showSearchField by remember { mutableStateOf(filterText.isNotEmpty()) }
@@ -155,6 +165,12 @@ private fun LogViewerScreenContent(
                                     )
                                 }
                         }
+                    }
+                    IconButton(onClick = onExport) {
+                        Icon(
+                            painterResource(android.R.drawable.ic_menu_share),
+                            contentDescription = "导出日志",
+                        )
                     }
                     IconButton(onClick = onRefresh, enabled = !isRefreshing) {
                         if (isRefreshing) {
@@ -235,19 +251,9 @@ private fun LogViewerScreenContent(
                 }
             }
 
-            val scrollbarFactory = remember { LogScrollbarFactory() }
-            val scrollbarModifier =
-                listState.scrollIndicatorState?.let {
-                    Modifier.scrollIndicator(
-                        factory = scrollbarFactory,
-                        state = it,
-                        orientation = Orientation.Vertical,
-                    )
-                } ?: Modifier
-
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize().then(scrollbarModifier),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
                 items(logs) { entry ->
@@ -380,46 +386,6 @@ private fun getLogLevelColor(level: LogLevel): Color =
         LogLevel.ASSERT -> Color(0xFF9C27B0)
         LogLevel.UNKNOWN -> Color.Gray
     }
-
-private data class LogScrollbarFactory(
-    val thumbThickness: Dp = 4.dp,
-    val padding: Dp = 2.dp,
-    val thumbColor: Color = Color.Gray,
-    val thumbAlpha: Float = 0.5f,
-) : ScrollIndicatorFactory {
-    override fun createNode(
-        state: ScrollIndicatorState,
-        orientation: Orientation,
-    ): DelegatableNode =
-        object : Modifier.Node(), DrawModifierNode {
-            override fun ContentDrawScope.draw() {
-                drawContent()
-
-                if (state.contentSize <= state.viewportSize || state.viewportSize == 0) return
-
-                val visibleContentRatio = state.viewportSize.toFloat() / state.contentSize
-                val thumbLength = state.viewportSize * visibleContentRatio
-                val thumbPosition = state.scrollOffset * visibleContentRatio
-
-                val thumbThicknessPx = thumbThickness.toPx()
-                val paddingPx = padding.toPx()
-
-                val (topLeft, size) =
-                    when (orientation) {
-                        Orientation.Vertical -> {
-                            val x = size.width - thumbThicknessPx - paddingPx
-                            Offset(x, thumbPosition) to Size(thumbThicknessPx, thumbLength)
-                        }
-                        Orientation.Horizontal -> {
-                            val y = size.height - thumbThicknessPx - paddingPx
-                            Offset(thumbPosition, y) to Size(thumbLength, thumbThicknessPx)
-                        }
-                    }
-
-                drawRect(color = thumbColor, topLeft = topLeft, size = size, alpha = thumbAlpha)
-            }
-        }
-}
 
 @Preview(name = "Log Viewer Screen", showBackground = true)
 @Composable

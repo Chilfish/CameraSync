@@ -1,33 +1,32 @@
 package dev.sebastiano.camerasync.usb
 
 import android.app.Application
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.exifinterface.media.ExifInterface
 import com.juul.khronicle.Log
 import java.io.File
-import java.io.FileInputStream
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 private const val TAG = "LocalPhotosVM"
 
+// ── Data Models ──────────────────────────────────────────────────────────────
+
 /** A photo file found in the local export directory. */
 data class LocalPhoto(
     val file: File,
+    val uri: android.net.Uri,
     val name: String,
     val dateModified: Long,
     val size: Long,
@@ -39,15 +38,38 @@ data class LocalPhotoGroup(
     val baseName: String,
     val jpg: LocalPhoto?,
     val raw: LocalPhoto?,
-    /** Handle-style key for orientation cache (derived from file path hash). */
+    /** Stable key for LazyVerticalStaggeredGrid — derived from file path hash. */
     val cacheKey: Int,
+    /** The preferred file to use as Coil/AsyncImage model (JPEG if available, else RAW). */
+    val displayFile: File,
 )
+
+/** A folder/directory containing photos, for the directory browser view. */
+data class LocalFolder(
+    val name: String,
+    val relativePath: String,
+    val photoCount: Int,
+)
+
+// ── ViewModel ────────────────────────────────────────────────────────────────
 
 class LocalPhotosViewModel(
     private val app: Application,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
 
+    /** Current directory path (null = root: Pictures/CameraSync). */
+    var currentPath by mutableStateOf<String?>(null)
+        private set
+
+    /** Whether we're showing the folder list (true) or photo grid (false). */
+    val isBrowsingFolder: Boolean get() = currentPath != null
+
+    /** List of sub-folders at current level. */
+    var folders by mutableStateOf<List<LocalFolder>>(emptyList())
+        private set
+
+    /** Photo groups at current level. */
     var groups by mutableStateOf<List<LocalPhotoGroup>>(emptyList())
         private set
 
@@ -59,291 +81,336 @@ class LocalPhotosViewModel(
 
     private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    /** EXIF orientation cache, keyed by cacheKey (derived from file path). */
-    private val orientationCache = java.util.concurrent.ConcurrentHashMap<Int, Int>()
+    /** Prevents concurrent scans — MediaStore cursor queries must be serialized. */
+    private val scanMutex = Mutex()
 
-    fun getOrientation(cacheKey: Int): Int? = orientationCache[cacheKey]
+    /** The base directory: Pictures/CameraSync */
+    private val baseDir =
+        File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            "CameraSync",
+        ).absolutePath + "/"
 
-    fun load() {
+    /**
+     * Load the root view: folders at Pictures/CameraSync + photos at root level.
+     * Called on initial enter and pull-to-refresh.
+     */
+    fun loadRoot() {
         scope.launch {
-            _loading.value = true
-            isRefreshing = true
-            try {
-                val result = withContext(ioDispatcher) { scanDirectories() }
-                groups = result
-                // Pre-load EXIF orientations in parallel, then dimension-based fallback
-                preloadOrientations(result)
-                populateOrientationsFromDimensions(result)
-            } finally {
-                _loading.value = false
-                isRefreshing = false
+            scanMutex.withLock {
+                _loading.value = true
+                isRefreshing = true
+                currentPath = null
+                try {
+                    withContext(ioDispatcher) {
+                        folders = queryFolders(null)
+                        groups = queryPhotos(null)
+                    }
+                } catch (e: Exception) {
+                    Log.warn(tag = TAG, throwable = e) { "loadRoot failed" }
+                } finally {
+                    _loading.value = false
+                    isRefreshing = false
+                }
             }
         }
     }
+
+    /**
+     * Enter a sub-folder: show photos within [relativePath] and its own sub-folders.
+     *
+     * @param relativePath e.g. "Pictures/CameraSync/Nikon Z30/"
+     */
+    fun enterFolder(relativePath: String) {
+        scope.launch {
+            scanMutex.withLock {
+                _loading.value = true
+                currentPath = relativePath
+                try {
+                    withContext(ioDispatcher) {
+                        folders = queryFolders(relativePath)
+                        groups = queryPhotos(relativePath)
+                    }
+                } catch (e: Exception) {
+                    Log.warn(tag = TAG, throwable = e) { "enterFolder failed: $relativePath" }
+                } finally {
+                    _loading.value = false
+                }
+            }
+        }
+    }
+
+    /** Go back to parent directory. If already at root, no-op. */
+    fun goBack() {
+        val path = currentPath ?: return
+        // Strip trailing "/" then find parent: "Pictures/CameraSync/Nikon Z30/" → null (root)
+        val clean = path.trimEnd('/')
+        val lastSlash = clean.lastIndexOf('/')
+        currentPath =
+            if (lastSlash <= 0) null // back to root
+            else clean.substring(0, lastSlash + 1)
+        loadCurrent()
+    }
+
+    /** Re-load the current level. */
+    fun refresh() = loadCurrent()
 
     fun stop() {
         scope.cancel()
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     }
 
-    // ── Directory scanning ──────────────────────────────────────────────────
-
-    /**
-     * Scans exported photos using a dual-path approach:
-     * 1. [File.listFiles] — fast, works with MANAGE_EXTERNAL_STORAGE or for app-owned files.
-     * 2. [MediaStore] query — fallback for scoped storage where listFiles may return empty.
-     */
-    private fun scanDirectories(): List<LocalPhotoGroup> {
-        val base =
-            File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-                "CameraSync",
-            )
-        val fileSet = linkedSetOf<File>()
-
-        // Path 1: File.listFiles() — fast, works with MANAGE_EXTERNAL_STORAGE or for app-owned
-        // files
-        if (base.exists() && base.isDirectory) {
-            collectFiles(base, fileSet)
-        }
-        Log.info(tag = TAG) { "listFiles() found ${fileSet.size} files" }
-
-        // Path 2: MediaStore query — catches files visible to MediaStore (JPEG + NEF exported by
-        // app)
-        // This is essential on scoped storage where listFiles() may return empty
-        queryMediaStore(fileSet)
-        Log.info(tag = TAG) { "Total files (with MediaStore): ${fileSet.size}" }
-
-        if (fileSet.isEmpty()) {
-            Log.warn(tag = TAG) {
-                "No files found via either path. Directory: ${base.absolutePath}"
-            }
-            return emptyList()
-        }
-
-        val grouped = groupByBaseName(fileSet.toList())
-        Log.info(tag = TAG) { "Grouped into ${grouped.size} photo groups" }
-
-        return grouped.sortedByDescending { group ->
-            maxOf(group.jpg?.dateModified ?: 0L, group.raw?.dateModified ?: 0L)
-        }
+    private fun loadCurrent() {
+        val path = currentPath
+        if (path == null) loadRoot() else enterFolder(path)
     }
 
-    /**
-     * Recursively walks [dir] collecting .jpg, .jpeg, and .nef files into [out]. Returns early if
-     * [dir] is not readable (scoped storage edge case).
-     */
-    private fun collectFiles(dir: File, out: MutableSet<File>) {
-        val children =
-            try {
-                dir.listFiles()
-            } catch (e: SecurityException) {
-                Log.warn(tag = TAG, throwable = e) { "Cannot list: ${dir.absolutePath}" }
-                return
-            }
-                ?: run {
-                    Log.warn(tag = TAG) { "listFiles() returned null for: ${dir.absolutePath}" }
-                    return
-                }
-        for (child in children) {
-            if (child.isDirectory) {
-                collectFiles(child, out)
-            } else {
-                val name = child.name.lowercase()
-                if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".nef")) {
-                    out.add(child)
-                }
-            }
-        }
-    }
+    // ── MediaStore Queries ────────────────────────────────────────────────────
 
     /**
-     * Queries MediaStore for photos under Pictures/CameraSync. Uses RELATIVE_PATH as primary filter
-     * (works for app-exported files). Uses DATA pattern as fallback for NEF files that MediaStore
-     * indexed but didn't set RELATIVE_PATH properly.
+     * Queries MediaStore for sub-directories under [parentPath].
+     * Uses DISTINCT on RELATIVE_PATH to get unique folder names.
+     *
+     * @param parentPath null = root Pictures/CameraSync
+     * @return sorted list of folders (alphabetically by name)
      */
-    private fun queryMediaStore(out: MutableSet<File>) {
-        // Query 1: MediaStore.Images for JPEG/PNG/etc. — reliable RELATIVE_PATH
-        val imagesProjection =
-            arrayOf(
-                MediaStore.Images.Media.DATA,
-                MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.RELATIVE_PATH,
-            )
-        val imageSelection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?"
-        val imageArgs = arrayOf("Pictures/CameraSync/%")
+    private fun queryFolders(parentPath: String?): List<LocalFolder> {
+        val likePattern =
+            if (parentPath == null) "Pictures/CameraSync/%"
+            else "${parentPath}%"
+
+        // Query 1: Images
+        val imageFolders = mutableSetOf<String>()
+        val imageCounts = mutableMapOf<String, Int>()
 
         try {
             app.contentResolver
                 .query(
                     MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    imagesProjection,
-                    imageSelection,
-                    imageArgs,
+                    arrayOf(MediaStore.Images.Media.RELATIVE_PATH),
+                    "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Images.Media.RELATIVE_PATH} != ?",
+                    arrayOf(likePattern, parentPath ?: "Pictures/CameraSync/"),
                     null,
                 )
                 ?.use { cursor ->
-                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+                    val pathCol =
+                        cursor.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH)
                     while (cursor.moveToNext()) {
-                        val data = cursor.getString(dataCol)
-                        if (!data.isNullOrBlank()) {
-                            val file = File(data)
-                            if (file.exists()) out.add(file)
-                        }
+                        val fullPath = cursor.getString(pathCol) ?: continue
+                        val subFolder = extractSubFolder(fullPath, parentPath) ?: continue
+                        imageFolders.add(subFolder)
+                        imageCounts[subFolder] = (imageCounts[subFolder] ?: 0) + 1
                     }
                 }
         } catch (_: Exception) {
-            /* MediaStore query can fail */
+            /* MediaStore can fail */
         }
-        Log.info(tag = TAG) { "MediaStore.Images found ${out.size} files" }
 
-        // Query 2: MediaStore.Files for NEF/RAW files
-        // NEF files exported by the app have RELATIVE_PATH set via ContentValues.
-        // For NEF files not in MediaStore (manually copied), this won't help —
-        // those need MANAGE_EXTERNAL_STORAGE + listFiles().
-        val filesUri = MediaStore.Files.getContentUri("external")
-        val filesProjection =
-            arrayOf(
-                MediaStore.Files.FileColumns.DATA,
-                MediaStore.Files.FileColumns.DISPLAY_NAME,
-                MediaStore.Files.FileColumns.RELATIVE_PATH,
-            )
-        val filesSelection = "${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
-        val filesArgs = arrayOf("Pictures/CameraSync/%")
-
+        // Query 2: Files (NEF — often indexed under MediaStore.Files, not Images)
         try {
             app.contentResolver
-                .query(filesUri, filesProjection, filesSelection, filesArgs, null)
+                .query(
+                    MediaStore.Files.getContentUri("external"),
+                    arrayOf(MediaStore.Files.FileColumns.RELATIVE_PATH),
+                    "${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.Files.FileColumns.RELATIVE_PATH} != ?",
+                    arrayOf(likePattern, parentPath ?: "Pictures/CameraSync/"),
+                    null,
+                )
                 ?.use { cursor ->
-                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                    val pathCol =
+                        cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.RELATIVE_PATH)
                     while (cursor.moveToNext()) {
-                        val data = cursor.getString(dataCol)
-                        if (!data.isNullOrBlank()) {
-                            val file = File(data)
-                            if (file.exists()) out.add(file)
-                        }
+                        val fullPath = cursor.getString(pathCol) ?: continue
+                        val subFolder = extractSubFolder(fullPath, parentPath) ?: continue
+                        imageFolders.add(subFolder)
                     }
                 }
         } catch (_: Exception) {
-            /* MediaStore query can fail */
+            /* MediaStore.Files can fail */
         }
-        Log.info(tag = TAG) { "MediaStore.Files total: ${out.size} files" }
+
+        return imageFolders
+            .map { folder ->
+                LocalFolder(
+                    name = folder.trimEnd('/').substringAfterLast('/'),
+                    relativePath = folder,
+                    photoCount = imageCounts[folder] ?: 0,
+                )
+            }
+            .sortedBy { it.name.lowercase() }
     }
 
-    private fun groupByBaseName(files: List<File>): List<LocalPhotoGroup> {
+    /**
+     * Given a full RELATIVE_PATH like "Pictures/CameraSync/Nikon Z30/DSC_0001.JPG"
+     * and a parent like "Pictures/CameraSync/", returns the immediate child folder:
+     * "Pictures/CameraSync/Nikon Z30/".
+     *
+     * Returns null if the path points to a file directly in the parent.
+     */
+    private fun extractSubFolder(fullPath: String, parentPath: String?): String? {
+        val prefix = parentPath ?: "Pictures/CameraSync/"
+        if (!fullPath.startsWith(prefix)) return null
+        val relative = fullPath.removePrefix(prefix)
+        val firstSlash = relative.indexOf('/')
+        if (firstSlash <= 0) return null // file is directly in parent, not a sub-folder
+        return prefix + relative.substring(0, firstSlash + 1)
+    }
+
+    /**
+     * Queries MediaStore for photos (JPEG + NEF) under [parentPath].
+     *
+     * @param parentPath null = root Pictures/CameraSync
+     * @return grouped RAW+JPEG pairs, sorted by date descending
+     */
+    private fun queryPhotos(parentPath: String?): List<LocalPhotoGroup> {
+        val files = mutableSetOf<LocalPhoto>()
+
+        val pathClause =
+            if (parentPath == null) "Pictures/CameraSync/"
+            else parentPath
+
+        // Query 1: MediaStore.Images for JPEG
+        try {
+            app.contentResolver
+                .query(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    PHOTO_PROJECTION,
+                    "${MediaStore.Images.Media.RELATIVE_PATH} = ?",
+                    arrayOf(pathClause),
+                    "${MediaStore.Images.Media.DATE_MODIFIED} DESC",
+                )
+                ?.use { cursor -> files.addAll(readPhotoCursor(cursor, false)) }
+        } catch (_: Exception) {}
+        Log.info(tag = TAG) { "MediaStore.Images found ${files.size} JPEGs in $pathClause" }
+
+        // Query 2: MediaStore.Files for NEF
+        try {
+            app.contentResolver
+                .query(
+                    MediaStore.Files.getContentUri("external"),
+                    FILE_PROJECTION,
+                    "${MediaStore.Files.FileColumns.RELATIVE_PATH} = ? AND ${MediaStore.Files.FileColumns.MIME_TYPE} = ?",
+                    arrayOf(pathClause, "image/x-nikon-nef"),
+                    "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC",
+                )
+                ?.use { cursor -> files.addAll(readFileCursor(cursor)) }
+        } catch (_: Exception) {}
+        Log.info(tag = TAG) { "Total files (Images + Files): ${files.size}" }
+
+        return groupByBaseName(files.toList())
+    }
+
+    // ── Cursor Parsing ────────────────────────────────────────────────────────
+
+    private fun readPhotoCursor(
+        cursor: android.database.Cursor,
+        isRaw: Boolean,
+    ): List<LocalPhoto> {
+        val results = mutableListOf<LocalPhoto>()
+        val idCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+        val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+        val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+        val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+        val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
+        while (cursor.moveToNext()) {
+            val data = cursor.getString(dataCol) ?: continue
+            val id = cursor.getLong(idCol)
+            val uri =
+                android.content.ContentUris.withAppendedId(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    id,
+                )
+            results.add(
+                LocalPhoto(
+                    file = File(data),
+                    uri = uri,
+                    name = cursor.getString(nameCol) ?: "?",
+                    dateModified = cursor.getLong(dateCol),
+                    size = cursor.getLong(sizeCol),
+                    isRaw = isRaw,
+                )
+            )
+        }
+        return results
+    }
+
+    private fun readFileCursor(cursor: android.database.Cursor): List<LocalPhoto> {
+        val results = mutableListOf<LocalPhoto>()
+        val idCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+        val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+        val nameCol =
+            cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+        val dateCol =
+            cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+        val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+        while (cursor.moveToNext()) {
+            val data = cursor.getString(dataCol) ?: continue
+            val id = cursor.getLong(idCol)
+            val uri =
+                android.content.ContentUris.withAppendedId(
+                    MediaStore.Files.getContentUri("external"),
+                    id,
+                )
+            results.add(
+                LocalPhoto(
+                    file = File(data),
+                    uri = uri,
+                    name = cursor.getString(nameCol) ?: "?",
+                    dateModified = cursor.getLong(dateCol),
+                    size = cursor.getLong(sizeCol),
+                    isRaw = true,
+                )
+            )
+        }
+        return results
+    }
+
+    // ── Grouping ──────────────────────────────────────────────────────────────
+
+    private fun groupByBaseName(photos: List<LocalPhoto>): List<LocalPhotoGroup> {
         val map = linkedMapOf<String, MutableList<LocalPhoto>>()
-        for (f in files) {
-            val base = f.nameWithoutExtension.uppercase()
-            map.getOrPut(base) { mutableListOf() }.add(toLocalPhoto(f))
+        for (p in photos) {
+            val base = p.file.nameWithoutExtension.uppercase()
+            map.getOrPut(base) { mutableListOf() }.add(p)
         }
         return map.values.map { list ->
             val jpg = list.firstOrNull { !it.isRaw }
             val raw = list.firstOrNull { it.isRaw }
-            val cacheKey = (jpg?.file?.absolutePath ?: raw?.file?.absolutePath ?: "").hashCode()
+            val displayFile = jpg?.file ?: raw?.file ?: list.first().file
             LocalPhotoGroup(
-                baseName = list.first().name.let { it.substringBeforeLast(".").replace("_", " ") },
+                baseName =
+                    list.first().name.let { it.substringBeforeLast(".").replace("_", " ") },
                 jpg = jpg,
                 raw = raw,
-                cacheKey = cacheKey,
+                cacheKey = displayFile.absolutePath.hashCode(),
+                displayFile = displayFile,
             )
+        }.sortedByDescending { group ->
+            maxOf(group.jpg?.dateModified ?: 0L, group.raw?.dateModified ?: 0L)
         }
     }
 
-    private fun toLocalPhoto(file: File) =
-        LocalPhoto(
-            file = file,
-            name = file.name,
-            dateModified = file.lastModified(),
-            size = file.length(),
-            isRaw = file.extension.lowercase() == "nef",
-        )
+    // ── Projection Constants ──────────────────────────────────────────────────
 
-    // ── EXIF orientation ────────────────────────────────────────────────────
+    companion object {
+        private val PHOTO_PROJECTION =
+            arrayOf(
+                MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.DATA,
+                MediaStore.Images.Media.DISPLAY_NAME,
+                MediaStore.Images.Media.DATE_MODIFIED,
+                MediaStore.Images.Media.SIZE,
+                MediaStore.Images.Media.MIME_TYPE,
+            )
 
-    /**
-     * Reads EXIF orientation from JPEG files via [ExifInterface]. RAW (NEF) files are skipped
-     * because Android's ExifInterface doesn't reliably parse TIFF-based proprietary EXIF — a
-     * dimension-based fallback in [populateOrientationsFromDimensions] handles these instead.
-     */
-    private suspend fun preloadOrientations(groups: List<LocalPhotoGroup>) {
-        groups
-            .map { group ->
-                scope.async {
-                    if (orientationCache.containsKey(group.cacheKey)) return@async
-                    // Try JPEG first — reliable EXIF
-                    val file = group.jpg?.file ?: return@async
-                    try {
-                        val exif = ExifInterface(FileInputStream(file))
-                        val ori =
-                            exif.getAttributeInt(
-                                ExifInterface.TAG_ORIENTATION,
-                                ExifInterface.ORIENTATION_NORMAL,
-                            )
-                        if (ori != ExifInterface.ORIENTATION_NORMAL) {
-                            orientationCache[group.cacheKey] = ori
-                        }
-                    } catch (_: Exception) {
-                        /* ignore */
-                    }
-                }
-            }
-            .awaitAll()
-        Log.info(tag = TAG) { "EXIF orientations preloaded: ${orientationCache.size}" }
-    }
-
-    /**
-     * Dimension-based orientation fallback for groups whose EXIF orientation is still unknown
-     * (e.g., RAW-only photos where NEF EXIF parsing failed).
-     *
-     * Uses [BitmapFactory.Options.inJustDecodeBounds] to read the image dimensions without decoding
-     * the full pixel data — fast and works on both JPEG and NEF (via the embedded preview).
-     */
-    private fun populateOrientationsFromDimensions(groups: List<LocalPhotoGroup>) {
-        var filled = 0
-        for (group in groups) {
-            if (orientationCache.containsKey(group.cacheKey)) continue
-            val file = group.jpg?.file ?: group.raw?.file ?: continue
-            try {
-                val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(file.absolutePath, opts)
-                if (opts.outWidth > 0 && opts.outHeight > 0 && opts.outWidth < opts.outHeight) {
-                    orientationCache[group.cacheKey] = ExifInterface.ORIENTATION_ROTATE_90
-                    filled++
-                }
-            } catch (_: Exception) {
-                /* skip */
-            }
-        }
-        if (filled > 0) {
-            Log.info(tag = TAG) { "Dimension-based orientations filled: $filled" }
-        }
-    }
-
-    // ── Thumbnail loading ───────────────────────────────────────────────────
-
-    /** Loads a downscaled thumbnail from a local file. Fast — local FS, no MTP overhead. */
-    suspend fun loadThumbnail(file: File, maxSize: Int = 360): ByteArray? =
-        withContext(Dispatchers.IO) {
-            try {
-                val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(file.absolutePath, opts)
-                opts.inSampleSize = calculateInSampleSize(opts.outWidth, opts.outHeight, maxSize)
-                opts.inJustDecodeBounds = false
-                val bitmap =
-                    BitmapFactory.decodeFile(file.absolutePath, opts) ?: return@withContext null
-                // Compress to JPEG bytes for display
-                val out = java.io.ByteArrayOutputStream()
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
-                bitmap.recycle()
-                out.toByteArray()
-            } catch (_: Exception) {
-                null
-            }
-        }
-
-    private fun calculateInSampleSize(w: Int, h: Int, maxDim: Int): Int {
-        var size = 1
-        while (w / size > maxDim || h / size > maxDim) size *= 2
-        return size
+        private val FILE_PROJECTION =
+            arrayOf(
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.DATE_MODIFIED,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+            )
     }
 }

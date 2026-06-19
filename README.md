@@ -2,7 +2,7 @@
 
 USB wired photo sync for Nikon series cameras — quickly transfer photos from your camera to your Android phone over a USB-C cable.
 
-> Forked from a BLE GPS sync project. Now focused on USB photo transfer for Nikon cameras.
+> Based on [rock3r/CameraSync](https://github.com/rock3r/CameraSync) by Sebastiano Poggi (BLE GPS sync), rewritten and maintained by Chilfish with a new focus on USB photo transfer for Nikon cameras.
 
 ## Features
 
@@ -129,7 +129,8 @@ Run unit tests:
 
 ## License
 
-Copyright 2026 Sebastiano Poggi
+Copyright 2024 Sebastiano Poggi  
+Copyright 2026 Chilfish
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

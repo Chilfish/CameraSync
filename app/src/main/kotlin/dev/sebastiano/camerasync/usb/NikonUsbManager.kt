@@ -189,15 +189,15 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                     fileCount++
                     val fmtName = formatName(info.format)
                     onDiagnostic(
-                        "    📷 ${info.name}  $fmtName  ${formatFileSize(compressedSizeLong(info))}"
+                        "    📷 ${info.name}  $fmtName  ${formatFileSize(safeCompressedSize(info))}"
                     )
 
                     photos.add(
                         PhotoInfo(
                             handle = handle,
                             name = info.name,
-                            size = compressedSizeLong(info),
-                            dateModified = info.dateCreated * 1000L,
+                            size = safeCompressedSize(info),
+                            dateModified = safeDateCreated(info),
                             formatName = fmtName,
                             thumbPixWidth = info.thumbPixWidth,
                             thumbPixHeight = info.thumbPixHeight,
@@ -257,7 +257,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
             .toList()
             .mapNotNull { h ->
                 val info = mtpDevice.getObjectInfo(h) ?: return@mapNotNull null
-                FolderInfo(handle = h, name = info.name, dateCreated = info.dateCreated * 1000L)
+                FolderInfo(handle = h, name = info.name, dateCreated = safeDateCreated(info))
             }
             .sortedByDescending { it.dateCreated }
     }
@@ -282,8 +282,8 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                 PhotoInfo(
                     handle = h,
                     name = info.name,
-                    size = compressedSizeLong(info),
-                    dateModified = info.dateCreated * 1000L,
+                    size = safeCompressedSize(info),
+                    dateModified = safeDateCreated(info),
                     formatName = formatName(info.format),
                     thumbPixWidth = info.thumbPixWidth,
                     thumbPixHeight = info.thumbPixHeight,
@@ -368,8 +368,32 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         }
 }
 
-private fun compressedSizeLong(info: MtpObjectInfo): Long =
-    info.compressedSize.toLong() and 0xFFFFFFFFL
+/**
+ * Safely reads [MtpObjectInfo.compressedSize], returning 0 if the field is unavailable.
+ *
+ * Android's [MtpObjectInfo.getCompressedSize] throws [IllegalStateException] when the MTP driver
+ * does not set this field (observed on some Nikon NEF/TIFF files). We catch and return 0 since
+ * file size is only used for display/progress estimation — the actual transfer doesn't need it.
+ */
+private fun safeCompressedSize(info: MtpObjectInfo): Long =
+    try {
+        info.compressedSize.toLong() and 0xFFFFFFFFL
+    } catch (_: IllegalStateException) {
+        0L
+    }
+
+/**
+ * Safely reads [MtpObjectInfo.dateCreated], returning 0 if the field is unavailable.
+ *
+ * Same defensive pattern as [safeCompressedSize] — [MtpObjectInfo.getDateCreated] also uses
+ * [Preconditions.checkState] and can throw for files whose metadata is incomplete.
+ */
+private fun safeDateCreated(info: MtpObjectInfo): Long =
+    try {
+        info.dateCreated * 1000L
+    } catch (_: IllegalStateException) {
+        0L
+    }
 
 private fun formatName(code: Int): String =
     when (code) {

@@ -112,8 +112,9 @@ sealed interface GalleryEntry {
         val raw: NikonUsbManager.PhotoInfo?,
         val jpg: NikonUsbManager.PhotoInfo?,
     ) : GalleryEntry {
-        val previewHandle: Int
-            get() = jpg?.handle ?: raw!!.handle
+        /** Handle to use for thumbnail preview — JPEG if available, else RAW. null if group is empty. */
+        val previewHandle: Int?
+            get() = jpg?.handle ?: raw?.handle
 
         val hasRaw: Boolean
             get() = raw != null
@@ -171,6 +172,14 @@ class GalleryViewModel(private val app: Application) {
     /** Requests a gallery reload when the user returns from settings, etc. */
     fun requestReload() {
         needsReload = true
+    }
+
+    /** Inline error banner message — shown above content instead of replacing the entire screen. */
+    var errorBanner by mutableStateOf<String?>(null)
+        private set
+
+    fun clearErrorBanner() {
+        errorBanner = null
     }
 
     /** Current photo grouping mode. */
@@ -324,29 +333,46 @@ class GalleryViewModel(private val app: Application) {
                     val device =
                         usbManager.deviceList.values.firstOrNull { it.vendorId == 0x04B0 }
                             ?: run {
+                                Log.warn(tag = TAG) { "No Nikon device in deviceList" }
                                 _state.value = GalleryState.Disconnected
                                 return@launch
                             }
+                    Log.info(tag = TAG) { "Found device: ${device.deviceName}" }
+
                     val m =
                         nikon.openMtpDevice(device)
                             ?: run {
-                                _state.value = GalleryState.Error("MTP 连接失败")
+                                Log.error(tag = TAG) { "MTP open failed for ${device.deviceName}" }
+                                _state.value = GalleryState.Error("无法连接相机，请重试")
                                 return@launch
                             }
                     mtp = m
 
+                    Log.info(tag = TAG) { "Getting camera info..." }
                     cameraInfo = nikon.getCameraInfo(m)
+                    Log.info(tag = TAG) { "CameraInfo: ${cameraInfo}" }
+
+                    Log.info(tag = TAG) { "Getting storages..." }
                     storages = nikon.getStorages(m)
+                    Log.info(tag = TAG) { "Found ${storages.size} storage(s)" }
+
                     batteryLevel = nikon.getBatteryLevel(m)
-                    Log.info(tag = TAG) {
-                        "Connected: ${cameraInfo?.manufacturer} ${cameraInfo?.model}"
-                    }
                     _selected.clear()
+                    errorBanner = null
+
+                    Log.info(tag = TAG) { "Starting loadRoot..." }
                     loadRoot()
+                    Log.info(tag = TAG) { "loadRoot completed" }
                 } catch (e: Exception) {
-                    Log.error(tag = TAG, throwable = e) { "connect failed" }
-                    if (currentCoroutineContext().isActive)
-                        _state.value = GalleryState.Error(e.message ?: "连接失败")
+                    Log.error(tag = TAG, throwable = e) { "connectAndBrowse failed" }
+                    if (currentCoroutineContext().isActive) {
+                        // If we already have camera info, show banner instead of replacing screen
+                        if (cameraInfo != null) {
+                            errorBanner = "加载照片时出错: ${e.localizedMessage ?: "未知错误"}"
+                        } else {
+                            _state.value = GalleryState.Error(e.localizedMessage ?: "连接失败")
+                        }
+                    }
                 }
             }
     }
@@ -361,16 +387,28 @@ class GalleryViewModel(private val app: Application) {
             return
         }
 
+        errorBanner = null
+
         // Re-read preferences on each load so settings take effect immediately
         groupingMode = prefs.photoGrouping
         sortingMode = prefs.photoSorting
         filterMode = downloadFormatToFilter(prefs.downloadFormat)
 
-        when (groupingMode) {
-            UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> loadRootByFolder(m)
-            UsbSyncPreferences.PhotoGrouping.BY_DATE ->
-                loadRootProgressive(m) { groups, _ -> buildDateSections(groups) }
-            UsbSyncPreferences.PhotoGrouping.FLAT -> loadRootProgressive(m) { groups, _ -> groups }
+        try {
+            when (groupingMode) {
+                UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> loadRootByFolder(m)
+                UsbSyncPreferences.PhotoGrouping.BY_DATE ->
+                    loadRootProgressive(m) { groups, _ -> buildDateSections(groups) }
+                UsbSyncPreferences.PhotoGrouping.FLAT -> loadRootProgressive(m) { groups, _ -> groups }
+            }
+        } catch (e: Exception) {
+            Log.error(tag = TAG, throwable = e) { "loadRoot failed: ${e.message}" }
+            // Show inline banner instead of replacing the entire screen
+            errorBanner = "部分照片加载失败: ${e.localizedMessage ?: "未知错误"}"
+            // If we haven't entered browsing yet, show empty
+            if (_state.value !is GalleryState.Browsing) {
+                _state.value = GalleryState.Empty
+            }
         }
     }
 
@@ -498,22 +536,31 @@ class GalleryViewModel(private val app: Application) {
     suspend fun loadFolder(storageId: Int, folderHandle: Int) {
         currentFolder = storageId to folderHandle
         val m = mtp ?: return
+        errorBanner = null
         _state.value = GalleryState.Loading("正在读取文件夹…")
 
-        // Show sub-folders first (cheap)
-        val subFolders = nikon.listFolders(m, storageId, folderHandle)
-        _state.value = GalleryState.Loading("正在读取照片…", 0, 0)
+        try {
+            // Show sub-folders first (cheap)
+            val subFolders = nikon.listFolders(m, storageId, folderHandle)
+            _state.value = GalleryState.Loading("正在读取照片…", 0, 0)
 
-        val photos = nikon.listPhotosInFolder(m, storageId, folderHandle)
-        currentPhotos = groupByBaseFilename(photos)
-        val entries = mutableListOf<GalleryEntry>()
-        entries.addAll(subFolders.map { GalleryEntry.Folder(it, storageId) })
-        entries.addAll(currentPhotos)
-        // Pre-fetch orientations for the first visible batch so PhotoCell
-        // gets correct initial aspect ratios (avoids staggered-grid letterboxing).
-        prefetchOrientations(50)
-        _state.value = GalleryState.Browsing(cameraInfo, storages, entries)
-        preloadThumbnails()
+            val photos = nikon.listPhotosInFolder(m, storageId, folderHandle)
+            currentPhotos = groupByBaseFilename(photos)
+            val entries = mutableListOf<GalleryEntry>()
+            entries.addAll(subFolders.map { GalleryEntry.Folder(it, storageId) })
+            entries.addAll(currentPhotos)
+            // Pre-fetch orientations for the first visible batch so PhotoCell
+            // gets correct initial aspect ratios (avoids staggered-grid letterboxing).
+            prefetchOrientations(50)
+            _state.value = GalleryState.Browsing(cameraInfo, storages, entries)
+            preloadThumbnails()
+        } catch (e: Exception) {
+            Log.error(tag = TAG, throwable = e) { "loadFolder failed: ${e.message}" }
+            errorBanner = "读取文件夹失败: ${e.localizedMessage ?: "未知错误"}"
+            if (_state.value !is GalleryState.Browsing) {
+                _state.value = GalleryState.Empty
+            }
+        }
     }
 
     /**
@@ -527,7 +574,7 @@ class GalleryViewModel(private val app: Application) {
         // First, use MtpObjectInfo dimensions as fallback for any handles
         // whose EXIF orientation is still unknown.
         populateOrientationsFromDimensions()
-        val handles = currentPhotos.take(count).map { it.previewHandle }
+        val handles = currentPhotos.take(count).mapNotNull { it.previewHandle }
         for (h in handles) {
             // orientation already cached? skip
             if (orientationCache.containsKey(h)) continue
@@ -553,7 +600,7 @@ class GalleryViewModel(private val app: Application) {
 
     /** Preload thumbnails for the first [count] photo groups (background). */
     fun preloadThumbnails(count: Int = 30) {
-        val handles = currentPhotos.take(count).map { it.previewHandle }
+        val handles = currentPhotos.take(count).mapNotNull { it.previewHandle }
         scope.launch {
             for (h in handles) {
                 if (!currentCoroutineContext().isActive) return@launch
@@ -615,7 +662,7 @@ class GalleryViewModel(private val app: Application) {
      */
     fun populateOrientationsFromDimensions() {
         for (group in currentPhotos) {
-            val handle = group.previewHandle
+            val handle = group.previewHandle ?: continue
             val cached = orientationCache[handle]
             // Only skip if a REAL rotation (not NORMAL) is already cached.
             // NORMAL means "no rotation found" (either the thumbnail had no
@@ -952,18 +999,18 @@ class GalleryViewModel(private val app: Application) {
                 val base = p.name.substringBeforeLast(".")
                 map.getOrPut(base) { mutableListOf() }.add(p)
             }
-            return map.map { (base, list) ->
-                GalleryEntry.PhotoGroup(
-                    baseName = base,
-                    raw =
-                        list.find { it.formatName == "NEF(RAW)" || it.name.endsWith(".NEF", true) },
-                    jpg =
-                        list.find {
-                            it.formatName in setOf("JPEG", "EXIF_JPEG") ||
-                                it.name.endsWith(".JPG", true)
+            return map
+                .map { (base, list) ->
+                    GalleryEntry.PhotoGroup(
+                        baseName = base,
+                        raw = list.find { it.formatName == "NEF(RAW)" || it.name.endsWith(".NEF", true) },
+                        jpg = list.find {
+                            it.formatName in setOf("JPEG", "EXIF_JPEG") || it.name.endsWith(".JPG", true)
                         },
-                )
-            }
+                    )
+                }
+                // Filter out groups with no recognizable photo format (videos, system files, etc.)
+                .filter { it.raw != null || it.jpg != null }
         }
     }
 }

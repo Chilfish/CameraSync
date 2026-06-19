@@ -7,6 +7,12 @@ import android.os.Build
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.work.Configuration
 import androidx.work.Configuration.Provider
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
+import okio.Path.Companion.toOkioPath
 import com.juul.khronicle.ConsoleLogger
 import com.juul.khronicle.Log
 import com.juul.khronicle.Logger
@@ -24,7 +30,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /** Application-level configuration and dependency creation for CameraSync. */
-class CameraSyncApp : Application(), Provider {
+class CameraSyncApp : Application(), Provider, SingletonImageLoader.Factory {
     /**
      * Holder reference for the app graph for
      * [dev.sebastiano.camerasync.di.MetroAppComponentFactory].
@@ -146,4 +152,36 @@ class CameraSyncApp : Application(), Provider {
             Log.dispatcher.install(logger)
         }
     }
+
+    // ── Coil ImageLoader configuration ──────────────────────────────────────────
+
+    /**
+     * Creates the singleton [ImageLoader] used by all [AsyncImage] composables in the app.
+     *
+     * Configuration decisions:
+     * - **diskCache**: 50 MB (local photos are already on disk; disk cache helps skip
+     *   thumbnail re-encoding for recently viewed photos with the same file path).
+     * - **memoryCache**: 64 entries (typical visible grid rows × 3 columns ≈ 30 cells;
+     *   64 provides a comfortable buffer without consuming excessive RAM on
+     *   mid-range devices).
+     * - **diskCachePolicy**: [CachePolicy.DISABLED] for local files — the source files
+     *   are already persisted on external storage, so a duplicate disk cache is wasteful.
+     *   Memory cache remains enabled for scroll performance.
+     * - **addLastModifiedToFileCacheKey** = true — ensures the cache invalidates when
+     *   the local file changes (e.g., re-export from USB sync).
+     */
+    override fun newImageLoader(context: PlatformContext): ImageLoader =
+        ImageLoader.Builder(context)
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(context.cacheDir.resolve("coil_disk").toOkioPath())
+                    .maxSizeBytes(50 * 1024 * 1024)
+                    .build()
+            }
+            .memoryCache {
+                MemoryCache.Builder()
+                    .maxSizePercent(context, 0.10)
+                    .build()
+            }
+            .build()
 }
