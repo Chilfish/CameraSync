@@ -104,6 +104,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.khronicle.core)
+    implementation(libs.kotlinx.atomicfu)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.exifinterface)
