@@ -223,24 +223,6 @@ fun SettingsScreen(
                 }
             }
 
-            // Re-show onboarding
-            Card(modifier = Modifier.fillMaxWidth(), onClick = onNavigateToOnboarding) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column {
-                        Text("查看引导", fontWeight = FontWeight.Medium)
-                        Text(
-                            "重新查看使用指南",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Text("→", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
         }
     }
 }

@@ -273,7 +273,7 @@ class LocalPhotosViewModelTest {
             )
         for (i in names.indices) {
             cursor.addRow(
-                arrayOf(
+                arrayOf<Any>(
                     ids[i],
                     "/storage/emulated/0/$path${names[i]}",
                     names[i],
@@ -306,7 +306,7 @@ class LocalPhotosViewModelTest {
             )
         for (i in names.indices) {
             cursor.addRow(
-                arrayOf(
+                arrayOf<Any>(
                     ids[i],
                     "/storage/emulated/0/$path${names[i]}",
                     names[i],

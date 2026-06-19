@@ -8,7 +8,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.metro)
-    alias(libs.plugins.protobuf)
     alias(libs.plugins.ktfmt)
     alias(libs.plugins.detekt)
     id("kotlin-parcelize")
@@ -91,16 +90,11 @@ detekt {
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.accompanist.permissions)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.animation.graphics)
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.dataStore)
-    implementation(libs.androidx.glance.appwidget)
-    implementation(libs.androidx.glance.material3)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
@@ -109,15 +103,8 @@ dependencies {
     implementation(libs.androidx.ui.text.google.fonts)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.kable)
     implementation(libs.khronicle.core)
-    implementation(libs.play.services.location)
-    implementation(libs.maplibre.core)
-    implementation(libs.maplibre.material3)
-    implementation(libs.maplibre.spatialk)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.protobuf.kotlin.lite)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.exifinterface)
     implementation(libs.coil.compose)
@@ -137,18 +124,4 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
 
     detektPlugins(libs.compose.rules.detekt)
-}
-
-// Setup protobuf configuration, generating lite Java and Kotlin classes
-protobuf {
-    protoc { artifact = libs.protobuf.protoc.get().toString() }
-
-    generateProtoTasks {
-        all().forEach { task ->
-            task.builtins {
-                register("java") { option("lite") }
-                register("kotlin") { option("lite") }
-            }
-        }
-    }
 }

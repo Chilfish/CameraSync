@@ -3,30 +3,15 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature
-        android:name="android.hardware.bluetooth_le"
-        android:required="true" />
-
-    <uses-feature
         android:name="android.hardware.usb.host"
         android:required="false" />
 
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission
         android:name="android.permission.FOREGROUND_SERVICE"
         tools:ignore="ForegroundServicesPolicy" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- Note: Companion device background permissions removed - CDM presence callbacks don't work.
-         We use a Foreground Service with FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE which already
-         allows background starts. All service starts are from foreground user actions anyway. -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Storage permissions -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -34,53 +19,6 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
 
-    <uses-feature
-        android:name="android.software.companion_device_setup"
-        android:required="true" />
-
-    <queries>
-        <!-- Battery optimization settings intents -->
-        <intent>
-            <action android:name="android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-            <data android:scheme="package" />
-        </intent>
-        <intent>
-            <action android:name="android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS" />
-        </intent>
-
-        <!-- OEM-specific battery optimization settings -->
-        <!-- Xiaomi MIUI -->
-        <package android:name="com.miui.securitycenter" />
-        <!-- Huawei -->
-        <package android:name="com.huawei.systemmanager" />
-        <!-- Oppo ColorOS -->
-        <package android:name="com.coloros.safecenter" />
-        <package android:name="com.color.safecenter" />
-        <package android:name="com.oppo.safe" />
-        <!-- Samsung -->
-        <package android:name="com.samsung.android.sm_cn" />
-        <package android:name="com.samsung.android.lool" />
-        <!-- iQOO -->
-        <package android:name="com.iqoo.secure" />
-        <!-- Vivo -->
-        <package android:name="com.vivo.abe" />
-        <!-- HTC -->
-        <package android:name="com.htc.pitroad" />
-        <!-- Asus -->
-        <package android:name="com.asus.mobilemanager" />
-        <!-- Meizu -->
-        <package android:name="com.meizu.safe" />
-        <!-- ZTE -->
-        <package android:name="com.zte.heartyservice" />
-        <!-- Lenovo -->
-        <package android:name="com.lenovo.security" />
-        <!-- Coolpad -->
-        <package android:name="com.yulong.android.security" />
-        <!-- LeTV -->
-        <package android:name="com.letv.android.letvsafe" />
-        <!-- Gionee -->
-        <package android:name="com.gionee.softmanager" />
-    </queries>
 
     <application
         android:name="dev.sebastiano.camerasync.CameraSyncApp"
@@ -95,57 +33,10 @@
         tools:replace="android:appComponentFactory"
         tools:targetApi="34">
 
-        <!-- False lint positive, it's ctor-injected by Metro -->
-        <service
-            android:name=".devicesync.MultiDeviceSyncService"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice|location"
-            tools:ignore="Instantiatable" />
-
         <service
             android:name=".usb.UsbSyncService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
-
-        <service
-            android:name=".devicesync.SyncTileService"
-            android:exported="true"
-            android:icon="@drawable/ic_sync"
-            android:label="@string/tile_sync_label"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            tools:ignore="Instantiatable">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
-        <receiver
-            android:name=".devicesync.SyncStartupReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
-            android:name=".ble.ScanReceiver"
-            android:exported="true">
-            <!-- No intent filter needed as it's targeted by PendingIntent class name, 
-                 but we export it so the system can call it. -->
-        </receiver>
-
-        <receiver
-            android:name=".widget.SyncWidgetReceiver"
-            android:exported="true"
-            android:label="@string/widget_lockscreen_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/sync_widget_info" />
-        </receiver>
 
         <activity
             android:name=".MainActivity"
@@ -174,18 +65,6 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Disable default WorkManagerInitializer to allow Configuration.Provider initialization -->
-        <!-- WorkManagerInitializer is registered via androidx.startup.InitializationProvider -->
-        <!-- We need to remove its meta-data entry from the InitializationProvider -->
-        <provider
-            android:name="androidx.startup.InitializationProvider"
-            android:authorities="${applicationId}.androidx-startup"
-            android:exported="false"
-            tools:node="merge">
-            <meta-data
-                android:name="androidx.work.WorkManagerInitializer"
-                tools:node="remove" />
-        </provider>
     </application>
 
 </manifest>
