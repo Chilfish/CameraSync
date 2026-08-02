@@ -1,6 +1,7 @@
 # USB Wired Photo Sync — Nikon series
 
 > **Status**: ✅ Working (2026-05-06). Integrated GalleryScreen + ForegroundService architecture live.
+> **Last updated**: 2026-08-02
 
 This document describes the USB wired photo sync subsystem for Nikon series cameras. USB wired MTP is the transfer method for Nikon cameras. Android's `android.mtp.MtpDevice` API handles MTP/PTP natively — no protocol reverse-engineering, no pairing, no auth.
 

@@ -1,5 +1,7 @@
 # Ricoh GR Camera Native Android Protocol Specification
 
+> ⚠️ **ARCHIVED — 2026-08-02**: BLE GPS sync subsystem removed in commit `a385378`. These documents are retained as historical reference only. The active codebase now uses USB/MTP for Nikon photo sync exclusively.
+
 **Target Audience:** Clean-room native Android developers (Kotlin, Coroutines, Kable).
 **Scope:** Exhaustive specification of BLE discovery, pairing, connection, Wi-Fi handover, image
 transfer, remote control, GPS transmission, Image Controls, and firmware updates for Ricoh GR III,

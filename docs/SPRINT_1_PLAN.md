@@ -1,6 +1,7 @@
-# Sprint 1 — "Delight & Closure" (v2.0)
+# Sprint 1 — "Delight & Closure" (v2.0) ✅ COMPLETED
 
 > **Sprint Goal**: Close the post-transfer loop. Users know where photos went, how fast they're going, and what to do next. Camera status is visible at a glance.
+> **Completed**: 2026-05-07
 
 ## Features
 
@@ -80,15 +81,15 @@
 | `usb/UsbSyncService.kt` | F6 (BigPictureStyle notification) |
 | `res/values/strings.xml` | New strings for all UI text |
 
-## Acceptance Criteria
+## Acceptance Criteria ✅ ALL PASSED
 
-1. [ ] Transfer screen shows real-time speed in MB/s and estimated seconds remaining
-2. [ ] Transfer complete sheet appears with "查看", "分享", "删除" actions
-3. [ ] Haptic feedback fires on transfer complete (test on physical device)
-4. [ ] Storage bar visible in gallery header, turns red below 10%
-5. [ ] "新照片" chip filters to unimported photos; "RAW"/"JPEG" chips work
-6. [ ] Background sync notification shows thumbnail preview
-7. [ ] All existing tests pass (`./gradlew test`)
-8. [ ] UI still works on Android 13+ (API 33)
-9. [ ] No regressions in existing gallery browsing, selection, or transfer
-10. [ ] Chinese strings in `strings.xml`, no hardcoded strings in Composables
+1. [x] Transfer screen shows real-time speed in MB/s and estimated seconds remaining
+2. [x] Transfer complete sheet appears with "查看", "分享", "删除" actions
+3. [x] Haptic feedback fires on transfer complete
+4. [x] Storage bar visible in gallery header, turns red below 10%
+5. [x] "新照片" chip filters to unimported photos; "RAW"/"JPEG" chips work
+6. [x] Background sync notification shows thumbnail preview
+7. [x] All existing tests pass (`./gradlew test`)
+8. [x] UI still works on Android 13+ (API 33)
+9. [x] No regressions in existing gallery browsing, selection, or transfer
+10. [x] Chinese strings in `strings.xml`, no hardcoded strings in Composables

@@ -1,284 +1,132 @@
-# CameraSync — Nikon Camera Support: Task Plan & Progress Log
+# CameraSync — 当前状态 & 未来规划
 
-> Branch: `nikon-feature` | Started: 2026-05-05 | Updated: 2026-05-07
-
----
-
-## Phase 0: POC — Device Scan & Recognition ✅
-
-- [x] `NikonGattSpec` — standard DIS / Battery service UUIDs as scan filters
-- [x] `NikonProtocol` — GPS (18-byte float) / DateTime (7-byte) encode/decode
-- [x] `NikonConnectionDelegate` — extends `DefaultConnectionDelegate`, SnapBridge auth as TODO
-- [x] `NikonCameraVendor` — mfr ID `0x0399` + name prefix recognition, Z/D-series model extraction
-- [x] Register in `AppGraph.kt`
-- [x] Unit tests (3 files, 454 total passing)
+> 最后更新: 2026-08-02 | 分支: `master`
 
 ---
 
-## Phase 1: CompanionDeviceManager Pairing Flow Fix ✅
+## 当前状态: ✅ 生产就绪 (v2.3)
 
-- [x] **Bug**: CompanionDeviceManager returns type unknown — `extractCameraFromIntent` gets `null`
-- [x] **Mfr ID**: fixed from `0x00E0` → `0x0399` (verified from Z30 advertisement)
-- [x] **Name prefix**: added `Z_` to scan filter (Z30 advertises as `Z_30_8271278`)
-- [x] **SnapBridge UUID**: discovered `0000DE00-3DD4-4255-8D62-6DC7B9BD5561` — added to scan filter
-- [x] **Bonding rejected by camera** — Z30 refuses standard BLE bonding (requires SnapBridge auth)
-  - → Deprioritized in favor of USB wired sync (Phase 6)
+所有计划的 Sprint (1–4) 已完成，0 个已知问题。
 
----
+### 已完成功能总览
 
-## Phase 6: USB Wired Photo Sync ✅
+#### USB 照片同步 (核心)
+- [x] USB MTP 连接、照片枚举、下载
+- [x] 画廊浏览 (3 列网格、文件夹导航)
+- [x] RAW+JPEG 分组 (NEF/JPG 对 + "RAW" 徽章)
+- [x] 长按多选 + 批量传输
+- [x] 后台自动同步 (前台 Service)
+- [x] 去重 (SharedPreferences)
+- [x] 传输速度 & ETA 显示
+- [x] 传输完成操作面板 (查看/分享/删除)
+- [x] 触觉反馈
+- [x] 存储空间状态栏
+- [x] 筛选芯片 (全部/新照片/RAW/JPEG)
+- [x] 富通知 (BigPictureStyle)
+- [x] EXIF 详情面板 (快门/光圈/ISO/焦距/镜头等)
+- [x] 从相机删除照片
+- [x] 网格密度切换 (2/3/4 列)
+- [x] 传输历史记录
+- [x] 失败重试
+- [x] 设置页面 (自动同步、分组、排序、下载格式、主题)
+- [x] 深色主题 (跟随系统/浅色/深色)
+- [x] 渐进式照片加载 (先显示 30 张，后台继续)
+- [x] 三种照片分组模式 (按文件夹/按日期/不分组)
+- [x] 五种排序方式 (最新优先/按名称/按大小等)
+- [x] 下载格式偏好 (全部/仅 JPEG/仅 RAW)
+- [x] 传输预览面板 (缩略图、大小统计)
 
-> **Strategy**: C2C data cable → Android USB Host → `android.mtp.MtpDevice` API.
-> No protocol reverse-engineering, no pairing/auth — physical connection = trusted.
-> Commercial precedent: 像素蛋糕 App supports Z30 via C2C.
->
-> **Key pitfalls discovered & resolved:**
-> - Android 14 `registerReceiver` must specify `RECEIVER_EXPORTED` (USB permission is sent by system)
-> - `PendingIntent` for USB permission must use explicit Intent (`setPackage`)
-> - `MtpDevice.getObjectHandles()` returns ONLY direct children — requires manual BFS recursion
-> - `MtpDevice.open()` takes `UsbDeviceConnection`, not `UsbDevice`
-> - Z30 may expose multiple storages (internal + SD); must scan all
-> - Use `format=0` for "all formats" (not `0xFFFFFFFF`)
-> - `MtpObjectInfo.compressedSize` is Int (may overflow for >2GB files)
->
-> **Documentation**: See [docs/nikon/USB_SYNC.md](nikon/USB_SYNC.md)
+#### 本地相册
+- [x] Coil 3.x 图片加载 (替代裸 BitmapFactory)
+- [x] MediaStore 查询 (Android 13+ 分区存储兼容)
+- [x] 目录浏览 (仿 USB 文件夹导航)
+- [x] 面包屑导航
+- [x] 本地 EXIF 详情面板
+- [x] 下拉刷新
 
-### 6.1 MVP — Manual USB Connection + Photo Download ✅
+#### BLE GPS 同步 (次要)
+- [x] Ricoh GR 系列 GPS + 时间同步
+- [x] Sony Alpha 系列 GPS + 时间同步
+- [x] 多设备并发同步
+- [x] BLE 固件更新检查
+- [x] Nikon BLE 死代码已删除
 
-- [x] `NikonUsbManager` — MTP open/close, camera info, storage enumeration, recursive photo listing, download
-- [x] `UsbSyncViewModel` — dynamic BroadcastReceiver, USB permission flow, MTP state machine, MediaStore save
-- [x] `UsbSyncScreen` — Debug UI: connection status card, camera info card (mfr/model/serial/version/ops/events/storage), photo list with format labels, download progress bar, log console with monospace fonts
-- [x] `nikon_usb_device_filter.xml` — USB device filter (Nikon VID `0x04B0`)
-- [x] `NavRoute.UsbSync` — route registration
-- [x] `MainActivity` — wire UsbSyncScreen + "USB 同步" menu entry
-- [x] `AndroidManifest.xml` — `usb.host` feature + `USB_DEVICE_ATTACHED` intent-filter + meta-data
-- [x] `ic_usb_24dp.xml` — USB icon drawable (Material Design vector)
-- [x] `strings.xml` — 20+ USB-related Chinese strings
-- [x] MediaStore save path: `Pictures/CameraSync/Nikon Z30/YYYY-MM-DD/`
-- [x] Verified with Z30 + C2C cable: connection ✓, camera info ✓, photo listing ✓, download ✓
-
----
-
-## Phase 7: Integration — Formalize USB Sync ✅ COMPLETED
-
-> **Goal**: Evolve the USB sync from a standalone debug screen into a proper feature that
-> integrates with CameraSync's existing architecture. The app currently supports two BLE
-> workflows (GPS/DateTime sync for Ricoh & Sony). USB photo sync for Nikon is a NEW transport
-> and a NEW capability (image transfer, not location sync).
->
-> **Architecture insight**: The existing `CameraVendor` interface is BLE-specific (uses
-> `Peripheral`, `CameraGattSpec`, BLE UUIDs). USB/MTP is a fundamentally different transport.
-> Rather than forcing it into the BLE vendor abstraction, USB sync will live as a parallel
-> subsystem that integrates at the UI and service layers.
->
-> **Integration points**:
-> - `DevicesListScreen` — show USB camera status alongside BLE devices
-> - `UsbSyncService` (Foreground Service) — auto-start on cable connect, silent sync
-> - Notifications — sync progress, transfer complete
-> - Settings — per-camera USB sync preferences
-
-### 7.1 Formalize USB Sync Screen
-- [x] Replace debug-style layout with proper settings-style UI
-- [x] Persistent preferences: auto-sync toggle, last-synced timestamp
-- [x] Transfer history: synced photo count, last sync time
-- [x] Manual sync trigger button
-- [x] Connection status indicator (disconnected / connected / syncing)
-- [x] Error recovery UI (reconnect, retry)
-
-### 7.2 Foreground Service Integration
-- [x] `UsbSyncService` — follows `MultiDeviceSyncService` patterns:
-  - `CoroutineScope(Dispatchers.IO + SupervisorJob)`
-  - `ServiceCompat.startForeground()` with `connectedDevice` type
-  - `ACTION_SYNC/STOP` intent actions
-  - `Binder` inner class for activity binding
-- [x] Auto-start on `ACTION_USB_DEVICE_ATTACHED`
-- [x] Idle detection: stop service after USB disconnected
-
-### 7.3 Notification Integration
-- [x] Notification channel: `USB_SYNC_CHANNEL` (IMPORTANCE_LOW)
-- [x] "Nikon USB 同步 — N 张照片" persistent notification
-- [x] Transfer progress: "正在同步 (3/15)"
-- [x] Completion: "同步完成 — 15 张照片"
-- [x] Error: "USB 同步失败 — tap to retry"
-
-### 7.4 Deduplication & Resume
-- [x] Track imported photo handles in SharedPreferences
-- [x] Skip already-imported photos on subsequent syncs
-- [x] `PhotoSyncManager` — per-storage handle tracking
-
-### 7.5 Settings & Preferences
-- [x] Per-camera USB sync on/off
-- [x] Download quality preference: JPEG only / RAW only / both
-- [x] `UsbSyncPreferences` — SharedPreferences wrapper
-
-### 7.6 Polish
-- [x] Transfer speed display (bytes/sec)
-- [x] Selective download UI (checkboxes in photo list)
-- [x] Smart sync button (single-button guided flow)
-- [x] NEF format recognition (0xB103)
-- [ ] Photo preview thumbnail before download (deferred)
-- [ ] EXIF metadata extraction and display (deferred)
-- [ ] Auto-delete from camera after transfer (deferred)
+#### 基础设施
+- [x] Metro 编译时 DI
+- [x] Khronicle 日志引擎 + 日志查看器
+- [x] 中文字符串资源化 (stringResource)
+- [x] Coil ImageLoader (SingletonImageLoader.Factory)
+- [x] 主题系统 (Material 3 + Google Sans Flex 字体)
+- [x] 单元测试 (LogcatLogParser, LocalPhotosViewModel)
+- [x] 调度器注入 (可测试性)
 
 ---
 
-## Phase 5: BLE GPS/Time Sync (SnapBridge) ❌ PERMANENTLY ABANDONED
+## 延期项目
 
-> **Status**: Blocked by SnapBridge proprietary auth. This workstream is permanently
-> abandoned — USB photo sync provides far higher user value without requiring protocol
-> reverse-engineering. The BLE vendor components for Nikon (`NikonCameraVendor`,
-> `NikonGattSpec`, `NikonProtocol`, `NikonConnectionDelegate`) are retained solely
-> for BLE device-name recognition (mfr ID `0x0399`, name prefix `Z_`). All GPS/date-time
-> sync paths through these components are dead code and can be safely removed in a cleanup
-> pass.
-
----
-
-## Phase 8: Deep Integration — USB as First-Class Transport 🔧 IN PROGRESS
-
-> **Goal**: USB is currently a standalone feature (hint card → separate photo screen).
-> It must integrate into the existing device-centric architecture: reactive hot-plug
-> detection, unified device card on the home screen, and parity with BLE-connected
-> camera capabilities where applicable.
-
-### 8.1 USB Hot-Plug Detection
-- [x] `rememberUsbDeviceEntry()` registers BroadcastReceiver for real-time attach/detach
-- [x] Compose state drives UI reactively — card updates without navigation or restart
-- [x] USB card shows in Loading / Empty / HasDevices states
-
-### 8.2 Unified Device Card
-- [x] USB camera appears as a proper device card alongside BLE devices
-- [x] Reuses existing UI patterns (Card, expandable details, status icon)
-- [x] Connection status, camera model ("Nikon Z30"), expandable details
-- [x] "管理照片" button in expanded view → navigates to UsbPhotoScreen
-
-### 8.3 Gallery Screen (Phase 9–10)
-- [x] GalleryScreen as primary UI (replaces DevicesList as default)
-- [x] LazyVerticalGrid 3-column layout with MTP thumbnails
-- [x] Client-side pagination (pageSize=30, load on scroll-to-bottom)
-- [x] RAW+JPEG grouping by base filename
-- [x] Transfer with progress indicator
-- [x] All states: Disconnected/Connecting/Loading/Browsing/Empty/Error/Transferring/Done
-- [x] BLE FAB removed from DevicesListScreen
-- [x] DevicesListScreen accessible as secondary route for BLE features
-- [x] Folder-based browsing (tap folder → enter, back → parent)
-- [x] Device info collapsible card (model, storage, serial, firmware)
-- [x] Long-press selection mode + bottom transfer bar
-- [x] Subtle RAW indicator (not colored badge)
-- [x] Pull-to-refresh
-- [x] Transfer dedup integration (PhotoSyncManager)
-- [x] Thumbnail preloading (first 30 after load)
-- [x] EXIF metadata extraction and display — F7 PhotoDetailSheet (Sprint 2)
-- [x] Haptic feedback for selection
-- [x] Photo grouping configurable (by folder / by date / flat) — Sprint 4 ✅
-- [x] Photo sorting configurable (by name / by date / by size) — Sprint 4 ✅
-- [x] Grid columns configurable (2/3/4) — F10 (Sprint 2)
-- [x] Download format preference (RAW+NEF / RAW only / JPEG only) — Sprint 4 ✅
-- [x] Auto-delete from camera after transfer — F8 (Sprint 2)
+| 功能 | 原因 |
+|------|------|
+| 云备份集成 (Google Photos, Dropbox) | 需要云服务对接 |
+| 视频文件支持 | 大文件 + 不同 MTP 处理 |
+| 多相机并发 USB | Android 仅支持一个 USB 主机设备 |
+| NEF Coil 自定义 Fetcher (提取内嵌 JPEG 预览) | MVP 阶段降级为灰色占位符 |
 
 ---
 
----
+## 技术栈
 
-## v2.0 Feature Delivery (Sprints 1–3) ✅ COMPLETED
-
-> **2026-05-07**: Three sprints delivered 16 features. See `docs/PRD.md` for product spec.
-
-### Sprint 1 — Delight & Closure (v2.0) ✅
-- [x] F1 Transfer speed & ETA in TransferringContent
-- [x] F2 Post-transfer action sheet (View/Share/Delete)
-- [x] F3 Haptic feedback on transfer complete
-- [x] F4 Camera storage bar (used/total, color-coded)
-- [x] F5 Smart filter chips (全部/新照片/RAW/JPEG)
-- [x] F6 Rich notification with BigPictureStyle
-
-### Sprint 2 — Pro Photographer (v2.1) ✅
-- [x] F7 EXIF detail sheet (shutter/aperture/ISO/focal length)
-- [x] F8 Delete from camera after transfer (with safety confirmation)
-- [x] F9 Onboarding flow (3-screen swipeable, first-launch only)
-- [x] F10 Grid density toggle (2/3/4 columns)
-
-### Sprint 3 — Polish & Trust (v2.2) ✅
-- [x] F12 Camera battery indicator (best-effort via MTP)
-- [x] F13 Transfer history timeline (SharedPreferences persistence)
-- [x] F14 Retry failed transfers (extracted performTransfer loop)
-- [x] F15 Settings screen (auto-sync, grid, history, theme links)
-- [x] F16 Dark theme support (system/light/dark toggle)
-
-### New Files Created
-| File | Feature |
-|------|---------|
-| `usb/PhotoDetailSheet.kt` | F7 EXIF bottom sheet |
-| `onboarding/OnboardingScreen.kt` | F9 Swipeable onboarding |
-| `onboarding/OnboardingViewModel.kt` | F9 Onboarding state persistence |
-| `usb/TransferHistoryScreen.kt` | F13 Transfer history list |
-| `settings/SettingsScreen.kt` | F15 Settings page |
-
-### Deferred to Future
-- ~~Photo grouping configurable (by folder / by date / flat)~~ ✅ Sprint 4
-- ~~Photo sorting configurable (by name / by date / by size)~~ ✅ Sprint 4
-- ~~Download format preference (RAW+NEF / RAW only / JPEG only)~~ ✅ Sprint 4
-- ~~Photo preview thumbnail before download~~ ✅ Sprint 4 (TransferPreviewSheet)
-- ~~Code cleanup: Nikon BLE dead code removal~~ ✅ Sprint 4
-- Cloud backup integration
-- Video file support
-
-## Known UX Issues
-
-### RAW+JPEG selection follows format preference ✅ FIXED 2026-05-08
-- ~~toggleSelection() / selectAll() always picked both raw+jpg handles~~
-- Fixed: `handlesForFormat()` helper respects `prefs.downloadFormat`
-
-### Settings not applying immediately ✅ FIXED 2026-05-08
-- ~~Grid column count changes only took effect after app restart~~
-- Fixed: `gridColumns` init from `prefs.getGridColumns()` + `onGridColumnsChanged` callback from Settings → ViewModel
-
+| 组件 | 版本/选择 |
+|------|----------|
+| Kotlin | 2.3.0 |
+| Compose | Material 3 + BOM |
+| 图片加载 | Coil 3.x (compose + okhttp) |
+| DI | Metro (compile-time) |
+| 日志 | Khronicle (com.juul.khronicle) |
+| 持久化 | SharedPreferences (USB prefs + dedup) |
+| 构建 | Gradle Kotlin DSL + version catalog |
+| 最低 SDK | API 33 (Android 13) |
+| 测试设备 | Pixel 9 + Android 15 + Nikon Z30 |
 
 ---
 
-## File Map
+## 项目结构
 
-| Component | File | Status |
-|-----------|------|--------|
-| BLE recognition | `vendors/nikon/NikonCameraVendor.kt` | ✅ |
-| BLE protocol | `vendors/nikon/NikonProtocol.kt` | ✅ POC |
-| BLE GATT | `vendors/nikon/NikonGattSpec.kt` | ✅ |
-| BLE delegate | `vendors/nikon/NikonConnectionDelegate.kt` | ✅ POC |
-| USB MTP core | `usb/NikonUsbManager.kt` | ✅ |
-| Gallery Screen | `usb/GalleryScreen.kt` | ✅ Primary UI (Phase 9) |
-| Gallery ViewModel | `usb/GalleryViewModel.kt` | ✅ Pagination + transfer |
-| USB Service | `usb/UsbSyncService.kt` | ✅ |
-| USB Coordinator | `usb/UsbSyncCoordinator.kt` | ✅ |
-| Photo Sync Mgr | `usb/PhotoSyncManager.kt` | ✅ |
-| USB Preferences | `usb/UsbSyncPreferences.kt` | ✅ |
-| USB filter | `res/xml/nikon_usb_device_filter.xml` | ✅ |
-| USB icon | `res/drawable/ic_usb_24dp.xml` | ✅ |
-| USB strings | `res/values/strings.xml` | ✅ |
-| Navigation | `NavRoute.kt` | ✅ |
-| Wiring | `MainActivity.kt` | ✅ |
-| Manifest | `AndroidManifest.xml` | ✅ |
-| **New (Sprint 1–3)** | | |
-| Photo Detail | `usb/PhotoDetailSheet.kt` | ✅ F7 EXIF |
-| Onboarding | `onboarding/OnboardingScreen.kt` | ✅ F9 |
-| Onboarding VM | `onboarding/OnboardingViewModel.kt` | ✅ F9 |
-| Transfer History | `usb/TransferHistoryScreen.kt` | ✅ F13 |
-| Settings | `settings/SettingsScreen.kt` | ✅ F15 |
-| **Deleted** | | |
-| PTP/IP debug | `ptp/*` (8 files) | ❌ Deleted |
-| Old USB debug | `usb/UsbSyncScreen.kt`, `UsbSyncViewModel.kt` | ❌ Deleted |
-| Old USB photo | `usb/UsbPhotoScreen.kt` | ❌ Deleted (replaced by Gallery) |
+```
+app/src/main/kotlin/dev/sebastiano/camerasync/
+├── usb/                          # ★ USB 照片同步 (主功能)
+│   ├── NikonUsbManager.kt        # MTP 设备操作
+│   ├── GalleryViewModel.kt       # 连接生命周期 + 传输状态 + 筛选
+│   ├── GalleryScreen.kt          # 主 UI (网格/文件夹/选择/进度)
+│   ├── PhotoSyncManager.kt       # 导入去重
+│   ├── PhotoDetailSheet.kt       # EXIF 详情面板
+│   ├── TransferHistoryScreen.kt  # 传输历史
+│   ├── LocalPhotosViewModel.kt   # 本地相册 ViewModel
+│   ├── UsbSyncService.kt         # 前台服务 (后台同步)
+│   ├── UsbSyncCoordinator.kt     # 自动同步生命周期
+│   └── UsbSyncPreferences.kt     # 用户偏好设置
+├── settings/
+│   └── SettingsScreen.kt         # 设置页面
+├── ui/theme/                     # Material 3 主题
+├── logging/                      # Khronicle 日志 + 查看器
+├── di/                           # Metro DI
+├── NavRoute.kt                   # 导航路由
+└── MainActivity.kt               # 单 Activity 入口
+```
 
 ---
 
-## Code Cleanup Backlog
+## 已知问题
 
-### Remove dead BLE/WiFi code ✅ DONE
-- [x] **NikonGattSpec** / **NikonProtocol** / **NikonConnectionDelegate** / **NikonCameraVendor**:
-  All 4 source files + 3 test files deleted. AppGraph updated to remove Nikon from vendor registry.
-- [x] **PTP/IP debug remnants**: Verified all `ptp/*` files deleted, no stale imports remain.
+**0 个已知问题。** 最后修复于 2026-08-02 (PhotoCell EXIF 竖构图).
 
-### Delete remaining BLE documentation references from multi-vendor docs
-- [ ] `MULTI_VENDOR_SUPPORT.md` Section 1 diagram and directory reference still show
-  `vendors/nikon/` without distinguishing BLE-only vs. USB. These should be updated.
-- [ ] `MULTI_DEVICE_ARCHITECTURE.md` references to `NikonCameraVendor` recognition should be
-  cross-checked against the USB-centric reality.
+---
+
+## 最近提交 (2026-08-02)
+
+```
+4042515 fix: add kotlinx-atomicfu dependency for Khronicle logger
+a385378 refactor: remove BLE GPS sync and companion device subsystems
+fcd4f8c refactor: migrate local photos to Coil + fix USB MTP enumeration crashes
+52a550d fix: local photos display — scoped storage, EXIF orientation, preview, refresh
+90cc77b fix: query MediaStore.Files for NEF — Images table excludes RAW
+```

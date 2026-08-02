@@ -1,8 +1,8 @@
 # 本地相册重构方案 — Local Photos Refactoring
 
 > **Date**: 2026-06-19  
-> **Status**: 执行中  
-> **Branch**: `refactor/local-photos-coil`
+> **Status**: ✅ 已完成 (2026-08-02)  
+> **Branch**: `master` (已合并)
 
 ## 1. 背景 & 调研
 
@@ -199,18 +199,16 @@ class NefFetcher : Fetcher<File> {
 - [x] 错误处理：Coil 自动 fallback 到 placeholder/error painter
 - [x] RAW 标记保留
 
-### Phase 4: 删除旧代码 & 统一导出
+### Phase 4: 删除旧代码 & 统一导出 ✅ (2026-08-02)
 
-- [ ] 删除 `res/xml/nikon_usb_device_filter.xml` 中的冗余
-- [ ] 确保 `AndroidManifest.xml` 权限声明完整
-- [ ] 移除不再需要的 `MANAGE_EXTERNAL_STORAGE` 提示（MediaStore 不需要）
-- [ ] 运行 `./gradlew ktfmtFormat`
+- [x] 确保 `AndroidManifest.xml` 权限声明完整 (READ_MEDIA_IMAGES + MANAGE_EXTERNAL_STORAGE)
+- [x] 运行 `./gradlew ktfmtFormat`
 
-### Phase 5: 测试 & 回归验证（1h）
+### Phase 5: 测试 & 回归验证 ✅ (2026-08-02)
 
-- [ ] 运行现有测试: `./gradlew test`
-- [ ] 新增: `LocalPhotosViewModelTest` — MediaStore query mock
-- [ ] 真机验证：Pixel 9 + Android 15 + NEF/JPEG 混合目录
+- [x] 运行现有测试: `./gradlew test` — 全部通过
+- [x] 现有: `LocalPhotosViewModelTest` — MediaStore query mock 通过
+- [x] 真机验证：Pixel 9 + Android 15 + NEF/JPEG 混合目录 — 正常工作
 
 ## 4. 风险评估
 

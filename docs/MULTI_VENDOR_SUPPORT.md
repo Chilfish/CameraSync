@@ -7,9 +7,9 @@ This document describes the architecture that enables CameraSync to support came
 > (cable connection, MTP protocol, file transfer) that does not involve protocol
 > reverse-engineering, BLE pairing, or GATT characteristics. The BLE vendor abstractions
 > described below remain fully valid for Ricoh BLE GPS/Date-Time sync and for Sony BLE
-> GPS/Date-Time sync. Nikon's `NikonCameraVendor`, `NikonGattSpec`, and `NikonProtocol`
-> still exist in `vendors/nikon/` and provide BLE device recognition via advertisement
-> data; however the primary Nikon data transfer path is USB.
+> GPS/Date-Time sync. Nikon's BLE vendor components (`NikonCameraVendor`, `NikonGattSpec`,
+> `NikonProtocol`, `NikonConnectionDelegate`) were removed in 2026-08-02 (commit `a385378`)
+> as the primary Nikon data transfer path is USB.
 
 ---
 
@@ -46,9 +46,6 @@ graph TB
             SGS["SonyGattSpec"]
             SP["SonyProtocol"]
             SCD["SonyConnectionDelegate"]
-        end
-        subgraph Nikon["vendors/nikon/"]
-            NCV["(future)"]
         end
     end
 

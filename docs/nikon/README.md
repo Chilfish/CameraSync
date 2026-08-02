@@ -1,8 +1,10 @@
 # Nikon Camera Support — USB Photo Sync
 
-> **Status**: ✅ Working (2026-05-06)
+> **Status**: ✅ Production-ready (2026-08-02)
 
 USB wired MTP photo sync for Nikon series cameras. Transfers photos over a USB cable using Android's native `android.mtp.MtpDevice` API — no proprietary protocols, no pairing, no auth.
+
+Nikon BLE vendor components (`NikonCameraVendor`, `NikonGattSpec`, `NikonProtocol`, `NikonConnectionDelegate`) were removed in 2026-08-02. The USB/MTP path is the sole data transfer mechanism for Nikon cameras.
 
 ## Architecture
 

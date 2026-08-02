@@ -1,5 +1,7 @@
 # Sony Camera Protocol Documentation
 
+> ⚠️ **ARCHIVED — 2026-08-02**: BLE GPS sync subsystem removed in commit `a385378`. These documents are retained as historical reference only. The active codebase now uses USB/MTP for Nikon photo sync exclusively.
+
 Documentation for Sony Alpha / ZV series BLE and Wi‑Fi protocols used by CameraSync and for
 remote shooting design. Sources: decompiled Creators' App, public reverse-engineering (Greg Leeds,
 freemote, HYPOXIC), and alpha-shot.
