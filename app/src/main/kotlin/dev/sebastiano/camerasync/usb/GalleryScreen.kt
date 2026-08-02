@@ -497,6 +497,7 @@ private fun BrowsingContent(
                                 },
                                 getThumbnail = vm::getThumbnail,
                                 getOrientation = vm::getOrientation,
+                                bitmapCache = vm.bitmapCache,
                                 onPhotoClick = {
                                     if (vm.selectedCount > 0) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -533,6 +534,7 @@ private fun BrowsingContent(
                             },
                             getThumbnail = vm::getThumbnail,
                             getOrientation = vm::getOrientation,
+                            bitmapCache = vm.bitmapCache,
                             onPhotoClick = {
                                 if (vm.selectedCount > 0) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -682,11 +684,18 @@ private fun FolderRow(folder: GalleryEntry.Folder, onClick: () -> Unit) {
 
 // ── Thumbnail Image ────────────────────────────────────────────────────────
 
+/**
+ * Loads and displays an MTP thumbnail for [handle].
+ *
+ * Uses [bitmapCache] (in ViewModel) to avoid re-decoding + re-rotating when LazyGrid
+ * recycles cells. Falls back to [getThumbnail] + [BitmapFactory] for cache misses.
+ */
 @Composable
 private fun ThumbnailImage(
     handle: Int,
     getThumbnail: suspend (Int) -> ByteArray?,
     getOrientation: (Int) -> Int?,
+    bitmapCache: MutableMap<Int, Bitmap>,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
 ) {
@@ -694,6 +703,13 @@ private fun ThumbnailImage(
     var loadingFailed by remember { mutableStateOf(false) }
 
     LaunchedEffect(handle) {
+        // Check decoded bitmap cache first — instant when the cell was recycled.
+        val cached = bitmapCache[handle]
+        if (cached != null) {
+            thumb = cached.asImageBitmap()
+            return@LaunchedEffect
+        }
+
         val bytes = withContext(Dispatchers.IO) { getThumbnail(handle) }
         if (bytes == null) {
             loadingFailed = true
@@ -708,17 +724,12 @@ private fun ThumbnailImage(
                 }
 
         val fallback = getOrientation(handle)
-
-        // Nikon cameras often pre-rotate MTP thumbnail pixel data (e.g. a portrait
-        // photo's thumbnail is already 120×160). If we blindly apply the fallback
-        // orientation we'd double-rotate. Check: if the fallback says "portrait"
-        // but the bitmap is already portrait → skip extra rotation.
         val needsRotation =
             fallback == null ||
                 when (fallback) {
                     ExifInterface.ORIENTATION_ROTATE_90,
                     ExifInterface.ORIENTATION_ROTATE_270 ->
-                        raw.width > raw.height // only rotate if bitmap is landscape
+                        raw.width > raw.height
                     else -> true
                 }
 
@@ -726,6 +737,8 @@ private fun ThumbnailImage(
             withContext(Dispatchers.IO) {
                 if (needsRotation) rotateByExif(raw, bytes, fallback) else raw
             }
+        // Store decoded bitmap for recycling cells.
+        bitmapCache[handle] = rotated
         thumb = rotated.asImageBitmap()
     }
 
@@ -755,6 +768,7 @@ private fun PhotoCell(
     onToggle: () -> Unit,
     getThumbnail: suspend (Int) -> ByteArray?,
     getOrientation: (Int) -> Int?,
+    bitmapCache: MutableMap<Int, Bitmap>,
     onPhotoClick: (() -> Unit)? = null,
 ) {
     val handle = group.previewHandle ?: return
@@ -807,6 +821,7 @@ private fun PhotoCell(
             handle = handle,
             getThumbnail = getThumbnail,
             getOrientation = getOrientation,
+            bitmapCache = bitmapCache,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
         )
@@ -1420,6 +1435,7 @@ private fun TransferPreviewSheet(
                                 handle = handle,
                                 getThumbnail = viewModel::getThumbnail,
                                 getOrientation = viewModel::getOrientation,
+                                bitmapCache = viewModel.bitmapCache,
                                 modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)),
                                 contentScale = ContentScale.Crop,
                             )

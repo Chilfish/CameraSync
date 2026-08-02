@@ -29,10 +29,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 private const val TAG = "GalleryVM"
@@ -213,6 +217,12 @@ class GalleryViewModel(private val app: Application) {
     var currentPhotos by mutableStateOf(emptyList<GalleryEntry.PhotoGroup>())
         private set
 
+    /** Updates [currentPhotos] and invalidates the filtered-groups cache. */
+    private fun updateCurrentPhotos(groups: List<GalleryEntry.PhotoGroup>) {
+        updateCurrentPhotos(groups)
+        invalidateFilterCache()
+    }
+
     // Thumbnail cache (shared across folder navigations).
     // Wrapped in synchronizedMap because getThumbnail() is called concurrently
     // from multiple coroutines on the IO dispatcher (prefetchOrientations,
@@ -240,6 +250,35 @@ class GalleryViewModel(private val app: Application) {
     // Uses ExifInterface.ORIENTATION_* constants. Populated by getThumbnail().
     // ConcurrentHashMap because writes (IO) and reads (main) happen on different threads.
     private val orientationCache = java.util.concurrent.ConcurrentHashMap<Int, Int>()
+
+    // ── Concurrency control ──────────────────────────────────────────────────
+
+    /** Limits concurrent MTP calls (getThumbnail, importFile) to avoid USB bandwidth contention. */
+    private val mtpSemaphore = Semaphore(3)
+
+    // ── Decoded bitmap cache ─────────────────────────────────────────────────
+
+    /**
+     * LRU cache of decoded [ImageBitmap] instances keyed by MTP handle.
+     * Prevents re-decoding + re-rotation when LazyGrid recycles [PhotoCell] composables.
+     * Cleared on disconnect via [closeMtpAndClear].
+     */
+    val bitmapCache =
+        java.util.Collections.synchronizedMap(
+            object : LinkedHashMap<Int, android.graphics.Bitmap>(64, 0.75f, true) {
+                override fun removeEldestEntry(
+                    eldest: MutableMap.MutableEntry<Int, android.graphics.Bitmap>?
+                ) = size > 96
+            }
+        )
+
+    // ── Filtered results cache ───────────────────────────────────────────────
+
+    /** Invalidation counter — incremented whenever filter/sort/photos change. */
+    private var filterCacheGeneration by mutableStateOf(0)
+
+    /** Last computed filtered + sorted result, guarded by [filterCacheGeneration]. */
+    private var cachedFilteredGroups: List<GalleryEntry.PhotoGroup> = emptyList()
 
     fun getOrientation(handle: Int): Int? = orientationCache[handle]
 
@@ -299,10 +338,11 @@ class GalleryViewModel(private val app: Application) {
         closeMtp()
         _selected.clear()
         _state.value = GalleryState.Disconnected
-        currentPhotos = emptyList()
+        updateCurrentPhotos(emptyList())
         thumbCache.clear()
         fullPhotoCache.clear()
         orientationCache.clear()
+        bitmapCache.clear()
     }
 
     private fun onPlugged(device: UsbDevice) {
@@ -414,11 +454,14 @@ class GalleryViewModel(private val app: Application) {
 
     /**
      * Progressive loader for BY_DATE and FLAT modes.
-     * 1. Counts total photos quickly (no getObjectInfo per photo)
-     * 2. Enumerates photos with [onProgress], updating Loading state
-     * 3. After FIRST_BATCH (30) photos: transitions to Browsing so the user sees photos immediately
-     * 4. Remaining photos continue loading in background, updating currentPhotos as they arrive
-     * 5. When done: sorts, finalizes entries, prefetches orientations and thumbnails
+     *
+     * 1. Enumerates photos with a progress callback.
+     * 2. After 30 photos: uses [populateOrientationsFromDimensions] (instant, no MTP calls) to
+     *    detect portrait/landscape, then transitions to Browsing — the user sees photos immediately.
+     * 3. Remaining photos continue streaming in; [currentPhotos] updates incrementally.
+     * 4. When done: kicks off concurrent [preloadThumbnails] in background to discover accurate EXIF
+     *    orientations (does not block the UI — the grid already has correct aspect ratios from
+     *    dimensions).
      */
     private suspend fun loadRootProgressive(
         m: MtpDevice,
@@ -442,11 +485,10 @@ class GalleryViewModel(private val app: Application) {
                     globalScanned = prevSize + scanned
                     globalTotal = prevSize + total
 
-                    // After 30 photos: transition to Browsing so the user sees photos immediately
                     if (!enteredBrowsing && accumPhotos.size >= 30) {
                         enteredBrowsing = true
                         val partial = groupByBaseFilename(accumPhotos.toList())
-                        currentPhotos = partial
+                        updateCurrentPhotos(partial)
                         populateOrientationsFromDimensions()
                         _state.value =
                             GalleryState.Browsing(
@@ -454,22 +496,32 @@ class GalleryViewModel(private val app: Application) {
                                 storages,
                                 buildEntries(partial, accumPhotos.toList()),
                             )
+                        // Kick off background thumbnail preloading — orientation extraction
+                        // happens automatically via extractOrientation() in getThumbnail().
+                        preloadThumbnails(partial.size.coerceAtMost(50))
                     } else if (!enteredBrowsing) {
                         _state.value = GalleryState.Loading("正在扫描…", globalScanned, globalTotal)
                     }
-                    // After entering Browsing, photos continue streaming in via accumulator
-                    // — currentPhotos will be finalized below.
                 },
             )
         }
 
-        // All photos collected — group, finalize, pre-fetch
+        // All photos collected — finalize groups, update state silently.
         val groups = groupByBaseFilename(accumPhotos)
-        currentPhotos = groups
+        updateCurrentPhotos(groups)
         val entries = buildEntries(groups, accumPhotos)
-        prefetchOrientations(50)
-        _state.value = GalleryState.Browsing(cameraInfo, storages, entries)
-        preloadThumbnails()
+        // Only re-set Browsing state if we never entered it (fewer than 30 photos total).
+        if (!enteredBrowsing) {
+            populateOrientationsFromDimensions()
+            _state.value = GalleryState.Browsing(cameraInfo, storages, entries)
+        } else {
+            // Just update the entries list on the existing Browsing state without
+            // creating a new state object that would trigger a full recomposition.
+            _state.value = (state.value as GalleryState.Browsing).let { old ->
+                old.copy(entries = entries)
+            }
+        }
+        preloadThumbnails(groups.size.coerceAtMost(50))
     }
 
     /** Fast folder-first loading: show folder list immediately, load root-level photos after. */
@@ -484,28 +536,29 @@ class GalleryViewModel(private val app: Application) {
         }
         // Show folders immediately even before photos are enumerated
         _state.value = GalleryState.Loading("正在读取文件夹…")
-        currentPhotos = emptyList()
+        updateCurrentPhotos(emptyList())
         _state.value = GalleryState.Browsing(cameraInfo, storages, entries.toList())
 
         // Phase 2: load root-level photos, updating the grid as they come in
         for (s in storages) {
             nikon.listPhotosInFolder(m, s.id, 0).let { photos ->
                 allRootPhotos.addAll(photos)
-                currentPhotos = groupByBaseFilename(allRootPhotos)
+                updateCurrentPhotos(groupByBaseFilename(allRootPhotos))
                 entries.addAll(currentPhotos)
             }
         }
-        // Final update with sorted photos
-        currentPhotos = groupByBaseFilename(allRootPhotos)
+        // Final update — populate orientations from dimensions (instant), then
+        // kick off background thumbnail preloading for accurate EXIF.
+        updateCurrentPhotos(groupByBaseFilename(allRootPhotos))
+        populateOrientationsFromDimensions()
         val finalEntries = mutableListOf<GalleryEntry>()
         for (s in storages) {
             val folders = nikon.listFolders(m, s.id, 0)
             finalEntries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
         }
         finalEntries.addAll(currentPhotos)
-        prefetchOrientations(50)
         _state.value = GalleryState.Browsing(cameraInfo, storages, finalEntries)
-        preloadThumbnails()
+        preloadThumbnails(currentPhotos.size.coerceAtMost(50))
     }
 
     /** Build date-section entries from grouped photos. */
@@ -545,15 +598,15 @@ class GalleryViewModel(private val app: Application) {
             _state.value = GalleryState.Loading("正在读取照片…", 0, 0)
 
             val photos = nikon.listPhotosInFolder(m, storageId, folderHandle)
-            currentPhotos = groupByBaseFilename(photos)
+            updateCurrentPhotos(groupByBaseFilename(photos))
             val entries = mutableListOf<GalleryEntry>()
             entries.addAll(subFolders.map { GalleryEntry.Folder(it, storageId) })
             entries.addAll(currentPhotos)
-            // Pre-fetch orientations for the first visible batch so PhotoCell
-            // gets correct initial aspect ratios (avoids staggered-grid letterboxing).
-            prefetchOrientations(50)
+            // Use dimensions (instant, no MTP calls) for aspect ratios;
+            // accurate EXIF orientations come from background preload.
+            populateOrientationsFromDimensions()
             _state.value = GalleryState.Browsing(cameraInfo, storages, entries)
-            preloadThumbnails()
+            preloadThumbnails(currentPhotos.size.coerceAtMost(50))
         } catch (e: Exception) {
             Log.error(tag = TAG, throwable = e) { "loadFolder failed: ${e.message}" }
             errorBanner = "读取文件夹失败: ${e.localizedMessage ?: "未知错误"}"
@@ -564,47 +617,43 @@ class GalleryViewModel(private val app: Application) {
     }
 
     /**
-     * Pre-fetches MTP thumbnails for the first [count] photos in the current view, extracting EXIF
-     * orientation into [orientationCache]. Called inline *before* transitioning to
-     * [GalleryState.Browsing] so that [PhotoCell] can read [getOrientation] during its first
-     * composition and set the correct initial aspect ratio — avoiding the staggered grid measuring
-     * the cell at a wrong default ratio.
+     * Populates [orientationCache] from [MtpObjectInfo] dimensions and, for the first
+     * [count] handles without a cached orientation, fetches their MTP thumbnail to extract
+     * EXIF orientation. Does NOT block the caller — launches a background coroutine for
+     * thumbnail fetching.
+     *
+     * Call this AFTER entering Browsing state so the user sees the grid immediately.
      */
-    private suspend fun prefetchOrientations(count: Int) {
-        // First, use MtpObjectInfo dimensions as fallback for any handles
-        // whose EXIF orientation is still unknown.
+    fun prefetchOrientations(count: Int) {
+        // Step 1: instant — use dimensions for all uncached handles.
         populateOrientationsFromDimensions()
-        val handles = currentPhotos.take(count).mapNotNull { it.previewHandle }
-        for (h in handles) {
-            // orientation already cached? skip
-            if (orientationCache.containsKey(h)) continue
-            try {
-                getThumbnail(h)
-            } catch (_: Exception) {
-                /* best-effort */
-            }
-        }
-        // For RAW+JPEG pairs: the JPEG thumbnail has reliable EXIF orientation
-        // (including ROTATE_90 vs ROTATE_270 distinction). Copy it to the RAW
-        // handle so NEF previews rotate correctly even when the NEF's own MTP
-        // thumbnail is TIFF-based (no EXIF) or pre-rotated (EXIF=Normal).
-        for (group in currentPhotos) {
-            val jpgHandle = group.jpg?.handle ?: continue
-            val rawHandle = group.raw?.handle ?: continue
-            val jpgOri = orientationCache[jpgHandle] ?: continue
-            if (!orientationCache.containsKey(rawHandle)) {
-                orientationCache[rawHandle] = jpgOri
-            }
-        }
+        // Step 2: background — fetch thumbnails for accurate EXIF.
+        preloadThumbnails(count)
     }
 
-    /** Preload thumbnails for the first [count] photo groups (background). */
+    /**
+     * Background thumbnail preloader with concurrent MTP calls.
+     *
+     * Uses [mtpSemaphore] (max 3 concurrent MTP operations) to avoid USB bandwidth contention
+     * while loading thumbnails faster than serial. Orientation is extracted as a side effect
+     * of each [getThumbnail] call.
+     */
     fun preloadThumbnails(count: Int = 30) {
         val handles = currentPhotos.take(count).mapNotNull { it.previewHandle }
         scope.launch {
-            for (h in handles) {
-                if (!currentCoroutineContext().isActive) return@launch
-                getThumbnail(h)
+            try {
+                coroutineScope {
+                    handles.map { h ->
+                        async {
+                            if (!currentCoroutineContext().isActive) return@async
+                            mtpSemaphore.withPermit {
+                                getThumbnail(h)
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                /* best-effort */
             }
         }
     }
@@ -682,6 +731,17 @@ class GalleryViewModel(private val app: Application) {
                         info.thumbPixWidth < info.thumbPixHeight)
             if (isPortrait) {
                 orientationCache[handle] = ExifInterface.ORIENTATION_ROTATE_90
+            }
+        }
+        // For RAW+JPEG pairs: copy any known JPEG orientation to the RAW handle
+        // so NEF previews get correct rotation even when the NEF MTP thumbnail
+        // is TIFF-based (no EXIF) or pre-rotated.
+        for (group in currentPhotos) {
+            val jpgHandle = group.jpg?.handle ?: continue
+            val rawHandle = group.raw?.handle ?: continue
+            val jpgOri = orientationCache[jpgHandle] ?: continue
+            if (!orientationCache.containsKey(rawHandle)) {
+                orientationCache[rawHandle] = jpgOri
             }
         }
     }
@@ -762,9 +822,24 @@ class GalleryViewModel(private val app: Application) {
 
     fun setFilter(mode: PhotoFilter) {
         filterMode = mode
+        invalidateFilterCache()
     }
 
     fun getFilteredGroups(): List<GalleryEntry.PhotoGroup> {
+        // Return cached result when nothing changed — avoids re-filtering on every recomposition.
+        // The cache is invalidated when filter, sort, or currentPhotos change (via filterCacheGeneration).
+        val gen = filterCacheGeneration // local snapshot to avoid TOCTOU
+        return cachedFilteredGroups
+    }
+
+    /** Invalidates the filter cache and recomputes it in background. Called when filters change. */
+    private fun invalidateFilterCache() {
+        filterCacheGeneration++
+        val filtered = computeFiltered()
+        cachedFilteredGroups = filtered
+    }
+
+    private fun computeFiltered(): List<GalleryEntry.PhotoGroup> {
         val filtered =
             when (filterMode) {
                 PhotoFilter.ALL -> currentPhotos
@@ -789,11 +864,13 @@ class GalleryViewModel(private val app: Application) {
     fun setSorting(mode: UsbSyncPreferences.PhotoSorting) {
         sortingMode = mode
         prefs.photoSorting = mode
+        invalidateFilterCache()
     }
 
     fun setDownloadFormat(format: UsbSyncPreferences.DownloadFormat) {
         prefs.downloadFormat = format
         filterMode = downloadFormatToFilter(format)
+        invalidateFilterCache()
     }
 
     private fun applySorting(photos: List<GalleryEntry.PhotoGroup>): List<GalleryEntry.PhotoGroup> {
