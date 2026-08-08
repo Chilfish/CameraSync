@@ -142,13 +142,14 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 | 严重度 | 问题 | 状态 |
 |---|---|---|
-| P0 | 双 MTP 管线：前台 UI 与后台自动同步各持一个 `MtpDevice` 并发操作 | 待修复（action-plan P0-3，见 [review R1](../review/2026-08-09-design-review.md)） |
-| P0 | 去重键不一致：UI 管线硬编码 `storageId=0`，后台用真实 storageId | 待修复（action-plan P0-2，R2） |
-| P0 | "会话级自动剪枝"注释未实现（`clearAll`/`clearStorage` 零调用） | 待修复（action-plan P0-4，R3） |
-| P0 | MediaStore 保存路径硬编码 "Nikon Z30" | 待修复（action-plan P0-1，R4） |
-| P2 | detekt baseline 技术债 24 条（原 34 条，已清理 10 条） | 已由 baseline 吸收，逐步偿还（action-plan P2-3） |
+| P0 | 双 MTP 管线：前台 UI 与后台自动同步各持一个 `MtpDevice` 并发操作 | ✅ 阶段1 护栏已修复（`9344686`，action-plan P0-3）；阶段2 共享实例降级 P2-1 |
+| P0 | 去重键不一致：UI 硬编码 `storageId=0` vs 后台真实 storageId | ✅ 已修复（`b75e87b`，action-plan P0-2） |
+| P0 | "会话级自动剪枝"假注释 | ✅ 已修复（`220aa12`，action-plan P0-4，改软校验） |
+| P0 | MediaStore 保存路径硬编码 "Nikon Z30" | ✅ 已修复（`2961280`，action-plan P0-1） |
+| P1 | 自动同步未接线：`UsbSyncService` 零调用，`autoSyncEnabled` 无消费者 | 待决策（action-plan P1-4，见 [review R7](../review/2026-08-09-design-review.md)） |
+| P2 | detekt baseline 技术债（原 24 条，P0 已清 1 条 → 23 条） | 已由 baseline 吸收，逐步偿还（action-plan P2-3） |
 
-> 应用功能层面历史 bug 均已修复（最后修复 2026-08-02 PhotoCell EXIF 竖构图）。但 2026-08-09 Apple 视角评审（[review](../review/2026-08-09-design-review.md) R1–R4）发现 4 项此前未记录的正确性缺陷，已列入 action-plan P0。此前的"0 已知问题"表述不成立，已更正。
+> 应用功能层面历史 bug 均已修复（最后修复 2026-08-02 PhotoCell EXIF 竖构图）。2026-08-09 Apple 视角评审（[review](../review/2026-08-09-design-review.md)）发现的 4 项正确性缺陷 R1–R4 已全部修复（action-plan P0），另新增 R7（自动同步未接线）待 P1 决策。
 
 ---
 
