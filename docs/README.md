@@ -7,6 +7,7 @@
 | 文档 | 说明 |
 |---|---|
 | [当前状态 & TODO](planning/todo.md) | 当前状态、已完成功能、未来规划（cloud 备份 / 视频 / 多相机 USB / NEF Coil fetcher） |
+| [行动计划](planning/action-plan.md) | **活跃行动计划**：P0 止血（去重/管线/路径/剪枝）→ P1 核心路径 → P2 工程债 → P3 收尾（2026-08-09 起，Apple 视角评审后重排） |
 
 ## 工程规范（engineering/）
 
@@ -14,6 +15,13 @@
 |---|---|
 | [Git Workflow](engineering/git-workflow.md) | 分支模型、commit 规范（Conventional Commits）、commit 纪律、代码审查、版本发布 |
 | [Code Style](engineering/code-style.md) | Kotlin/Compose 代码规范、命名约定、测试规范、detekt 规则 |
+
+## 评审（review/）
+
+| 文档 | 说明 |
+|---|---|
+| [评审索引](review/README.md) | 设计评审索引（与 postmortem 互补） |
+| [Apple 视角设计评审](review/2026-08-09-design-review.md) | 全项目设计评审：R1 双管线 / R2 去重不一致 / R3 假剪枝 / R4 硬编码路径 / R5 功能膨胀 / R6 测试赤字 |
 
 ## 技术参考（活动）
 
