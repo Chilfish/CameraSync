@@ -47,7 +47,7 @@ USB wired photo sync for Nikon series cameras — quickly transfer photos from y
 
 The app uses Android's built-in `android.mtp.MtpDevice` API — no protocol reverse-engineering is required. The `usb/` package handles MTP connection, photo enumeration, and download.
 
-The original BLE architecture for Ricoh/Sony GPS sync remains in `vendors/` and `devicesync/` as secondary, legacy code.
+> The original BLE GPS sync subsystem for Ricoh/Sony was **removed in 2026-08-02** (commit `a385378`). USB/MTP photo sync is the only feature path; BLE protocol docs remain in `docs/ricoh/` and `docs/sony/` for historical reference.
 
 ## Setup & Installation
 
@@ -97,23 +97,25 @@ compatible JDK (JDK 11+).
     - `GalleryViewModel.kt` — Connection lifecycle and transfer state management
     - `GalleryScreen.kt` — Primary UI (3-column grid, folder browsing, selection)
     - `PhotoSyncManager.kt` — Import deduplication
+    - `LocalPhotosViewModel.kt` — Local photo browsing via Coil 3 + MediaStore
     - `UsbSyncService.kt` — Foreground service for background transfers
     - `UsbSyncCoordinator.kt` — Auto-sync lifecycle and hot-plug detection
     - `UsbSyncPreferences.kt` — User preferences
-- `app/src/main/kotlin/dev/sebastiano/camerasync/vendors/` — BLE vendor implementations (Ricoh, Sony, Nikon BLE recognition)
-- `app/src/main/kotlin/dev/sebastiano/camerasync/devicesync/` — BLE sync coordination and multi-device support
-- `app/src/main/kotlin/dev/sebastiano/camerasync/data/` — Repositories and data sources
-- `app/src/main/kotlin/dev/sebastiano/camerasync/ui/` — Theme and shared UI components
+- `app/src/main/kotlin/dev/sebastiano/camerasync/logging/` — Khronicle log repository + log viewer
+- `app/src/main/kotlin/dev/sebastiano/camerasync/settings/` — Settings screen
+- `app/src/main/kotlin/dev/sebastiano/camerasync/di/` — Metro dependency graph (`AppGraph`)
+- `app/src/main/kotlin/dev/sebastiano/camerasync/ui/theme/` — Material 3 theme (Color, Type, Theme)
 - `app/src/test/` — Unit tests
 
 ## Technical Stack
 
 - **Language**: [Kotlin](https://kotlinlang.org/) (2.3.0)
-- **UI Framework**: [Jetpack Compose](https://developer.android.com/compose)
-- **BLE Library**: [Kable](https://github.com/JuulLabs/kable)
-- **Data Persistence**: [DataStore](https://developer.android.com/topic/libraries/architecture/datastore)
-  with [Protocol Buffers](https://developers.google.com/protocol-buffers)
+- **UI Framework**: [Jetpack Compose](https://developer.android.com/compose) + Material 3 + Navigation 3
+- **Image Loading**: [Coil 3](https://coil-kt.github.io/coil/) (local photos via MediaStore)
+- **Logging**: [Khronicle](https://github.com/JuulLabs/khronicle)
+- **Persistence**: SharedPreferences (import deduplication + preferences)
 - **Dependency Injection**: [Metro](https://github.com/ZacSweers/metro) (compile-time DI framework)
+- **Format/Static Analysis**: ktfmt (kotlinlang) + [detekt](https://detekt.dev/) with compose-rules
 - **Dependency Management**: Gradle Version Catalogs (`libs.versions.toml`)
 
 ## Testing
@@ -125,7 +127,7 @@ Run unit tests:
 ```
 
 > [!NOTE]
-> Primary test configuration used during development: Pixel 9 + Android 15 + Nikon Z30.
+> Test camera: **Nikon Z30** (MTP/PTP). See [USB sync verification notes](docs/nikon/USB_SYNC.md#9-verified-with) for device specifics.
 
 ## License
 

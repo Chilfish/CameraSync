@@ -1,8 +1,7 @@
 # Contributing to CameraSync
 
 Thank you for your interest in contributing! CameraSync is an Android app that syncs photos from
-Nikon cameras to your phone over a USB-C cable, using Android's built-in MTP API. It also carries
-a secondary BLE GPS sync subsystem for Ricoh and Sony cameras inherited from the original project.
+Nikon cameras to your phone over a USB-C cable, using Android's built-in MTP API.
 
 This guide will help you set up your development environment, understand the architecture, and
 submit your first contribution.
@@ -13,8 +12,7 @@ submit your first contribution.
 - [Building & Running](#building--running)
 - [Project Structure](#project-structure)
 - [Architecture](#architecture)
-  - [USB Photo Sync (Primary)](#usb-photo-sync-primary)
-  - [BLE GPS Sync (Secondary / Legacy)](#ble-gps-sync-secondary--legacy)
+  - [USB Photo Sync](#usb-photo-sync)
 - [How to Add Support for a New Nikon Camera Model](#how-to-add-support-for-a-new-nikon-camera-model)
 - [How to Add USB Support for Another Camera Brand](#how-to-add-usb-support-for-another-camera-brand)
 - [Code Style](#code-style)
@@ -65,79 +63,53 @@ No environment variables are required beyond a configured `JAVA_HOME`.
 
 ```mermaid
 flowchart TB
-    subgraph USB["USB Photo Sync (Primary)"]
+    subgraph USB["USB Photo Sync"]
         GalleryScreen["GalleryScreen.kt<br/>3-column grid, folder nav, selection"]
         GalleryVM["GalleryViewModel.kt<br/>USB detection, permission, transfer"]
         NikonUsb["NikonUsbManager.kt<br/>MTP open/close, enumerate, download"]
         PhotoSync["PhotoSyncManager.kt<br/>Dedup via SharedPreferences"]
+        LocalPhotos["LocalPhotosViewModel.kt<br/>Coil 3 + MediaStore"]
         UsbService["UsbSyncService.kt<br/>Foreground service"]
         UsbCoord["UsbSyncCoordinator.kt<br/>Auto-sync lifecycle"]
         UsbPrefs["UsbSyncPreferences.kt<br/>Per-camera preferences"]
     end
 
-    subgraph BLE["BLE GPS Sync (Secondary)"]
-        direction TB
-        Vendors["vendors/<br/>Ricoh, Sony, Nikon BLE impls"]
-        DeviceSync["devicesync/<br/>MultiDeviceSync, Coordinator"]
-        Pairing["pairing/<br/>BLE scan & pair"]
-        DevicesList["devices/<br/>Paired device list & status"]
-    end
-
     subgraph Common["Common Layer"]
-        Nav["NavRoute.kt<br/>Navigation routes"]
-        FW["firmware/<br/>Firmware check & updates"]
-        Feedback["feedback/<br/>Issue reporter"]
+        Nav["NavRoute.kt + MainActivity.kt<br/>Navigation 3 routes"]
         Logging["logging/<br/>Khronicle + log viewer"]
-        Widget["widget/<br/>Sync toggle widget"]
-    end
-
-    subgraph Data["Data Layer"]
-        DataRepo["data/<br/>Repositories (Proto DataStore)"]
-        Domain["domain/<br/>Models, CameraVendor interface"]
+        Settings["settings/<br/>Settings screen"]
     end
 
     subgraph DI["Dependency Injection"]
-        AppGraph["AppGraph.kt — Metro compile-time DI"]
+        AppGraph["di/AppGraph.kt — Metro compile-time DI"]
     end
 
     USB --> Common
-    BLE --> Common
-    Common --> Data
-    Data --> DI
+    Common --> DI
 ```
 
 ### Source Tree
 
 ```
 app/src/main/kotlin/dev/sebastiano/camerasync/
-├── usb/                        # USB photo sync (Nikon)
+├── usb/                        # USB photo sync (Nikon) — the only feature path
 │   ├── GalleryScreen.kt        # Primary UI — grid, folders, selection bar
-│   ├── GalleryViewModel.kt     # Connection state machine, transfer logic
+│   ├── GalleryViewModel.kt     # Connection state machine (GalleryState), transfer logic
 │   ├── NikonUsbManager.kt      # MTP device operations & photo enumeration
 │   ├── PhotoSyncManager.kt     # Import deduplication (SharedPreferences)
+│   ├── LocalPhotosViewModel.kt # Local photo browsing via Coil 3 + MediaStore
+│   ├── PhotoDetailSheet.kt     # Photo preview / detail bottom sheet
+│   ├── TransferHistoryScreen.kt# Import history UI
 │   ├── UsbSyncService.kt       # Foreground service for background sync
 │   ├── UsbSyncCoordinator.kt   # Auto-sync lifecycle & hot-plug detection
 │   └── UsbSyncPreferences.kt   # Per-camera USB sync preferences
-├── vendors/                    # BLE vendor implementations
-│   ├── ricoh/                  # Ricoh GR series (GPS + time sync)
-│   ├── sony/                   # Sony Alpha series (GPS + time sync)
-│   └── nikon/                  # Nikon BLE device recognition only
-├── devicesync/                 # BLE multi-device sync coordination
-├── devices/                    # Paired devices list UI & ViewModel
-├── pairing/                    # BLE scanning & pairing UI
-├── domain/                     # Shared domain models & vendor interfaces
-├── data/                       # Proto DataStore repositories
-├── di/                         # Metro DI graph & ViewModel factory
+├── di/                         # Metro DI graph (AppGraph) & ViewModel factory
+├── logging/                    # Khronicle log engine & log viewer (LogViewer*)
+├── settings/                   # Settings screen
 ├── ui/theme/                   # Material 3 theme (Color, Type, Theme)
-├── firmware/                   # Firmware update checker & WorkManager
-├── feedback/                   # In-app issue reporter
-├── logging/                    # Khronicle log engine & log viewer
-├── widget/                     # Home screen sync toggle widget
-├── work/                       # WorkManager workers
-├── MainActivity.kt             # Single-activity entry point
-├── CameraSyncApp.kt            # Application class
-├── NavRoute.kt                 # Navigation route definitions
-└── *.kt                        # Permissions, BLE extensions
+├── MainActivity.kt             # Single-activity entry point + Navigation 3 NavDisplay
+├── CameraSyncApp.kt            # Application class (holds AppGraph)
+└── NavRoute.kt                 # @Serializable navigation routes
 
 app/src/main/res/
 ├── xml/nikon_usb_device_filter.xml  # USB device filter (Nikon VID 0x04B0)
@@ -146,7 +118,7 @@ app/src/main/res/
 
 ## Architecture
 
-### USB Photo Sync (Primary)
+### USB Photo Sync
 
 The USB photo sync feature relies entirely on Android's built-in `android.mtp.MtpDevice` API —
 **no protocol reverse-engineering is required**. The camera presents itself as a standard MTP/PTP
@@ -224,28 +196,9 @@ one card per capture, with a badge indicating RAW availability.
 `UsbSyncCoordinator` contains the reusable sync logic. It's used by both `UsbSyncService`
 (background) and can be invoked directly by the foreground UI for manual sync.
 
-### BLE GPS Sync (Secondary / Legacy)
-
-The BLE subsystem uses a **Strategy Pattern** to support multiple camera vendors through
-a common abstraction layer. It handles GPS location and date/time synchronization over
-Bluetooth Low Energy.
-
-#### Key Components
-
-| Component | Path | Purpose |
-|---|---|---|
-| `CameraVendor` | `domain/vendor/CameraVendor.kt` | Strategy interface: GATT spec, protocol, device recognition |
-| `CameraVendorRegistry` | `domain/vendor/CameraVendorRegistry.kt` | Registry of all supported vendors, scan filter aggregation |
-| `VendorConnectionDelegate` | `domain/vendor/VendorConnectionDelegate.kt` | Encapsulates connection/sync lifecycle per vendor |
-| `MultiDeviceSyncCoordinator` | `devicesync/MultiDeviceSyncCoordinator.kt` | Core sync logic, vendor-agnostic |
-| `MultiDeviceSyncService` | `devicesync/MultiDeviceSyncService.kt` | Long-running foreground service for BLE sync |
-
-#### Supported Vendors
-
-- **Ricoh** — `vendors/ricoh/` — GR III, GR IIIx (tested). GPS + time sync.
-- **Sony** — `vendors/sony/` — Alpha series (ILCE-7M4, etc.). GPS + time sync with DD30/DD31 locking handshake.
-- **Nikon** — `vendors/nikon/` — BLE advertisement recognition only. Does not perform GPS sync.
-  The actual Nikon photo sync goes through USB/MTP.
+> The BLE GPS sync subsystem (Ricoh/Sony) was **removed in 2026-08-02** (commit `a385378`).
+> USB/MTP photo sync is now the only feature path; BLE protocol docs remain in
+> `docs/ricoh/` and `docs/sony/` for historical reference.
 
 ## How to Add Support for a New Nikon Camera Model
 
@@ -328,8 +281,8 @@ Add the new brand's supported models to `README.md`.
   `android.util.Log` directly.
 - **UI strings** — All user-facing strings are in Chinese (`res/values/strings.xml`). Use the
   `stringResource()` composable or `context.getString()` for text displayed in the UI.
-- **Coroutines** — Inject dispatchers into ViewModels and coordinators (see AGENTS.md for the
-  pattern). This makes tests deterministic with `runTest` and `UnconfinedTestDispatcher`.
+- **Coroutines** — Inject dispatchers into ViewModels and coordinators (see [CLAUDE.md](CLAUDE.md) and
+  `docs/engineering/code-style.md` for the pattern). This makes tests deterministic with `runTest` and `UnconfinedTestDispatcher`.
 - **State management** — Use `mutableStateOf` for Compose UI state, `MutableStateFlow` for
   service-level state. SnapshotStateList (`mutableStateListOf`) for reactive lists that
   trigger recomposition.
@@ -357,8 +310,8 @@ USB MTP integration testing requires a physical Nikon camera:
 6. Check logcat for any warnings or errors: `adb logcat | grep -E "NikonUsbManager|GalleryVM|UsbSync"`
 
 ### Test Device
-Primary development and testing device: **Pixel 9** running **Android 15** with a **Nikon Z30**
-camera.
+Test camera: **Nikon Z30** (MTP/PTP). See [USB sync verification notes](docs/nikon/USB_SYNC.md#9-verified-with)
+for verified device specifics.
 
 ## Commit Conventions
 

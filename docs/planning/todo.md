@@ -1,6 +1,6 @@
 # CameraSync — 当前状态 & 未来规划
 
-> 最后更新: 2026-08-02 | 分支: `master`
+> 最后更新: 2026-08-09 | 分支: `master`
 
 ---
 
@@ -73,6 +73,25 @@
 
 ---
 
+## 下一步行动计划
+
+### P0 — 修复 CI 门禁（ktfmtCheck 红色）
+
+`bcb7bee perf(usb)` 提交前未运行 `ktfmtFormat`，8 个源文件未格式化，CI `ktfmtCheck` 失败（预存于本次 docs 改造之前）。
+
+- 修复：本地跑 `./gradlew ktfmtFormat` 后单独提交 `style: apply ktfmtFormat`
+- 只改格式，不动逻辑
+
+### P1 — 确认测试设备（需人工确认）
+
+测试设备三处说法矛盾：`docs/nikon/USB_SYNC.md` §9 为 **Xiaomi (MIUI / Android 14)**；README/CONTRIBUTING/历史文档为 **Pixel 9 + Android 15**。已按权威参考统一断言到 `USB_SYNC.md`，需确认当前实际设备后回填。
+
+### P2 — 偿还 detekt baseline 债务
+
+detekt 首次启用时以 `detekt-baseline.xml` 吸收 **44 个存量违规**（9h30m 技术债）。应逐步修复后从 baseline 移除对应条目，最终归零。
+
+---
+
 ## 技术栈
 
 | 组件 | 版本/选择 |
@@ -85,7 +104,7 @@
 | 持久化 | SharedPreferences (USB prefs + dedup) |
 | 构建 | Gradle Kotlin DSL + version catalog |
 | 最低 SDK | API 33 (Android 13) |
-| 测试设备 | Pixel 9 + Android 15 + Nikon Z30 |
+| 测试设备 | Nikon Z30 (见 [USB_SYNC.md](../nikon/USB_SYNC.md#9-verified-with) 已验证设备) |
 
 ---
 
@@ -117,7 +136,12 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 ## 已知问题
 
-**0 个已知问题。** 最后修复于 2026-08-02 (PhotoCell EXIF 竖构图).
+| 严重度 | 问题 | 状态 |
+|---|---|---|
+| P0 | CI `ktfmtCheck` 失败（`bcb7bee` 引入，8 文件未格式化） | 待修复（见 [下一步行动计划](#下一步行动计划)） |
+| P2 | detekt baseline 技术债 44 条（9h30m） | 已由 baseline 吸收，逐步偿还 |
+
+> 应用功能层面：0 个已知问题。最后功能修复于 2026-08-02 (PhotoCell EXIF 竖构图)。
 
 ---
 
