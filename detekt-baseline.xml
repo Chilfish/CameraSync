@@ -1,0 +1,40 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:GalleryScreen.kt$folders.isEmpty() &amp;&amp; groups.isEmpty() &amp;&amp; !isRefreshing &amp;&amp; !isBrowsingFolder</ID>
+    <ID>ComplexCondition:GalleryScreen.kt$rawAspect &gt; 1f &amp;&amp; thumbW &gt; 0 &amp;&amp; thumbH &gt; 0 &amp;&amp; thumbW &lt; thumbH</ID>
+    <ID>ExpressionBodySyntax:MetroAppComponentFactory.kt$MetroAppComponentFactory$return super.instantiateService(cl, className, intent)</ID>
+    <ID>ExpressionBodySyntax:PhotoSyncManager.kt$PhotoSyncManager$return prefs.getBoolean(key(storageId, handle), false)</ID>
+    <ID>FunctionOnlyReturningConstant:NikonUsbManager.kt$NikonUsbManager$fun getBatteryLevel(mtpDevice: MtpDevice): Int?</ID>
+    <ID>InvalidPackageDeclaration:LocalPhotosViewModelTest.kt$package io.github.chilfish.camerasync.usb</ID>
+    <ID>LargeClass:GalleryViewModel.kt$GalleryViewModel</ID>
+    <ID>MatchingDeclarationName:TransferHistoryScreen.kt$TransferRecord</ID>
+    <ID>NestedBlockDepth:GalleryScreen.kt$internal fun extractExifFromInterface(exif: ExifInterface?): List&lt;Pair&lt;String, String?&gt;&gt;</ID>
+    <ID>NestedBlockDepth:PhotoDetailSheet.kt$internal fun extractExif(fileBytes: ByteArray?): List&lt;Pair&lt;String, String?&gt;&gt;</ID>
+    <ID>NestedBlockDepth:UsbSyncCoordinator.kt$UsbSyncCoordinator$suspend fun syncOnce(): SyncResult</ID>
+    <ID>SwallowedException:GalleryViewModel.kt$GalleryViewModel$e: Exception</ID>
+    <ID>SwallowedException:UsbSyncService.kt$UsbSyncService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GalleryViewModel.kt$GalleryViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LocalPhotosViewModel.kt$LocalPhotosViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:NikonUsbManager.kt$NikonUsbManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:UsbSyncCoordinator.kt$UsbSyncCoordinator$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:UsbSyncService.kt$UsbSyncService$e: Exception</ID>
+    <ID>UnusedImports:GalleryScreen.kt$import android.net.Uri</ID>
+    <ID>UnusedImports:GalleryScreen.kt$import android.provider.Settings</ID>
+    <ID>UnusedImports:GalleryScreen.kt$import java.io.ByteArrayOutputStream</ID>
+    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.foundation.gestures.Orientation</ID>
+    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.geometry.Offset</ID>
+    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.geometry.Size</ID>
+    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.graphics.drawscope.ContentDrawScope</ID>
+    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.node.DelegatableNode</ID>
+    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.node.DrawModifierNode</ID>
+    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.unit.Dp</ID>
+    <ID>UnusedParameter:NikonUsbManager.kt$NikonUsbManager$mtpDevice: MtpDevice</ID>
+    <ID>UnusedParameter:SettingsScreen.kt$onNavigateToOnboarding: () -&gt; Unit</ID>
+    <ID>UnusedPrivateProperty:GalleryScreen.kt$val totalSelected = viewModel.selectedCount</ID>
+    <ID>UnusedPrivateProperty:GalleryViewModel.kt$GalleryViewModel$val gen = filterCacheGeneration // local snapshot to avoid TOCTOU</ID>
+    <ID>UnusedPrivateProperty:LocalPhotosViewModel.kt$LocalPhotosViewModel$/** The base directory: Pictures/CameraSync */ private val baseDir = File( Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "CameraSync", ).absolutePath + "/"</ID>
+    <ID>UnusedPrivateProperty:UsbSyncCoordinator.kt$UsbSyncCoordinator$scope: CoroutineScope</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -86,6 +86,7 @@ kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_11) } }
 detekt {
     config.setFrom(files("${project.rootDir}/detekt.yml"))
     buildUponDefaultConfig = true
+    baseline = file("${project.rootDir}/detekt-baseline.xml")
 }
 
 dependencies {

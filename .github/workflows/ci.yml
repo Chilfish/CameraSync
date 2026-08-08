@@ -26,6 +26,9 @@ jobs:
       - name: ktfmt check
         run: ./gradlew ktfmtCheck
 
+      - name: Detekt
+        run: ./gradlew detekt
+
       - name: Lint
         run: ./gradlew lintDebug
 

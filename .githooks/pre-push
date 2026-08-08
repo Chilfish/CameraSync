@@ -1,0 +1,45 @@
+#!/bin/bash
+# Pre-push hook for CameraSync
+# Runs build verification before pushing.
+# Install: git config core.hooksPath .githooks
+#
+# Note: This hook requires Android SDK. It is skipped if no local.properties
+# or ANDROID_HOME is found (e.g. on CI or machines without Android SDK).
+# CI handles its own checks.
+
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Check if Android SDK is available
+if [ ! -f local.properties ] && [ -z "$ANDROID_HOME" ]; then
+    echo -e "${YELLOW}Android SDK not found — skipping pre-push checks (CI will catch issues).${NC}"
+    echo -e "${YELLOW}Set ANDROID_HOME or create local.properties to enable local checks.${NC}"
+    exit 0
+fi
+
+run_step() {
+    local label="$1"
+    shift
+    echo -e "${YELLOW}[pre-push]${NC} $label..."
+    if "$@" > /tmp/pre-push.log 2>&1; then
+        echo -e "  ${GREEN}OK${NC}"
+    else
+        echo -e "  ${RED}FAILED${NC}"
+        echo "---"
+        tail -20 /tmp/pre-push.log
+        exit 1
+    fi
+}
+
+run_step "ktfmt Check"      ./gradlew ktfmtCheck --quiet
+run_step "Detekt"           ./gradlew detekt --quiet
+run_step "Lint"             ./gradlew lintDebug --quiet
+run_step "Unit Tests"       ./gradlew testDebugUnitTest --quiet
+run_step "Assemble Debug"   ./gradlew assembleDebug --quiet
+
+echo ""
+echo -e "${GREEN}All checks passed. Pushing...${NC}"
