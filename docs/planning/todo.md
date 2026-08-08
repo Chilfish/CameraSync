@@ -99,7 +99,7 @@ detekt 首次启用时以 `detekt-baseline.xml` 吸收存量违规（9h30m 技�
 
 ### P3 — 推送 & 验证 CI（待确认）
 
-- [ ] 推送 `0251bf3` + `cd756a8` + `9a54205` + `e873861` 四个 commit 到远程
+- [ ] 推送本地未推送的全部 commit（`git status` 显示，当前领先远程 5 个）到远程
 - [ ] 确认 GitHub CI 状态（`ktfmtCheck` 已绿、`detekt` 已绿，见 P0）
 
 ---
