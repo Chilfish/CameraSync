@@ -77,12 +77,13 @@
 
 > **活跃行动计划（docs-first）**：后续所有开发步骤，一律先更新本段 + `docs/development-log/`，再动工写代码。完成一项勾一项。
 
-### P0 — 修复 CI 门禁（ktfmtCheck 红色）
+### P0 — 修复 CI 门禁（ktfmtCheck 红色） ✅
 
-`bcb7bee perf(usb)` 提交前未运行 `ktfmtFormat`，8 个源文件未格式化，CI `ktfmtCheck` 失败（预存于本次 docs 改造之前）。
+`bcb7bee perf(usb)` 提交前未运行 `ktfmtFormat`，9 个源文件未格式化（8 main + 1 test），CI `ktfmtCheck` 失败（预存于本次 docs 改造之前）。已修复。
 
-- [ ] 修复：本地跑 `./gradlew ktfmtFormat` 后单独提交 `style: apply ktfmtFormat`
-- [ ] 只改格式，不动逻辑
+- [x] 修复：本地跑 `./gradlew ktfmtFormat` 后单独提交 `style: apply ktfmtFormat`（commit `e873861`）
+- [x] 只改格式，不动逻辑（逐文件抽查 diff + `compileDebugKotlin` 编译验证）
+- [x] 同步修复 detekt-baseline：ktfmt 清理 10 条未使用 import，对应 baseline 条目移除；`baseDir` 签名随格式化更新（见 P2）
 
 ### P1 — 确认测试设备（需人工确认）
 
@@ -92,14 +93,14 @@
 
 ### P2 — 偿还 detekt baseline 债务
 
-detekt 首次启用时以 `detekt-baseline.xml` 吸收 **44 个存量违规**（9h30m 技术债）。应逐步修复后从 baseline 移除对应条目，最终归零。
+detekt 首次启用时以 `detekt-baseline.xml` 吸收存量违规（9h30m 技术债）。`ktfmtFormat`（P0）已清理其中 10 条 `UnusedImports`（未使用 import），当前 baseline 剩余 **24 条**。应逐步修复后从 baseline 移除对应条目，最终归零。
 
-- [ ] 逐步修复 44 条违规，同步从 `detekt-baseline.xml` 移除
+- [ ] 逐步修复剩余 24 条违规，同步从 `detekt-baseline.xml` 移除
 
 ### P3 — 推送 & 验证 CI（待确认）
 
-- [ ] 推送 `0251bf3` + `cd756a8` 两个 commit 到远程
-- [ ] 确认 GitHub CI 状态（`ktfmtCheck` 仍红，属 P0 范围，待修复后绿）
+- [ ] 推送 `0251bf3` + `cd756a8` + `9a54205` + `e873861` 四个 commit 到远程
+- [ ] 确认 GitHub CI 状态（`ktfmtCheck` 已绿、`detekt` 已绿，见 P0）
 
 ---
 
@@ -149,8 +150,8 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 | 严重度 | 问题 | 状态 |
 |---|---|---|
-| P0 | CI `ktfmtCheck` 失败（`bcb7bee` 引入，8 文件未格式化） | 待修复（见 [下一步行动计划](#下一步行动计划)） |
-| P2 | detekt baseline 技术债 44 条（9h30m） | 已由 baseline 吸收，逐步偿还 |
+| P0 | CI `ktfmtCheck` 失败（`bcb7bee` 引入，9 文件未格式化） | ✅ 已修复（`e873861`） |
+| P2 | detekt baseline 技术债 24 条（原 34 条，已清理 10 条） | 已由 baseline 吸收，逐步偿还 |
 
 > 应用功能层面：0 个已知问题。最后功能修复于 2026-08-02 (PhotoCell EXIF 竖构图)。
 
@@ -159,6 +160,8 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 ## 最近提交 (2026-08-09)
 
 ```
+e873861 style: apply ktfmtFormat
+9a54205 docs: record pending items in action plan and dev log
 cd756a8 chore: enable detekt gate with baseline and add pre-push hook
 0251bf3 docs: realign agent guidance and docs system to Float
 bcb7bee perf(usb): eliminate blocking thumbnail prefetch, add concurrent preloading
