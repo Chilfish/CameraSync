@@ -116,7 +116,10 @@ sealed interface GalleryEntry {
         val raw: NikonUsbManager.PhotoInfo?,
         val jpg: NikonUsbManager.PhotoInfo?,
     ) : GalleryEntry {
-        /** Handle to use for thumbnail preview — JPEG if available, else RAW. null if group is empty. */
+        /**
+         * Handle to use for thumbnail preview — JPEG if available, else RAW. null if group is
+         * empty.
+         */
         val previewHandle: Int?
             get() = jpg?.handle ?: raw?.handle
 
@@ -259,9 +262,9 @@ class GalleryViewModel(private val app: Application) {
     // ── Decoded bitmap cache ─────────────────────────────────────────────────
 
     /**
-     * LRU cache of decoded [ImageBitmap] instances keyed by MTP handle.
-     * Prevents re-decoding + re-rotation when LazyGrid recycles [PhotoCell] composables.
-     * Cleared on disconnect via [closeMtpAndClear].
+     * LRU cache of decoded [ImageBitmap] instances keyed by MTP handle. Prevents re-decoding +
+     * re-rotation when LazyGrid recycles [PhotoCell] composables. Cleared on disconnect via
+     * [closeMtpAndClear].
      */
     val bitmapCache =
         java.util.Collections.synchronizedMap(
@@ -439,7 +442,8 @@ class GalleryViewModel(private val app: Application) {
                 UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> loadRootByFolder(m)
                 UsbSyncPreferences.PhotoGrouping.BY_DATE ->
                     loadRootProgressive(m) { groups, _ -> buildDateSections(groups) }
-                UsbSyncPreferences.PhotoGrouping.FLAT -> loadRootProgressive(m) { groups, _ -> groups }
+                UsbSyncPreferences.PhotoGrouping.FLAT ->
+                    loadRootProgressive(m) { groups, _ -> groups }
             }
         } catch (e: Exception) {
             Log.error(tag = TAG, throwable = e) { "loadRoot failed: ${e.message}" }
@@ -454,13 +458,13 @@ class GalleryViewModel(private val app: Application) {
 
     /**
      * Progressive loader for BY_DATE and FLAT modes.
-     *
      * 1. Enumerates photos with a progress callback.
      * 2. After 30 photos: uses [populateOrientationsFromDimensions] (instant, no MTP calls) to
-     *    detect portrait/landscape, then transitions to Browsing — the user sees photos immediately.
+     *    detect portrait/landscape, then transitions to Browsing — the user sees photos
+     *    immediately.
      * 3. Remaining photos continue streaming in; [currentPhotos] updates incrementally.
-     * 4. When done: kicks off concurrent [preloadThumbnails] in background to discover accurate EXIF
-     *    orientations (does not block the UI — the grid already has correct aspect ratios from
+     * 4. When done: kicks off concurrent [preloadThumbnails] in background to discover accurate
+     *    EXIF orientations (does not block the UI — the grid already has correct aspect ratios from
      *    dimensions).
      */
     private suspend fun loadRootProgressive(
@@ -517,9 +521,8 @@ class GalleryViewModel(private val app: Application) {
         } else {
             // Just update the entries list on the existing Browsing state without
             // creating a new state object that would trigger a full recomposition.
-            _state.value = (state.value as GalleryState.Browsing).let { old ->
-                old.copy(entries = entries)
-            }
+            _state.value =
+                (state.value as GalleryState.Browsing).let { old -> old.copy(entries = entries) }
         }
         preloadThumbnails(groups.size.coerceAtMost(50))
     }
@@ -617,10 +620,10 @@ class GalleryViewModel(private val app: Application) {
     }
 
     /**
-     * Populates [orientationCache] from [MtpObjectInfo] dimensions and, for the first
-     * [count] handles without a cached orientation, fetches their MTP thumbnail to extract
-     * EXIF orientation. Does NOT block the caller — launches a background coroutine for
-     * thumbnail fetching.
+     * Populates [orientationCache] from [MtpObjectInfo] dimensions and, for the first [count]
+     * handles without a cached orientation, fetches their MTP thumbnail to extract EXIF
+     * orientation. Does NOT block the caller — launches a background coroutine for thumbnail
+     * fetching.
      *
      * Call this AFTER entering Browsing state so the user sees the grid immediately.
      */
@@ -634,9 +637,9 @@ class GalleryViewModel(private val app: Application) {
     /**
      * Background thumbnail preloader with concurrent MTP calls.
      *
-     * Uses [mtpSemaphore] (max 3 concurrent MTP operations) to avoid USB bandwidth contention
-     * while loading thumbnails faster than serial. Orientation is extracted as a side effect
-     * of each [getThumbnail] call.
+     * Uses [mtpSemaphore] (max 3 concurrent MTP operations) to avoid USB bandwidth contention while
+     * loading thumbnails faster than serial. Orientation is extracted as a side effect of each
+     * [getThumbnail] call.
      */
     fun preloadThumbnails(count: Int = 30) {
         val handles = currentPhotos.take(count).mapNotNull { it.previewHandle }
@@ -646,9 +649,7 @@ class GalleryViewModel(private val app: Application) {
                     handles.map { h ->
                         async {
                             if (!currentCoroutineContext().isActive) return@async
-                            mtpSemaphore.withPermit {
-                                getThumbnail(h)
-                            }
+                            mtpSemaphore.withPermit { getThumbnail(h) }
                         }
                     }
                 }
@@ -827,7 +828,8 @@ class GalleryViewModel(private val app: Application) {
 
     fun getFilteredGroups(): List<GalleryEntry.PhotoGroup> {
         // Return cached result when nothing changed — avoids re-filtering on every recomposition.
-        // The cache is invalidated when filter, sort, or currentPhotos change (via filterCacheGeneration).
+        // The cache is invalidated when filter, sort, or currentPhotos change (via
+        // filterCacheGeneration).
         val gen = filterCacheGeneration // local snapshot to avoid TOCTOU
         return cachedFilteredGroups
     }
@@ -1076,14 +1078,18 @@ class GalleryViewModel(private val app: Application) {
                 val base = p.name.substringBeforeLast(".")
                 map.getOrPut(base) { mutableListOf() }.add(p)
             }
-            return map
-                .map { (base, list) ->
+            return map.map { (base, list) ->
                     GalleryEntry.PhotoGroup(
                         baseName = base,
-                        raw = list.find { it.formatName == "NEF(RAW)" || it.name.endsWith(".NEF", true) },
-                        jpg = list.find {
-                            it.formatName in setOf("JPEG", "EXIF_JPEG") || it.name.endsWith(".JPG", true)
-                        },
+                        raw =
+                            list.find {
+                                it.formatName == "NEF(RAW)" || it.name.endsWith(".NEF", true)
+                            },
+                        jpg =
+                            list.find {
+                                it.formatName in setOf("JPEG", "EXIF_JPEG") ||
+                                    it.name.endsWith(".JPG", true)
+                            },
                     )
                 }
                 // Filter out groups with no recognizable photo format (videos, system files, etc.)

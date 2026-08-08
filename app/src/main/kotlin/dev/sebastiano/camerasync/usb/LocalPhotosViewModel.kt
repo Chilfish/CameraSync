@@ -45,11 +45,7 @@ data class LocalPhotoGroup(
 )
 
 /** A folder/directory containing photos, for the directory browser view. */
-data class LocalFolder(
-    val name: String,
-    val relativePath: String,
-    val photoCount: Int,
-)
+data class LocalFolder(val name: String, val relativePath: String, val photoCount: Int)
 
 // ── ViewModel ────────────────────────────────────────────────────────────────
 
@@ -63,7 +59,8 @@ class LocalPhotosViewModel(
         private set
 
     /** Whether we're showing the folder list (true) or photo grid (false). */
-    val isBrowsingFolder: Boolean get() = currentPath != null
+    val isBrowsingFolder: Boolean
+        get() = currentPath != null
 
     /** List of sub-folders at current level. */
     var folders by mutableStateOf<List<LocalFolder>>(emptyList())
@@ -87,13 +84,14 @@ class LocalPhotosViewModel(
     /** The base directory: Pictures/CameraSync */
     private val baseDir =
         File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-            "CameraSync",
-        ).absolutePath + "/"
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                "CameraSync",
+            )
+            .absolutePath + "/"
 
     /**
-     * Load the root view: folders at Pictures/CameraSync + photos at root level.
-     * Called on initial enter and pull-to-refresh.
+     * Load the root view: folders at Pictures/CameraSync + photos at root level. Called on initial
+     * enter and pull-to-refresh.
      */
     fun loadRoot() {
         scope.launch {
@@ -168,16 +166,14 @@ class LocalPhotosViewModel(
     // ── MediaStore Queries ────────────────────────────────────────────────────
 
     /**
-     * Queries MediaStore for sub-directories under [parentPath].
-     * Uses DISTINCT on RELATIVE_PATH to get unique folder names.
+     * Queries MediaStore for sub-directories under [parentPath]. Uses DISTINCT on RELATIVE_PATH to
+     * get unique folder names.
      *
      * @param parentPath null = root Pictures/CameraSync
      * @return sorted list of folders (alphabetically by name)
      */
     private fun queryFolders(parentPath: String?): List<LocalFolder> {
-        val likePattern =
-            if (parentPath == null) "Pictures/CameraSync/%"
-            else "${parentPath}%"
+        val likePattern = if (parentPath == null) "Pictures/CameraSync/%" else "${parentPath}%"
 
         // Query 1: Images
         val imageFolders = mutableSetOf<String>()
@@ -241,9 +237,9 @@ class LocalPhotosViewModel(
     }
 
     /**
-     * Given a full RELATIVE_PATH like "Pictures/CameraSync/Nikon Z30/DSC_0001.JPG"
-     * and a parent like "Pictures/CameraSync/", returns the immediate child folder:
-     * "Pictures/CameraSync/Nikon Z30/".
+     * Given a full RELATIVE_PATH like "Pictures/CameraSync/Nikon Z30/DSC_0001.JPG" and a parent
+     * like "Pictures/CameraSync/", returns the immediate child folder: "Pictures/CameraSync/Nikon
+     * Z30/".
      *
      * Returns null if the path points to a file directly in the parent.
      */
@@ -265,9 +261,7 @@ class LocalPhotosViewModel(
     private fun queryPhotos(parentPath: String?): List<LocalPhotoGroup> {
         val files = mutableSetOf<LocalPhoto>()
 
-        val pathClause =
-            if (parentPath == null) "Pictures/CameraSync/"
-            else parentPath
+        val pathClause = if (parentPath == null) "Pictures/CameraSync/" else parentPath
 
         // Query 1: MediaStore.Images for JPEG
         try {
@@ -302,10 +296,7 @@ class LocalPhotosViewModel(
 
     // ── Cursor Parsing ────────────────────────────────────────────────────────
 
-    private fun readPhotoCursor(
-        cursor: android.database.Cursor,
-        isRaw: Boolean,
-    ): List<LocalPhoto> {
+    private fun readPhotoCursor(cursor: android.database.Cursor, isRaw: Boolean): List<LocalPhoto> {
         val results = mutableListOf<LocalPhoto>()
         val idCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
         val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
@@ -338,10 +329,8 @@ class LocalPhotosViewModel(
         val results = mutableListOf<LocalPhoto>()
         val idCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
         val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-        val nameCol =
-            cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-        val dateCol =
-            cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+        val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+        val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
         val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
         while (cursor.moveToNext()) {
             val data = cursor.getString(dataCol) ?: continue
@@ -373,21 +362,23 @@ class LocalPhotosViewModel(
             val base = p.file.nameWithoutExtension.uppercase()
             map.getOrPut(base) { mutableListOf() }.add(p)
         }
-        return map.values.map { list ->
-            val jpg = list.firstOrNull { !it.isRaw }
-            val raw = list.firstOrNull { it.isRaw }
-            val displayFile = jpg?.file ?: raw?.file ?: list.first().file
-            LocalPhotoGroup(
-                baseName =
-                    list.first().name.let { it.substringBeforeLast(".").replace("_", " ") },
-                jpg = jpg,
-                raw = raw,
-                cacheKey = displayFile.absolutePath.hashCode(),
-                displayFile = displayFile,
-            )
-        }.sortedByDescending { group ->
-            maxOf(group.jpg?.dateModified ?: 0L, group.raw?.dateModified ?: 0L)
-        }
+        return map.values
+            .map { list ->
+                val jpg = list.firstOrNull { !it.isRaw }
+                val raw = list.firstOrNull { it.isRaw }
+                val displayFile = jpg?.file ?: raw?.file ?: list.first().file
+                LocalPhotoGroup(
+                    baseName =
+                        list.first().name.let { it.substringBeforeLast(".").replace("_", " ") },
+                    jpg = jpg,
+                    raw = raw,
+                    cacheKey = displayFile.absolutePath.hashCode(),
+                    displayFile = displayFile,
+                )
+            }
+            .sortedByDescending { group ->
+                maxOf(group.jpg?.dateModified ?: 0L, group.raw?.dateModified ?: 0L)
+            }
     }
 
     // ── Projection Constants ──────────────────────────────────────────────────

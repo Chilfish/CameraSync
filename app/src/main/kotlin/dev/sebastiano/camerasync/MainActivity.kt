@@ -42,18 +42,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        setContent {
-            RootComposable(
-                viewModelFactory = appGraph.viewModelFactory(),
-            )
-        }
+        setContent { RootComposable(viewModelFactory = appGraph.viewModelFactory()) }
     }
 }
 
 @Composable
-private fun RootComposable(
-    viewModelFactory: ViewModelProvider.Factory,
-) {
+private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
     val ctx = LocalContext.current
     val prefs = remember { UsbSyncPreferences(ctx) }
     val themeMode = prefs.getThemeMode()

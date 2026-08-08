@@ -67,14 +67,15 @@ class LocalPhotosViewModelTest {
     fun `LocalPhoto holds file uri name dateModified size and isRaw flag`() {
         val file = java.io.File("/pictures/CameraSync/DSC_0001.JPG")
         val uri = Uri.parse("content://media/external/images/media/1")
-        val photo = LocalPhoto(
-            file = file,
-            uri = uri,
-            name = "DSC_0001.JPG",
-            dateModified = 1000L,
-            size = 5_000_000L,
-            isRaw = false,
-        )
+        val photo =
+            LocalPhoto(
+                file = file,
+                uri = uri,
+                name = "DSC_0001.JPG",
+                dateModified = 1000L,
+                size = 5_000_000L,
+                isRaw = false,
+            )
         assertEquals("DSC_0001.JPG", photo.name)
         assertEquals(5_000_000L, photo.size)
         assertFalse(photo.isRaw)
@@ -150,11 +151,12 @@ class LocalPhotosViewModelTest {
                 any(),
                 any(),
             )
-        } answers {
-            // Return image cursor on first call (photos), empty on second call (folders)
-            if (firstArg<String>() == "Pictures/CameraSync/") imageCursor
-            else MatrixCursor(arrayOf(MediaStore.Images.Media.RELATIVE_PATH))
-        }
+        } answers
+            {
+                // Return image cursor on first call (photos), empty on second call (folders)
+                if (firstArg<String>() == "Pictures/CameraSync/") imageCursor
+                else MatrixCursor(arrayOf(MediaStore.Images.Media.RELATIVE_PATH))
+            }
 
         val filesCursor = createNefCursor()
         every {

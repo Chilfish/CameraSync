@@ -372,8 +372,8 @@ class NikonUsbManager(private val usbManager: UsbManager) {
  * Safely reads [MtpObjectInfo.compressedSize], returning 0 if the field is unavailable.
  *
  * Android's [MtpObjectInfo.getCompressedSize] throws [IllegalStateException] when the MTP driver
- * does not set this field (observed on some Nikon NEF/TIFF files). We catch and return 0 since
- * file size is only used for display/progress estimation — the actual transfer doesn't need it.
+ * does not set this field (observed on some Nikon NEF/TIFF files). We catch and return 0 since file
+ * size is only used for display/progress estimation — the actual transfer doesn't need it.
  */
 private fun safeCompressedSize(info: MtpObjectInfo): Long =
     try {

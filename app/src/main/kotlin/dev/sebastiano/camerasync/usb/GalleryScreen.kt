@@ -5,8 +5,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
-import android.net.Uri
-import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -89,7 +87,6 @@ import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import dev.sebastiano.camerasync.R
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -687,8 +684,8 @@ private fun FolderRow(folder: GalleryEntry.Folder, onClick: () -> Unit) {
 /**
  * Loads and displays an MTP thumbnail for [handle].
  *
- * Uses [bitmapCache] (in ViewModel) to avoid re-decoding + re-rotating when LazyGrid
- * recycles cells. Falls back to [getThumbnail] + [BitmapFactory] for cache misses.
+ * Uses [bitmapCache] (in ViewModel) to avoid re-decoding + re-rotating when LazyGrid recycles
+ * cells. Falls back to [getThumbnail] + [BitmapFactory] for cache misses.
  */
 @Composable
 private fun ThumbnailImage(
@@ -728,8 +725,7 @@ private fun ThumbnailImage(
             fallback == null ||
                 when (fallback) {
                     ExifInterface.ORIENTATION_ROTATE_90,
-                    ExifInterface.ORIENTATION_ROTATE_270 ->
-                        raw.width > raw.height
+                    ExifInterface.ORIENTATION_ROTATE_270 -> raw.width > raw.height
                     else -> true
                 }
 
@@ -1512,31 +1508,29 @@ private fun CameraTabContent(
         // Inline error banner — overlays on top instead of replacing the screen
         viewModel.errorBanner?.let { msg ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         painterResource(R.drawable.ic_error_24dp),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp),
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        msg,
-                        fontSize = 13.sp,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 3
-                    )
+                    Text(msg, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 3)
                     IconButton(
                         onClick = { viewModel.clearErrorBanner() },
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(24.dp),
                     ) {
                         Icon(
                             painterResource(R.drawable.ic_close_24dp),
                             contentDescription = "关闭",
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                 }
@@ -1551,7 +1545,8 @@ private fun CameraTabContent(
                 if (!inFolder) ConnectingContent()
             }
             is GalleryState.Loading -> LoadingContent(s)
-            is GalleryState.Browsing -> BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
+            is GalleryState.Browsing ->
+                BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
             is GalleryState.Empty -> EmptyCameraContent()
             is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
             is GalleryState.Transferring -> TransferringContent(s)
@@ -1618,10 +1613,7 @@ private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
                 )
             }
         } else {
-            PullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = { localVm.refresh() },
-            ) {
+            PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = { localVm.refresh() }) {
                 LazyVerticalStaggeredGrid(
                     columns = StaggeredGridCells.Fixed(gridColumns),
                     contentPadding = PaddingValues(bottom = 80.dp),
@@ -1644,10 +1636,7 @@ private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
 
                     // ── Photo grid ──
                     items(groups, key = { it.cacheKey }) { group ->
-                        LocalPhotoCell(
-                            group = group,
-                            onClick = { detailGroup = group },
-                        )
+                        LocalPhotoCell(group = group, onClick = { detailGroup = group })
                     }
                 }
             }
@@ -1662,16 +1651,9 @@ private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
 
 /** Breadcrumb bar showing current folder path with back button. */
 @Composable
-private fun LocalBreadcrumb(
-    currentPath: String,
-    onBack: () -> Unit,
-    onRefresh: () -> Unit,
-) {
+private fun LocalBreadcrumb(currentPath: String, onBack: () -> Unit, onRefresh: () -> Unit) {
     val displayPath =
-        currentPath
-            .trimEnd('/')
-            .removePrefix("Pictures/CameraSync/")
-            .ifEmpty { "CameraSync" }
+        currentPath.trimEnd('/').removePrefix("Pictures/CameraSync/").ifEmpty { "CameraSync" }
 
     Row(
         modifier =
@@ -1701,10 +1683,7 @@ private fun LocalBreadcrumb(
 @Composable
 private fun LocalFolderCell(folder: LocalFolder, onClick: () -> Unit) {
     Card(
-        modifier =
-            Modifier.fillMaxWidth()
-                .padding(4.dp)
-                .combinedClickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().padding(4.dp).combinedClickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
@@ -1731,21 +1710,17 @@ private fun LocalFolderCell(folder: LocalFolder, onClick: () -> Unit) {
 }
 
 /**
- * Photo cell powered by Coil [AsyncImage]. Replaces the old hand-rolled
- * [BitmapFactory] approach.
+ * Photo cell powered by Coil [AsyncImage]. Replaces the old hand-rolled [BitmapFactory] approach.
  *
  * Key improvements:
- * - Coil handles decoding, downsampling, memory cache, and EXIF orientation
- *   automatically (via [ExifInterface] built into its decoder).
- * - [AsyncImage] is lifecycle-aware via [LazyVerticalStaggeredGrid] —
- *   requests are cancelled when scrolled off-screen.
+ * - Coil handles decoding, downsampling, memory cache, and EXIF orientation automatically (via
+ *   [ExifInterface] built into its decoder).
+ * - [AsyncImage] is lifecycle-aware via [LazyVerticalStaggeredGrid] — requests are cancelled when
+ *   scrolled off-screen.
  * - Fallback to grey placeholder on decode failure (e.g., corrupted NEF preview).
  */
 @Composable
-private fun LocalPhotoCell(
-    group: LocalPhotoGroup,
-    onClick: () -> Unit,
-) {
+private fun LocalPhotoCell(group: LocalPhotoGroup, onClick: () -> Unit) {
     val file = group.displayFile
 
     Box(
@@ -1756,27 +1731,19 @@ private fun LocalPhotoCell(
                 .combinedClickable(onClick = onClick)
     ) {
         AsyncImage(
-            model =
-                ImageRequest.Builder(LocalContext.current)
-                    .data(file)
-                    .size(360)
-                    .build(),
+            model = ImageRequest.Builder(LocalContext.current).data(file).size(360).build(),
             contentDescription = group.baseName,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
             // Show a subdued placeholder while loading or on error
-            placeholder = rememberAsyncImagePainter(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(file)
-                    .size(60)
-                    .build()
-            ),
-            error = rememberAsyncImagePainter(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(file)
-                    .size(60)
-                    .build()
-            ),
+            placeholder =
+                rememberAsyncImagePainter(
+                    model = ImageRequest.Builder(LocalContext.current).data(file).size(60).build()
+                ),
+            error =
+                rememberAsyncImagePainter(
+                    model = ImageRequest.Builder(LocalContext.current).data(file).size(60).build()
+                ),
         )
 
         // RAW badge
@@ -1788,12 +1755,7 @@ private fun LocalPhotoCell(
                         .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
                         .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
-                Text(
-                    "RAW",
-                    fontSize = 10.sp,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                )
+                Text("RAW", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -1802,15 +1764,12 @@ private fun LocalPhotoCell(
 // ── Local Photo Detail ──────────────────────────────────────────────────────
 
 /**
- * Detail bottom sheet for a local photo. Uses Coil [AsyncImage] for the
- * full-resolution preview and [ExifInterface] (path-based, no full read) for metadata.
+ * Detail bottom sheet for a local photo. Uses Coil [AsyncImage] for the full-resolution preview and
+ * [ExifInterface] (path-based, no full read) for metadata.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LocalPhotoDetail(
-    group: LocalPhotoGroup,
-    onDismiss: () -> Unit,
-) {
+private fun LocalPhotoDetail(group: LocalPhotoGroup, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val file = group.jpg?.file ?: group.raw?.file ?: return
 
@@ -1846,9 +1805,7 @@ private fun LocalPhotoDetail(
                 AsyncImage(
                     model = file,
                     contentDescription = group.baseName,
-                    modifier =
-                        Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp)),
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Fit,
                 )
 

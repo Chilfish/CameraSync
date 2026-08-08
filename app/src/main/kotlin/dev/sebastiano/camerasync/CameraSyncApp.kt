@@ -9,7 +9,6 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
-import okio.Path.Companion.toOkioPath
 import com.juul.khronicle.ConsoleLogger
 import com.juul.khronicle.Log
 import com.juul.khronicle.Logger
@@ -17,6 +16,7 @@ import dev.sebastiano.camerasync.di.AppGraph
 import dev.sebastiano.camerasync.usb.UsbSyncService
 import dev.zacsweers.metro.createGraphFactory
 import kotlin.getValue
+import okio.Path.Companion.toOkioPath
 
 class CameraSyncApp : Application(), SingletonImageLoader.Factory {
 
@@ -70,10 +70,6 @@ class CameraSyncApp : Application(), SingletonImageLoader.Factory {
                     .maxSizeBytes(50 * 1024 * 1024)
                     .build()
             }
-            .memoryCache {
-                MemoryCache.Builder()
-                    .maxSizePercent(context, 0.10)
-                    .build()
-            }
+            .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.10).build() }
             .build()
 }

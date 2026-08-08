@@ -20,21 +20,11 @@
     <ID>TooGenericExceptionCaught:NikonUsbManager.kt$NikonUsbManager$e: Exception</ID>
     <ID>TooGenericExceptionCaught:UsbSyncCoordinator.kt$UsbSyncCoordinator$e: Exception</ID>
     <ID>TooGenericExceptionCaught:UsbSyncService.kt$UsbSyncService$e: Exception</ID>
-    <ID>UnusedImports:GalleryScreen.kt$import android.net.Uri</ID>
-    <ID>UnusedImports:GalleryScreen.kt$import android.provider.Settings</ID>
-    <ID>UnusedImports:GalleryScreen.kt$import java.io.ByteArrayOutputStream</ID>
-    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.foundation.gestures.Orientation</ID>
-    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.geometry.Offset</ID>
-    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.geometry.Size</ID>
-    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.graphics.drawscope.ContentDrawScope</ID>
-    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.node.DelegatableNode</ID>
-    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.node.DrawModifierNode</ID>
-    <ID>UnusedImports:LogViewerScreen.kt$import androidx.compose.ui.unit.Dp</ID>
     <ID>UnusedParameter:NikonUsbManager.kt$NikonUsbManager$mtpDevice: MtpDevice</ID>
     <ID>UnusedParameter:SettingsScreen.kt$onNavigateToOnboarding: () -&gt; Unit</ID>
     <ID>UnusedPrivateProperty:GalleryScreen.kt$val totalSelected = viewModel.selectedCount</ID>
     <ID>UnusedPrivateProperty:GalleryViewModel.kt$GalleryViewModel$val gen = filterCacheGeneration // local snapshot to avoid TOCTOU</ID>
-    <ID>UnusedPrivateProperty:LocalPhotosViewModel.kt$LocalPhotosViewModel$/** The base directory: Pictures/CameraSync */ private val baseDir = File( Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "CameraSync", ).absolutePath + "/"</ID>
+    <ID>UnusedPrivateProperty:LocalPhotosViewModel.kt$LocalPhotosViewModel$/** The base directory: Pictures/CameraSync */ private val baseDir = File( Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "CameraSync", ) .absolutePath + "/"</ID>
     <ID>UnusedPrivateProperty:UsbSyncCoordinator.kt$UsbSyncCoordinator$scope: CoroutineScope</ID>
   </CurrentIssues>
 </SmellBaseline>

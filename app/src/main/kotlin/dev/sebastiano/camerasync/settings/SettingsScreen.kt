@@ -222,7 +222,6 @@ fun SettingsScreen(
                     Text("→", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-
         }
     }
 }
