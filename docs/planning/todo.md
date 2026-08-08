@@ -75,20 +75,31 @@
 
 ## 下一步行动计划
 
+> **活跃行动计划（docs-first）**：后续所有开发步骤，一律先更新本段 + `docs/development-log/`，再动工写代码。完成一项勾一项。
+
 ### P0 — 修复 CI 门禁（ktfmtCheck 红色）
 
 `bcb7bee perf(usb)` 提交前未运行 `ktfmtFormat`，8 个源文件未格式化，CI `ktfmtCheck` 失败（预存于本次 docs 改造之前）。
 
-- 修复：本地跑 `./gradlew ktfmtFormat` 后单独提交 `style: apply ktfmtFormat`
-- 只改格式，不动逻辑
+- [ ] 修复：本地跑 `./gradlew ktfmtFormat` 后单独提交 `style: apply ktfmtFormat`
+- [ ] 只改格式，不动逻辑
 
 ### P1 — 确认测试设备（需人工确认）
 
 测试设备三处说法矛盾：`docs/nikon/USB_SYNC.md` §9 为 **Xiaomi (MIUI / Android 14)**；README/CONTRIBUTING/历史文档为 **Pixel 9 + Android 15**。已按权威参考统一断言到 `USB_SYNC.md`，需确认当前实际设备后回填。
 
+- [ ] 人工确认当前真机设备 → 统一 `USB_SYNC.md` §9 / README / CONTRIBUTING
+
 ### P2 — 偿还 detekt baseline 债务
 
 detekt 首次启用时以 `detekt-baseline.xml` 吸收 **44 个存量违规**（9h30m 技术债）。应逐步修复后从 baseline 移除对应条目，最终归零。
+
+- [ ] 逐步修复 44 条违规，同步从 `detekt-baseline.xml` 移除
+
+### P3 — 推送 & 验证 CI（待确认）
+
+- [ ] 推送 `0251bf3` + `cd756a8` 两个 commit 到远程
+- [ ] 确认 GitHub CI 状态（`ktfmtCheck` 仍红，属 P0 范围，待修复后绿）
 
 ---
 
@@ -145,12 +156,11 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 ---
 
-## 最近提交 (2026-08-02)
+## 最近提交 (2026-08-09)
 
 ```
-4042515 fix: add kotlinx-atomicfu dependency for Khronicle logger
+cd756a8 chore: enable detekt gate with baseline and add pre-push hook
+0251bf3 docs: realign agent guidance and docs system to Float
+bcb7bee perf(usb): eliminate blocking thumbnail prefetch, add concurrent preloading
 a385378 refactor: remove BLE GPS sync and companion device subsystems
-fcd4f8c refactor: migrate local photos to Coil + fix USB MTP enumeration crashes
-52a550d fix: local photos display — scoped storage, EXIF orientation, preview, refresh
-90cc77b fix: query MediaStore.Files for NEF — Images table excludes RAW
 ```
