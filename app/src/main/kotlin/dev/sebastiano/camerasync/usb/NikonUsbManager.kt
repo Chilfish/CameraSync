@@ -40,9 +40,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
 
     data class PhotoInfo(
         val handle: Int,
-        /**
-         * Storage this photo lives on — part of the dedup key ([DedupKey]).
-         */
+        /** Storage this photo lives on — part of the dedup key ([DedupKey]). */
         val storageId: Int,
         val name: String,
         val size: Long,
@@ -78,6 +76,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
             return null
         }
         mtpDevice = mtp
+        hasActiveSession = true
         Log.info(tag = TAG) { "MtpDevice opened: ${usbDevice.deviceName}" }
         return mtp
     }
@@ -91,6 +90,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         } finally {
             mtpDevice = null
             usbConnection = null
+            hasActiveSession = false
         }
     }
 
@@ -372,6 +372,19 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                 null
             }
         }
+
+    companion object {
+        /**
+         * True while a process-wide MTP session is open (UI browsing or background sync).
+         *
+         * Both the foreground gallery and the background sync pipeline open the camera through
+         * [NikonUsbManager]; the MTP session is single-owner, so the background pipeline skips sync
+         * while this is set.
+         */
+        @Volatile
+        var hasActiveSession: Boolean = false
+            private set
+    }
 }
 
 /**

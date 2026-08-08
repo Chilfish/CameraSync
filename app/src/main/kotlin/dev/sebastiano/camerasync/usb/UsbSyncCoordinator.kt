@@ -60,6 +60,14 @@ class UsbSyncCoordinator(
      */
     suspend fun syncOnce(): SyncResult {
         try {
+            // Only one pipeline may hold the MTP session at a time. If the foreground UI is
+            // browsing, skip background sync rather than opening a second session on the same
+            // camera (MTP is single-owner; concurrent sessions can corrupt transfers).
+            if (NikonUsbManager.hasActiveSession) {
+                Log.info(tag = TAG) { "UI holds the MTP session; skipping background auto-sync" }
+                return SyncResult(0, 0, 0, null)
+            }
+
             // Find the camera
             val device = usbManager.deviceList.values.firstOrNull { it.vendorId == 0x04B0 }
             if (device == null) {
