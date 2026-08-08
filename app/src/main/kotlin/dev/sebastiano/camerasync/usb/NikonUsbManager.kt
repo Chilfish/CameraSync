@@ -40,6 +40,10 @@ class NikonUsbManager(private val usbManager: UsbManager) {
 
     data class PhotoInfo(
         val handle: Int,
+        /**
+         * Storage this photo lives on — part of the dedup key ([DedupKey]).
+         */
+        val storageId: Int,
         val name: String,
         val size: Long,
         val dateModified: Long,
@@ -195,6 +199,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                     photos.add(
                         PhotoInfo(
                             handle = handle,
+                            storageId = storageId,
                             name = info.name,
                             size = safeCompressedSize(info),
                             dateModified = safeDateCreated(info),
@@ -281,6 +286,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                 if (info.format == MtpConstants.FORMAT_ASSOCIATION) return@mapNotNull null
                 PhotoInfo(
                     handle = h,
+                    storageId = storageId,
                     name = info.name,
                     size = safeCompressedSize(info),
                     dateModified = safeDateCreated(info),

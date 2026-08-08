@@ -5,6 +5,13 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 
 /**
+ * Dedup key for an MTP photo: storageId + handle. Both are needed because MTP handles are only
+ * unique within a storage, and the pair is the single source of truth shared by the foreground UI
+ * and the background sync pipeline.
+ */
+data class DedupKey(val storageId: Int, val handle: Int)
+
+/**
  * Tracks which MTP photo handles have already been imported, enabling deduplication across sync
  * sessions.
  *
@@ -17,13 +24,11 @@ class PhotoSyncManager(context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     /** Returns true if the photo has already been imported in a previous session. */
-    fun isAlreadyImported(storageId: Int, handle: Int): Boolean {
-        return prefs.getBoolean(key(storageId, handle), false)
-    }
+    fun isAlreadyImported(dedupKey: DedupKey): Boolean = prefs.getBoolean(key(dedupKey), false)
 
     /** Marks a photo as imported so future syncs skip it. */
-    fun markAsImported(storageId: Int, handle: Int) {
-        prefs.edit { putBoolean(key(storageId, handle), true) }
+    fun markAsImported(dedupKey: DedupKey) {
+        prefs.edit { putBoolean(key(dedupKey), true) }
     }
 
     /** Clears all imported handles (e.g., when camera storage is reformatted). */
@@ -43,7 +48,7 @@ class PhotoSyncManager(context: Context) {
     val trackedCount: Int
         get() = prefs.all.size
 
-    private fun key(storageId: Int, handle: Int): String = "s${storageId}_h$handle"
+    private fun key(dedupKey: DedupKey): String = "s${dedupKey.storageId}_h${dedupKey.handle}"
 
     companion object {
         private const val PREFS_NAME = "camera_sync_usb_imports"
