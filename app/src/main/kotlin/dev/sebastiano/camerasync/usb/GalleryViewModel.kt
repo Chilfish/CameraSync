@@ -1031,7 +1031,7 @@ class GalleryViewModel(private val app: Application) {
         m: MtpDevice,
         photo: NikonUsbManager.PhotoInfo,
     ): android.net.Uri? {
-        val path = "Pictures/CameraSync/Nikon Z30"
+        val path = "Pictures/CameraSync/${cameraInfo?.model ?: "Nikon"}"
         val mime =
             when {
                 photo.name.endsWith(".NEF", true) -> "image/x-nikon-nef"

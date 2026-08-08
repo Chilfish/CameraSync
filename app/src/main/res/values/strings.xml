@@ -36,7 +36,7 @@
     <string name="time_yesterday_at">yesterday at %1$s</string>
 
     <!-- USB Sync Screen -->
-    <string name="usb_sync_title">Nikon Z30 USB 同步</string>
+    <string name="usb_sync_title">Nikon USB 同步</string>
     <string name="usb_menu_title">USB 同步</string>
     <string name="usb_status_waiting">等待 USB 连接…</string>
     <string name="usb_status_detected">检测到相机: %1$s</string>
@@ -166,7 +166,7 @@
     <string name="usb_title">USB 照片同步</string>
     <string name="usb_selected_count">已选 %d 张</string>
     <string name="general_cancel">取消</string>
-    <string name="usb_prompt_connect">连接 Nikon Z30</string>
+    <string name="usb_prompt_connect">连接 Nikon 相机</string>
     <string name="usb_prompt_connect_desc">通过 USB-C 数据线连接\n插入后将自动识别</string>
     <string name="usb_status_loading">正在读取…</string>
     <string name="usb_status_loading_photos">正在读取照片…</string>

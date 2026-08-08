@@ -50,6 +50,7 @@ class UsbSyncCoordinator(
 
     private var mtpDevice: MtpDevice? = null
     private var usbDevice: UsbDevice? = null
+    private var cameraModel: String? = null
 
     /**
      * Attempts to find and connect to a Nikon USB camera, list its photos, and download any new
@@ -76,10 +77,12 @@ class UsbSyncCoordinator(
             mtpDevice = mtp
 
             try {
-                // Get camera info for logging
-                nikonUsbManager.getCameraInfo(mtp)?.let { cam ->
-                    Log.info(tag = TAG) { "Connected: ${cam.manufacturer} ${cam.model}" }
-                }
+                // Get camera info for logging + save-path model
+                cameraModel =
+                    nikonUsbManager.getCameraInfo(mtp)?.let { cam ->
+                        Log.info(tag = TAG) { "Connected: ${cam.manufacturer} ${cam.model}" }
+                        cam.model
+                    }
 
                 // Enumerate all storages
                 val storages = nikonUsbManager.getStorages(mtp)
@@ -153,7 +156,7 @@ class UsbSyncCoordinator(
 
     private suspend fun saveToMediaStore(mtp: MtpDevice, photo: NikonUsbManager.PhotoInfo): Uri? {
         val dateFolder = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(photo.dateModified))
-        val path = "Pictures/CameraSync/Nikon Z30/$dateFolder"
+        val path = "Pictures/CameraSync/${cameraModel ?: "Nikon"}/$dateFolder"
 
         val mime =
             when {
