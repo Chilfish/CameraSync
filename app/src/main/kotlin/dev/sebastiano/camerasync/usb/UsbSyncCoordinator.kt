@@ -106,10 +106,7 @@ class UsbSyncCoordinator(
                     val photos = nikonUsbManager.listPhotos(mtp, storage.id)
                     totalPhotos += photos.size
 
-                    val newOnes =
-                        photos.filter {
-                            !photoSyncManager.isAlreadyImported(DedupKey(storage.id, it.handle))
-                        }
+                    val newOnes = photos.filter { !photoSyncManager.isAlreadyImported(it) }
                     newPhotos += newOnes.size
 
                     if (newOnes.isEmpty()) {
@@ -129,7 +126,7 @@ class UsbSyncCoordinator(
 
                         val savedUri = saveToMediaStore(mtp, photo)
                         if (savedUri != null) {
-                            photoSyncManager.markAsImported(DedupKey(storage.id, photo.handle))
+                            photoSyncManager.markAsImported(photo)
                             savedUris.add(savedUri)
                             synced++
                         } else {

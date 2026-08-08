@@ -5,38 +5,34 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 
 /**
- * Dedup key for an MTP photo: storageId + handle. Both are needed because MTP handles are only
- * unique within a storage, and the pair is the single source of truth shared by the foreground UI
- * and the background sync pipeline.
- */
-data class DedupKey(val storageId: Int, val handle: Int)
-
-/**
- * Tracks which MTP photo handles have already been imported, enabling deduplication across sync
- * sessions.
+ * Tracks which MTP photos have already been imported so future syncs skip them.
  *
- * Handles are tied to a specific USB session — if the camera's session changes, old handles become
- * invalid and will be pruned automatically.
+ * Keys are (storageId, handle). MTP handles are session-scoped and can be reused after the camera
+ * reboots or the card is reformatted, so each key stores a soft identity (name + size). A handle
+ * that now points to a different photo no longer matches and is treated as not-yet-imported — this
+ * is what prevents silently skipping a newly-shot photo that happened to receive a recycled handle,
+ * without needing to prune old handles on reconnect.
  */
 class PhotoSyncManager(context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** Returns true if the photo has already been imported in a previous session. */
-    fun isAlreadyImported(dedupKey: DedupKey): Boolean = prefs.getBoolean(key(dedupKey), false)
+    /** Returns true if this photo was imported in a previous session with the same identity. */
+    fun isAlreadyImported(photo: NikonUsbManager.PhotoInfo): Boolean =
+        prefs.getString(key(photo), null) == identity(photo)
 
     /** Marks a photo as imported so future syncs skip it. */
-    fun markAsImported(dedupKey: DedupKey) {
-        prefs.edit { putBoolean(key(dedupKey), true) }
+    fun markAsImported(photo: NikonUsbManager.PhotoInfo) {
+        prefs.edit { putString(key(photo), identity(photo)) }
     }
 
-    /** Clears all imported handles (e.g., when camera storage is reformatted). */
+    /** Clears all imported records (e.g., when camera storage is reformatted). */
     fun clearAll() {
         prefs.edit { clear() }
     }
 
-    /** Removes tracked handles for a specific storage. */
+    /** Removes tracked records for a specific storage (e.g., when that card is swapped out). */
     fun clearStorage(storageId: Int) {
         prefs.edit {
             val prefix = "s${storageId}_"
@@ -44,11 +40,14 @@ class PhotoSyncManager(context: Context) {
         }
     }
 
-    /** Returns the total number of tracked handles. */
+    /** Returns the total number of tracked photos. */
     val trackedCount: Int
         get() = prefs.all.size
 
-    private fun key(dedupKey: DedupKey): String = "s${dedupKey.storageId}_h${dedupKey.handle}"
+    private fun key(photo: NikonUsbManager.PhotoInfo): String =
+        "s${photo.storageId}_h${photo.handle}"
+
+    private fun identity(photo: NikonUsbManager.PhotoInfo): String = "${photo.name}:${photo.size}"
 
     companion object {
         private const val PREFS_NAME = "camera_sync_usb_imports"

@@ -778,7 +778,7 @@ class GalleryViewModel(private val app: Application) {
     /** Returns true if any photo in the group has already been imported. */
     fun isGroupImported(group: GalleryEntry.PhotoGroup): Boolean {
         val photos = listOfNotNull(group.raw, group.jpg)
-        return photos.any { photoSyncManager.isAlreadyImported(DedupKey(it.storageId, it.handle)) }
+        return photos.any { photoSyncManager.isAlreadyImported(it) }
     }
 
     // ── Selection ──────────────────────────────────────────────────────────
@@ -848,9 +848,7 @@ class GalleryViewModel(private val app: Application) {
                 PhotoFilter.NEW ->
                     currentPhotos.filter { group ->
                         val photos = listOfNotNull(group.raw, group.jpg)
-                        photos.any {
-                            !photoSyncManager.isAlreadyImported(DedupKey(it.storageId, it.handle))
-                        }
+                        photos.any { !photoSyncManager.isAlreadyImported(it) }
                     }
                 PhotoFilter.RAW_ONLY -> currentPhotos.filter { it.hasRaw }
                 PhotoFilter.JPEG_ONLY -> currentPhotos.filter { it.jpg != null }
@@ -903,7 +901,7 @@ class GalleryViewModel(private val app: Application) {
     fun getNewPhotoCount(): Int {
         return currentPhotos.count { group ->
             val photos = listOfNotNull(group.raw, group.jpg)
-            photos.any { !photoSyncManager.isAlreadyImported(DedupKey(it.storageId, it.handle)) }
+            photos.any { !photoSyncManager.isAlreadyImported(it) }
         }
     }
 
@@ -920,7 +918,7 @@ class GalleryViewModel(private val app: Application) {
                 else return@mapNotNull null
             val photo =
                 listOfNotNull(g.raw, g.jpg).find { it.handle == h } ?: return@mapNotNull null
-            if (photoSyncManager.isAlreadyImported(DedupKey(photo.storageId, photo.handle))) {
+            if (photoSyncManager.isAlreadyImported(photo)) {
                 return@mapNotNull null
             }
             photo to h
@@ -958,7 +956,7 @@ class GalleryViewModel(private val app: Application) {
                 bytesAcc += p.first.size
                 savedUris.add(uri)
                 transferredHandles.add(p.second)
-                photoSyncManager.markAsImported(DedupKey(p.first.storageId, p.first.handle))
+                photoSyncManager.markAsImported(p.first)
             } else {
                 failedList.add(p.second)
             }
