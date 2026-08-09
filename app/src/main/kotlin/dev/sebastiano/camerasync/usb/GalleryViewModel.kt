@@ -15,16 +15,12 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.exifinterface.media.ExifInterface
 import com.juul.khronicle.Log
 import java.io.ByteArrayInputStream
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -142,14 +138,20 @@ class GalleryViewModel(private val app: Application) {
     private val nikon = NikonUsbManager(usbManager)
     private val photoSyncManager = PhotoSyncManager(app)
 
-    private val _state = mutableStateOf<GalleryState>(GalleryState.Disconnected)
-    val state: State<GalleryState> = _state
+    /** Preferences (auto-sync, format, grouping, sorting, theme, history). */
+    val prefs = UsbSyncPreferences(app)
+
+    /** Pure state + selection + filter/sort logic (P2-1 extraction). */
+    private val stateMachine =
+        GalleryStateMachine(photoSyncManager, prefs.photoGrouping, prefs.photoSorting)
+
+    val state: State<GalleryState>
+        get() = stateMachine.state
 
     // SnapshotStateList — any composable reading this list automatically
     // recomposes when the list is modified (no manual trigger needed).
-    private val _selected = mutableStateListOf<Int>()
-    val selectedCount
-        get() = _selected.size
+    val selectedCount: Int
+        get() = stateMachine.selectedCount
 
     /** Handles that were successfully transferred in the last [startTransfer] call. */
     var lastTransferredHandles: List<Int> = emptyList()
@@ -162,9 +164,6 @@ class GalleryViewModel(private val app: Application) {
     /** Camera battery level (0–100), or null if the device doesn't report it. */
     var batteryLevel: Int? = null
         private set
-
-    /** Preferences (auto-sync, format, grouping, sorting, theme, history). */
-    val prefs = UsbSyncPreferences(app)
 
     /**
      * Current grid column count (2, 3, or 4). Compose-reactive so the LazyVerticalStaggeredGrid
@@ -190,12 +189,12 @@ class GalleryViewModel(private val app: Application) {
     }
 
     /** Current photo grouping mode. */
-    var groupingMode: UsbSyncPreferences.PhotoGrouping by mutableStateOf(prefs.photoGrouping)
-        private set
+    val groupingMode: UsbSyncPreferences.PhotoGrouping
+        get() = stateMachine.groupingMode
 
     /** Current photo sorting mode. */
-    var sortingMode: UsbSyncPreferences.PhotoSorting by mutableStateOf(prefs.photoSorting)
-        private set
+    val sortingMode: UsbSyncPreferences.PhotoSorting
+        get() = stateMachine.sortingMode
 
     private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     var mtp: MtpDevice? = null
@@ -217,14 +216,8 @@ class GalleryViewModel(private val app: Application) {
     // Photo groups for the current view. Compose-reactive so that
     // getFilteredGroups() / getNewPhotoCount() / filter chips recompose
     // when the underlying list changes.
-    var currentPhotos by mutableStateOf(emptyList<GalleryEntry.PhotoGroup>())
-        private set
-
-    /** Updates [currentPhotos] and invalidates the filtered-groups cache. */
-    private fun updateCurrentPhotos(groups: List<GalleryEntry.PhotoGroup>) {
-        currentPhotos = groups
-        invalidateFilterCache()
-    }
+    val currentPhotos: List<GalleryEntry.PhotoGroup>
+        get() = stateMachine.currentPhotos
 
     // Thumbnail cache (shared across folder navigations).
     // Wrapped in synchronizedMap because getThumbnail() is called concurrently
@@ -262,9 +255,9 @@ class GalleryViewModel(private val app: Application) {
     // ── Decoded bitmap cache ─────────────────────────────────────────────────
 
     /**
-     * LRU cache of decoded [ImageBitmap] instances keyed by MTP handle. Prevents re-decoding +
-     * re-rotation when LazyGrid recycles [PhotoCell] composables. Cleared on disconnect via
-     * [closeMtpAndClear].
+     * LRU cache of decoded [android.graphics.Bitmap] instances keyed by MTP handle. Prevents
+     * re-decoding + re-rotation when LazyGrid recycles [PhotoCell] composables. Cleared on
+     * disconnect via [closeMtpAndClear].
      */
     val bitmapCache =
         java.util.Collections.synchronizedMap(
@@ -276,12 +269,6 @@ class GalleryViewModel(private val app: Application) {
         )
 
     // ── Filtered results cache ───────────────────────────────────────────────
-
-    /** Invalidation counter — incremented whenever filter/sort/photos change. */
-    private var filterCacheGeneration by mutableStateOf(0)
-
-    /** Last computed filtered + sorted result, guarded by [filterCacheGeneration]. */
-    private var cachedFilteredGroups: List<GalleryEntry.PhotoGroup> = emptyList()
 
     fun getOrientation(handle: Int): Int? = orientationCache[handle]
 
@@ -295,7 +282,7 @@ class GalleryViewModel(private val app: Application) {
                     ACTION_USB_PERMISSION -> {
                         if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false))
                             getDevice(intent)?.let { connectAndBrowse() }
-                        else _state.value = GalleryState.Error("USB 权限被拒绝")
+                        else stateMachine.setState(GalleryState.Error("USB 权限被拒绝"))
                     }
                 }
             }
@@ -339,9 +326,9 @@ class GalleryViewModel(private val app: Application) {
     private fun closeMtpAndClear() {
         syncJob?.cancel()
         closeMtp()
-        _selected.clear()
-        _state.value = GalleryState.Disconnected
-        updateCurrentPhotos(emptyList())
+        stateMachine.selected.clear()
+        stateMachine.setState(GalleryState.Disconnected)
+        stateMachine.updateCurrentPhotos(emptyList())
         thumbCache.clear()
         fullPhotoCache.clear()
         orientationCache.clear()
@@ -351,7 +338,7 @@ class GalleryViewModel(private val app: Application) {
     private fun onPlugged(device: UsbDevice) {
         if (usbManager.hasPermission(device)) connectAndBrowse()
         else {
-            _state.value = GalleryState.Connecting
+            stateMachine.setState(GalleryState.Connecting)
             val i = Intent(ACTION_USB_PERMISSION).apply { setPackage(app.packageName) }
             usbManager.requestPermission(
                 device,
@@ -369,7 +356,7 @@ class GalleryViewModel(private val app: Application) {
 
     private fun connectAndBrowse() {
         syncJob?.cancel()
-        _state.value = GalleryState.Loading("正在连接相机…")
+        stateMachine.setState(GalleryState.Loading("正在连接相机…"))
         syncJob =
             scope.launch {
                 try {
@@ -377,7 +364,7 @@ class GalleryViewModel(private val app: Application) {
                         usbManager.deviceList.values.firstOrNull { it.vendorId == 0x04B0 }
                             ?: run {
                                 Log.warn(tag = TAG) { "No Nikon device in deviceList" }
-                                _state.value = GalleryState.Disconnected
+                                stateMachine.setState(GalleryState.Disconnected)
                                 return@launch
                             }
                     Log.info(tag = TAG) { "Found device: ${device.deviceName}" }
@@ -386,7 +373,7 @@ class GalleryViewModel(private val app: Application) {
                         nikon.openMtpDevice(device)
                             ?: run {
                                 Log.error(tag = TAG) { "MTP open failed for ${device.deviceName}" }
-                                _state.value = GalleryState.Error("无法连接相机，请重试")
+                                stateMachine.setState(GalleryState.Error("无法连接相机，请重试"))
                                 return@launch
                             }
                     mtp = m
@@ -400,7 +387,7 @@ class GalleryViewModel(private val app: Application) {
                     Log.info(tag = TAG) { "Found ${storages.size} storage(s)" }
 
                     batteryLevel = nikon.getBatteryLevel(m)
-                    _selected.clear()
+                    stateMachine.selected.clear()
                     errorBanner = null
 
                     Log.info(tag = TAG) { "Starting loadRoot..." }
@@ -413,7 +400,7 @@ class GalleryViewModel(private val app: Application) {
                         if (cameraInfo != null) {
                             errorBanner = "加载照片时出错: ${e.localizedMessage ?: "未知错误"}"
                         } else {
-                            _state.value = GalleryState.Error(e.localizedMessage ?: "连接失败")
+                            stateMachine.setState(GalleryState.Error(e.localizedMessage ?: "连接失败"))
                         }
                     }
                 }
@@ -426,18 +413,17 @@ class GalleryViewModel(private val app: Application) {
         val m = mtp ?: return
 
         if (storages.isEmpty()) {
-            _state.value = GalleryState.Empty
+            stateMachine.setState(GalleryState.Empty)
             return
         }
 
         errorBanner = null
 
         // Re-read preferences on each load so settings take effect immediately
-        groupingMode = prefs.photoGrouping
-        sortingMode = prefs.photoSorting
+        stateMachine.refreshModes(prefs.photoGrouping, prefs.photoSorting)
 
         try {
-            when (groupingMode) {
+            when (stateMachine.groupingMode) {
                 UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> loadRootByFolder(m)
                 UsbSyncPreferences.PhotoGrouping.BY_DATE ->
                     loadRootProgressive(m) { groups, _ -> buildDateSections(groups) }
@@ -449,8 +435,8 @@ class GalleryViewModel(private val app: Application) {
             // Show inline banner instead of replacing the entire screen
             errorBanner = "部分照片加载失败: ${e.localizedMessage ?: "未知错误"}"
             // If we haven't entered browsing yet, show empty
-            if (_state.value !is GalleryState.Browsing) {
-                _state.value = GalleryState.Empty
+            if (stateMachine.state.value !is GalleryState.Browsing) {
+                stateMachine.setState(GalleryState.Empty)
             }
         }
     }
@@ -491,19 +477,22 @@ class GalleryViewModel(private val app: Application) {
                     if (!enteredBrowsing && accumPhotos.size >= 30) {
                         enteredBrowsing = true
                         val partial = groupByBaseFilename(accumPhotos.toList())
-                        updateCurrentPhotos(partial)
+                        stateMachine.updateCurrentPhotos(partial)
                         populateOrientationsFromDimensions()
-                        _state.value =
+                        stateMachine.setState(
                             GalleryState.Browsing(
                                 cameraInfo,
                                 storages,
                                 buildEntries(partial, accumPhotos.toList()),
                             )
+                        )
                         // Kick off background thumbnail preloading — orientation extraction
                         // happens automatically via extractOrientation() in getThumbnail().
                         preloadThumbnails(partial.size.coerceAtMost(50))
                     } else if (!enteredBrowsing) {
-                        _state.value = GalleryState.Loading("正在扫描…", globalScanned, globalTotal)
+                        stateMachine.setState(
+                            GalleryState.Loading("正在扫描…", globalScanned, globalTotal)
+                        )
                     }
                 },
             )
@@ -511,17 +500,20 @@ class GalleryViewModel(private val app: Application) {
 
         // All photos collected — finalize groups, update state silently.
         val groups = groupByBaseFilename(accumPhotos)
-        updateCurrentPhotos(groups)
+        stateMachine.updateCurrentPhotos(groups)
         val entries = buildEntries(groups, accumPhotos)
         // Only re-set Browsing state if we never entered it (fewer than 30 photos total).
         if (!enteredBrowsing) {
             populateOrientationsFromDimensions()
-            _state.value = GalleryState.Browsing(cameraInfo, storages, entries)
+            stateMachine.setState(GalleryState.Browsing(cameraInfo, storages, entries))
         } else {
             // Just update the entries list on the existing Browsing state without
             // creating a new state object that would trigger a full recomposition.
-            _state.value =
-                (state.value as GalleryState.Browsing).let { old -> old.copy(entries = entries) }
+            stateMachine.setState(
+                (stateMachine.state.value as GalleryState.Browsing).let { old ->
+                    old.copy(entries = entries)
+                }
+            )
         }
         preloadThumbnails(groups.size.coerceAtMost(50))
     }
@@ -537,30 +529,30 @@ class GalleryViewModel(private val app: Application) {
             entries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
         }
         // Show folders immediately even before photos are enumerated
-        _state.value = GalleryState.Loading("正在读取文件夹…")
-        updateCurrentPhotos(emptyList())
-        _state.value = GalleryState.Browsing(cameraInfo, storages, entries.toList())
+        stateMachine.setState(GalleryState.Loading("正在读取文件夹…"))
+        stateMachine.updateCurrentPhotos(emptyList())
+        stateMachine.setState(GalleryState.Browsing(cameraInfo, storages, entries.toList()))
 
         // Phase 2: load root-level photos, updating the grid as they come in
         for (s in storages) {
             nikon.listPhotosInFolder(m, s.id, 0).let { photos ->
                 allRootPhotos.addAll(photos)
-                updateCurrentPhotos(groupByBaseFilename(allRootPhotos))
-                entries.addAll(currentPhotos)
+                stateMachine.updateCurrentPhotos(groupByBaseFilename(allRootPhotos))
+                entries.addAll(stateMachine.currentPhotos)
             }
         }
         // Final update — populate orientations from dimensions (instant), then
         // kick off background thumbnail preloading for accurate EXIF.
-        updateCurrentPhotos(groupByBaseFilename(allRootPhotos))
+        stateMachine.updateCurrentPhotos(groupByBaseFilename(allRootPhotos))
         populateOrientationsFromDimensions()
         val finalEntries = mutableListOf<GalleryEntry>()
         for (s in storages) {
             val folders = nikon.listFolders(m, s.id, 0)
             finalEntries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
         }
-        finalEntries.addAll(currentPhotos)
-        _state.value = GalleryState.Browsing(cameraInfo, storages, finalEntries)
-        preloadThumbnails(currentPhotos.size.coerceAtMost(50))
+        finalEntries.addAll(stateMachine.currentPhotos)
+        stateMachine.setState(GalleryState.Browsing(cameraInfo, storages, finalEntries))
+        preloadThumbnails(stateMachine.currentPhotos.size.coerceAtMost(50))
     }
 
     /** Build date-section entries from grouped photos. */
@@ -592,35 +584,35 @@ class GalleryViewModel(private val app: Application) {
         currentFolder = storageId to folderHandle
         val m = mtp ?: return
         errorBanner = null
-        _state.value = GalleryState.Loading("正在读取文件夹…")
+        stateMachine.setState(GalleryState.Loading("正在读取文件夹…"))
 
         try {
             // Show sub-folders first (cheap)
             val subFolders = nikon.listFolders(m, storageId, folderHandle)
-            _state.value = GalleryState.Loading("正在读取照片…", 0, 0)
+            stateMachine.setState(GalleryState.Loading("正在读取照片…", 0, 0))
 
             val photos = nikon.listPhotosInFolder(m, storageId, folderHandle)
-            updateCurrentPhotos(groupByBaseFilename(photos))
+            stateMachine.updateCurrentPhotos(groupByBaseFilename(photos))
             val entries = mutableListOf<GalleryEntry>()
             entries.addAll(subFolders.map { GalleryEntry.Folder(it, storageId) })
-            entries.addAll(currentPhotos)
+            entries.addAll(stateMachine.currentPhotos)
             // Use dimensions (instant, no MTP calls) for aspect ratios;
             // accurate EXIF orientations come from background preload.
             populateOrientationsFromDimensions()
-            _state.value = GalleryState.Browsing(cameraInfo, storages, entries)
-            preloadThumbnails(currentPhotos.size.coerceAtMost(50))
+            stateMachine.setState(GalleryState.Browsing(cameraInfo, storages, entries))
+            preloadThumbnails(stateMachine.currentPhotos.size.coerceAtMost(50))
         } catch (e: Exception) {
             Log.error(tag = TAG, throwable = e) { "loadFolder failed: ${e.message}" }
             errorBanner = "读取文件夹失败: ${e.localizedMessage ?: "未知错误"}"
-            if (_state.value !is GalleryState.Browsing) {
-                _state.value = GalleryState.Empty
+            if (stateMachine.state.value !is GalleryState.Browsing) {
+                stateMachine.setState(GalleryState.Empty)
             }
         }
     }
 
     /**
-     * Populates [orientationCache] from [MtpObjectInfo] dimensions and, for the first [count]
-     * handles without a cached orientation, fetches their MTP thumbnail to extract EXIF
+     * Populates [orientationCache] from [android.mtp.MtpObjectInfo] dimensions and, for the first
+     * [count] handles without a cached orientation, fetches their MTP thumbnail to extract EXIF
      * orientation. Does NOT block the caller — launches a background coroutine for thumbnail
      * fetching.
      *
@@ -641,7 +633,7 @@ class GalleryViewModel(private val app: Application) {
      * [getThumbnail] call.
      */
     fun preloadThumbnails(count: Int = 30) {
-        val handles = currentPhotos.take(count).mapNotNull { it.previewHandle }
+        val handles = stateMachine.currentPhotos.take(count).mapNotNull { it.previewHandle }
         scope.launch {
             try {
                 coroutineScope {
@@ -699,18 +691,18 @@ class GalleryViewModel(private val app: Application) {
     }
 
     /**
-     * Populates [orientationCache] from [MtpObjectInfo.imagePixWidth/imagePixHeight] for handles
-     * whose EXIF orientation is still unknown (cache miss).
+     * Populates [orientationCache] from [android.mtp.MtpObjectInfo.imagePixWidth/imagePixHeight]
+     * for handles whose EXIF orientation is still unknown (cache miss).
      *
-     * [MtpObjectInfo] dimensions are more reliable than thumbnail-based heuristics because they
-     * reflect the actual full-resolution image orientation. Nikon Z30 reports 5568×3712 for
-     * landscape and 3712×5568 for portrait.
+     * [android.mtp.MtpObjectInfo] dimensions are more reliable than thumbnail-based heuristics
+     * because they reflect the actual full-resolution image orientation. Nikon Z30 reports
+     * 5568×3712 for landscape and 3712×5568 for portrait.
      *
      * Call this after [groupByBaseFilename] so each [PhotoGroup] has its [PhotoInfo] with imagePix
      * dimensions available.
      */
     fun populateOrientationsFromDimensions() {
-        for (group in currentPhotos) {
+        for (group in stateMachine.currentPhotos) {
             val handle = group.previewHandle ?: continue
             val cached = orientationCache[handle]
             // Only skip if a REAL rotation (not NORMAL) is already cached.
@@ -736,7 +728,7 @@ class GalleryViewModel(private val app: Application) {
         // For RAW+JPEG pairs: copy any known JPEG orientation to the RAW handle
         // so NEF previews get correct rotation even when the NEF MTP thumbnail
         // is TIFF-based (no EXIF) or pre-rotated.
-        for (group in currentPhotos) {
+        for (group in stateMachine.currentPhotos) {
             val jpgHandle = group.jpg?.handle ?: continue
             val rawHandle = group.raw?.handle ?: continue
             val jpgOri = orientationCache[jpgHandle] ?: continue
@@ -768,117 +760,64 @@ class GalleryViewModel(private val app: Application) {
                 fullPhotoCache[handle] = bytes
                 bytes
             } catch (e: Exception) {
-                Log.error(tag = "GalleryVM", throwable = e) { "downloadFullPhoto failed" }
+                Log.error(tag = TAG, throwable = e) { "downloadFullPhoto failed" }
                 null
             }
         }
     }
 
+    // ── Selection & filtering (delegated to GalleryStateMachine) ────────────
+
     /** Returns true if any photo in the group has already been imported. */
-    fun isGroupImported(group: GalleryEntry.PhotoGroup): Boolean {
-        val photos = listOfNotNull(group.raw, group.jpg)
-        return photos.any { photoSyncManager.isAlreadyImported(it) }
-    }
-
-    // ── Selection ──────────────────────────────────────────────────────────
-
-    /** Returns the handles to select for a group, respecting [prefs.downloadFormat]. */
-    private fun handlesForFormat(group: GalleryEntry.PhotoGroup): List<Int> =
-        when (prefs.downloadFormat) {
-            UsbSyncPreferences.DownloadFormat.ALL ->
-                listOfNotNull(group.raw?.handle, group.jpg?.handle)
-            UsbSyncPreferences.DownloadFormat.RAW_ONLY -> listOfNotNull(group.raw?.handle)
-            UsbSyncPreferences.DownloadFormat.JPEG_ONLY -> listOfNotNull(group.jpg?.handle)
-        }
+    fun isGroupImported(group: GalleryEntry.PhotoGroup): Boolean =
+        stateMachine.isGroupImported(group)
 
     fun toggleSelection(group: GalleryEntry.PhotoGroup) {
-        val handles = handlesForFormat(group)
-        if (handles.isEmpty()) return
-        if (handles.all { it in _selected }) handles.forEach { _selected.remove(it) }
-        else handles.forEach { _selected.add(it) }
+        stateMachine.toggleSelection(group, prefs.downloadFormat)
     }
 
     fun selectAll() {
-        currentPhotos
-            .flatMap { handlesForFormat(it) }
-            .forEach { if (it !in _selected) _selected.add(it) }
+        stateMachine.selectAll(prefs.downloadFormat)
     }
 
     /**
      * Selects the transferable handles of all not-yet-imported groups, respecting download format.
      */
     fun selectAllNew() {
-        currentPhotos
-            .filter { group ->
-                listOfNotNull(group.raw, group.jpg).any { !photoSyncManager.isAlreadyImported(it) }
-            }
-            .flatMap { handlesForFormat(it) }
-            .forEach { if (it !in _selected) _selected.add(it) }
+        stateMachine.selectAllNew(prefs.downloadFormat)
     }
 
     fun deselectAll() {
-        _selected.clear()
+        stateMachine.deselectAll()
     }
 
-    fun isSelected(h: Int) = h in _selected
+    fun isSelected(h: Int) = stateMachine.isSelected(h)
 
-    fun isGroupSelected(group: GalleryEntry.PhotoGroup): Boolean {
-        val handles = listOfNotNull(group.raw?.handle, group.jpg?.handle)
-        return handles.isNotEmpty() && handles.any { it in _selected }
-    }
+    fun isGroupSelected(group: GalleryEntry.PhotoGroup): Boolean =
+        stateMachine.isGroupSelected(group)
 
     // ── Filtering ──────────────────────────────────────────────────────────
 
     // Default view is the new-photos filter: connecting lands on what's ready to transfer (P1-2).
-    var filterMode: PhotoFilter by mutableStateOf(PhotoFilter.NEW)
-        private set
+    val filterMode: PhotoFilter
+        get() = stateMachine.filterMode
 
     fun setFilter(mode: PhotoFilter) {
-        filterMode = mode
-        invalidateFilterCache()
+        stateMachine.setFilter(mode)
     }
 
-    fun getFilteredGroups(): List<GalleryEntry.PhotoGroup> {
-        // Return cached result when nothing changed — avoids re-filtering on every recomposition.
-        // The cache is invalidated when filter, sort, or currentPhotos change (via
-        // filterCacheGeneration).
-        val gen = filterCacheGeneration // local snapshot to avoid TOCTOU
-        return cachedFilteredGroups
-    }
-
-    /** Invalidates the filter cache and recomputes it in background. Called when filters change. */
-    private fun invalidateFilterCache() {
-        filterCacheGeneration++
-        val filtered = computeFiltered()
-        cachedFilteredGroups = filtered
-    }
-
-    private fun computeFiltered(): List<GalleryEntry.PhotoGroup> {
-        val filtered =
-            when (filterMode) {
-                PhotoFilter.ALL -> currentPhotos
-                PhotoFilter.NEW ->
-                    currentPhotos.filter { group ->
-                        val photos = listOfNotNull(group.raw, group.jpg)
-                        photos.any { !photoSyncManager.isAlreadyImported(it) }
-                    }
-                PhotoFilter.RAW_ONLY -> currentPhotos.filter { it.hasRaw }
-                PhotoFilter.JPEG_ONLY -> currentPhotos.filter { it.jpg != null }
-            }
-        return applySorting(filtered)
-    }
+    fun getFilteredGroups(): List<GalleryEntry.PhotoGroup> = stateMachine.getFilteredGroups()
 
     // ── Grouping ───────────────────────────────────────────────────────────
 
     fun setGrouping(mode: UsbSyncPreferences.PhotoGrouping) {
-        groupingMode = mode
+        stateMachine.setGrouping(mode)
         prefs.photoGrouping = mode
     }
 
     fun setSorting(mode: UsbSyncPreferences.PhotoSorting) {
-        sortingMode = mode
+        stateMachine.setSorting(mode)
         prefs.photoSorting = mode
-        invalidateFilterCache()
     }
 
     fun setDownloadFormat(format: UsbSyncPreferences.DownloadFormat) {
@@ -887,27 +826,7 @@ class GalleryViewModel(private val app: Application) {
         prefs.downloadFormat = format
     }
 
-    private fun applySorting(photos: List<GalleryEntry.PhotoGroup>): List<GalleryEntry.PhotoGroup> {
-        return when (sortingMode) {
-            UsbSyncPreferences.PhotoSorting.DATE_DESC ->
-                photos.sortedByDescending {
-                    maxOf(it.raw?.dateModified ?: 0L, it.jpg?.dateModified ?: 0L)
-                }
-            UsbSyncPreferences.PhotoSorting.DATE_ASC ->
-                photos.sortedBy { maxOf(it.raw?.dateModified ?: 0L, it.jpg?.dateModified ?: 0L) }
-            UsbSyncPreferences.PhotoSorting.NAME_ASC -> photos.sortedBy { it.baseName }
-            UsbSyncPreferences.PhotoSorting.NAME_DESC -> photos.sortedByDescending { it.baseName }
-            UsbSyncPreferences.PhotoSorting.SIZE_DESC ->
-                photos.sortedByDescending { (it.raw?.size ?: 0L) + (it.jpg?.size ?: 0L) }
-        }
-    }
-
-    fun getNewPhotoCount(): Int {
-        return currentPhotos.count { group ->
-            val photos = listOfNotNull(group.raw, group.jpg)
-            photos.any { !photoSyncManager.isAlreadyImported(it) }
-        }
-    }
+    fun getNewPhotoCount(): Int = stateMachine.getNewPhotoCount()
 
     // ── Transfer ────────────────────────────────────────────────────────────
 
@@ -915,7 +834,7 @@ class GalleryViewModel(private val app: Application) {
     private fun buildTransferList(
         handleFilter: (Int) -> Boolean
     ): List<Pair<NikonUsbManager.PhotoInfo, Int>> {
-        return currentPhotos.mapNotNull { g ->
+        return stateMachine.currentPhotos.mapNotNull { g ->
             val h =
                 if (g.raw != null && handleFilter(g.raw.handle)) g.raw.handle
                 else if (g.jpg != null && handleFilter(g.jpg.handle)) g.jpg.handle
@@ -929,7 +848,7 @@ class GalleryViewModel(private val app: Application) {
         }
     }
 
-    /** Core transfer loop. Updates [_state], [_selected], and [failedHandles]. */
+    /** Core transfer loop. Updates [state], [selected], and [failedHandles]. */
     private suspend fun performTransfer(toTransfer: List<Pair<NikonUsbManager.PhotoInfo, Int>>) {
         val m = mtp ?: return
         val totalBytes = toTransfer.sumOf { it.first.size }
@@ -942,7 +861,7 @@ class GalleryViewModel(private val app: Application) {
         var bytesAcc = 0L
         for ((i, p) in toTransfer.withIndex()) {
             if (!currentCoroutineContext().isActive) return
-            _state.value =
+            stateMachine.setState(
                 GalleryState.Transferring(
                     TransferProgress(
                         synced = i + 1,
@@ -953,10 +872,11 @@ class GalleryViewModel(private val app: Application) {
                         startTimeMillis = startTime,
                     )
                 )
+            )
             val uri = saveToMediaStore(m, p.first)
             if (uri != null) {
                 ok++
-                _selected.remove(p.second)
+                stateMachine.selected.remove(p.second)
                 bytesAcc += p.first.size
                 savedUris.add(uri)
                 transferredHandles.add(p.second)
@@ -968,16 +888,15 @@ class GalleryViewModel(private val app: Application) {
         lastTransferredHandles = transferredHandles.toList()
         failedHandles = failedList.toList()
         if (ok > 0) {
-            val prefs = UsbSyncPreferences(app)
             prefs.addTransferRecord(ok, cameraInfo?.model ?: "Nikon")
         }
-        _state.value = GalleryState.TransferDone(ok, savedUris.toList())
+        stateMachine.setState(GalleryState.TransferDone(ok, savedUris.toList()))
     }
 
     fun startTransfer() {
-        val toTransfer = buildTransferList { it in _selected }
+        val toTransfer = buildTransferList { it in stateMachine.selected }
         if (toTransfer.isEmpty()) {
-            _state.value = GalleryState.TransferDone(0)
+            stateMachine.setState(GalleryState.TransferDone(0))
             return
         }
 
@@ -991,7 +910,7 @@ class GalleryViewModel(private val app: Application) {
         val toRetry = buildTransferList { it in failedHandles }
         if (toRetry.isEmpty()) return
 
-        _selected.clear()
+        stateMachine.selected.clear()
         failedHandles = emptyList()
         syncJob?.cancel()
         syncJob = scope.launch { performTransfer(toRetry) }
