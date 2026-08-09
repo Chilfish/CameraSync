@@ -56,32 +56,32 @@
 
 ---
 
-## P1 — 核心路径 Apple 级（产品，3–5 天）
+## P1 — 核心路径 Apple 级（产品，3–5 天）✅（2026-08-09 完成）
 
-### P1-1 冷启动一屏引导（R5 / PRD P4）
+### P1-1 冷启动一屏引导 ✅ `61fc9a7`
 
 - **Commit**: `feat(usb): add first-run MTP mode guide`
-- **动作**: 解决已验证痛点 P4——首次启动一屏说明：① 相机需切到 MTP/PTP 模式 ② USB 权限 ③ 插线即同步。不做 3 屏 onboarding；`MainActivity.kt:136` 空回调 stub 落地或删除
-- **验收**: 新用户首次进入看到引导；引导后不再打扰
+- **动作**: 首次启动一屏说明 ① 相机需切到 MTP/PTP 模式 ② USB 权限 ③ 插线即同步。不做 3 屏 onboarding；冷启动压栈 `FirstRunGuide`（`prefs.guideSeen` 持久化，不再打扰）；设置页新增「使用说明」入口，落地原先的空 stub（顺带消 baseline `UnusedParameter`）
+- **验收**: ✅ 新用户首次进入看到引导；引导后不再打扰
 
-### P1-2 新照片成为默认主路径（R5）
+### P1-2 新照片成为默认主路径 ✅ `97f7c8e`
 
 - **Commit**: `feat(usb): make new-photos the default view`
-- **动作**: 连接后默认落在「新照片」视图；主 CTA「传输全部新照片 (N)」；分组/排序/网格密度收进溢出菜单（Apple 减法）
-- **验收**: 从插线到首次传输 ≤ 3 次点击
+- **动作**: `filterMode` 默认 `NEW`（init + 移除 `loadRoot` 里按 downloadFormat 重置）；主 CTA「传输全部新照片 (N)」一键全选新照片 → 预览确认；分组/排序/网格密度收进顶栏溢出菜单（原网格密度图标移除）；downloadFormat 与默认视图解耦（仅控制传输格式，见 `handlesForFormat`）
+- **验收**: ✅ 插线 → CTA → 确认，≤3 次点击
 
-### P1-3 传输完成可回看
+### P1-3 传输完成可回看 ✅ `f6d2f9b`
 
 - **Commit**: `feat(usb): show per-session transfer summary`
-- **动作**: 传输完成面板补「本次传输清单」入口（已传输的照片可回到相册定位）
-- **验收**: 传输完成后能追溯到本次传输的文件
+- **动作**: 传输完成面板新增「本次传输清单」——列出本次保存的全部文件（缩略图 + MediaStore 名称），点击在系统相册打开定位；在清单内下拉关闭返回完成面板而非整个 dismiss
+- **验收**: ✅ 传输完成后能追溯到本次传输的文件
 
-### P1-4 自动同步接线或删除（实施新发现 R7）
+### P1-4 自动同步 → 移除死代码 ✅ `6a1c331`
 
-- **Commit**: 待定（接线：`feat(usb): wire auto-sync to USB attach`；或移除：`refactor(usb): remove unwired auto-sync pipeline`）
-- **证据**: `UsbSyncService.createStartIntent`/`ACTION_SYNC` **零调用**；`SettingsScreen` 的 auto-sync 开关写 `prefs.autoSyncEnabled` 但该值无消费者；`todo.md` 此前却宣称"后台自动同步 ✅"
-- **动作**: 产品决策二选一——① 接线：USB attach 时（App 未前台）启动 service 自动同步；② 移除开关 + `UsbSyncService`/`UsbSyncCoordinator` 死代码（YAGNI）。**当前开关是无效开关，属"注释撒谎"家族**
-- **验收**: 自动同步要么真实可用，要么彻底移除，设置页不再出现无效开关
+- **Commit**: `refactor(usb): remove unwired auto-sync pipeline`
+- **证据**: `UsbSyncService.createStartIntent`/`ACTION_SYNC` **零调用**；`SettingsScreen` 的 auto-sync 开关写 `prefs.autoSyncEnabled` 但无消费者（评审 R7）
+- **动作**: 产品决策 = **移除（YAGNI）**。删 `UsbSyncService`/`UsbSyncCoordinator`、无效开关、`autoSyncEnabled`/`autoSyncFlow`、同步通知 channel、Manifest service + 3 条前台/通知权限、`NikonUsbManager.hasActiveSession`（唯一读方是 Coordinator，删后成 write-only）、4 条死字符串、5 条 detekt baseline 条目
+- **验收**: ✅ 设置页不再出现无效开关；自动同步彻底移除
 
 ---
 
@@ -139,9 +139,10 @@
 | P0-2 | 去重键一致 | R2 | ✅ 双管线判定一致（`b75e87b`） |
 | P0-3 | 单 MTP 管线 | R1 | ✅ 阶段1 护栏单 MtpDevice open（`9344686`） |
 | P0-4 | 剪枝真实化 | R3 | ✅ 软校验不误判，注释与代码一致（`220aa12`） |
-| P1-1 | 冷启动引导 | R5 | 新用户看到引导 |
-| P1-2 | 新照片默认主路径 | R5 | 插线→传输 ≤3 次点击 |
-| P1-3 | 传输回看 | R5 | 可追溯本次传输 |
+| P1-1 | 冷启动引导 | R5 | ✅ 新用户看到引导（`61fc9a7`） |
+| P1-2 | 新照片默认主路径 | R5 | ✅ 插线→传输 ≤3 次点击（`97f7c8e`） |
+| P1-3 | 传输回看 | R5 | ✅ 可追溯本次传输（`f6d2f9b`） |
+| P1-4 | 自动同步决策 | R7 | ✅ 移除无效开关 + 死代码（`6a1c331`） |
 | P2-1 | 拆 God Object | R6 | 纯搬移无行为变化 |
 | P2-2 | 核心单测 | R6 | testDebugUnitTest 通过 |
 | P2-3 | detekt 归零 | R6 | baseline 空 |

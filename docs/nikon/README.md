@@ -65,6 +65,4 @@ graph TB
 | `usb/GalleryViewModel.kt` | USB detection, permission flow, connection, folder navigation, selection, transfer, MediaStore save |
 | `usb/GalleryScreen.kt` | Primary UI: 3-column grid, folder browsing, long-press selection, transfer progress |
 | `usb/PhotoSyncManager.kt` | Deduplication via SharedPreferences |
-| `usb/UsbSyncService.kt` | Foreground service for background sync |
-| `usb/UsbSyncCoordinator.kt` | Auto-sync lifecycle |
 | `usb/UsbSyncPreferences.kt` | Per-camera USB sync preferences |

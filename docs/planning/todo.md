@@ -15,20 +15,18 @@
 - [x] 画廊浏览 (3 列网格、文件夹导航)
 - [x] RAW+JPEG 分组 (NEF/JPG 对 + "RAW" 徽章)
 - [x] 长按多选 + 批量传输
-- [x] 后台自动同步 (前台 Service)
 - [x] 去重 (SharedPreferences)
 - [x] 传输速度 & ETA 显示
-- [x] 传输完成操作面板 (查看/分享/删除)
+- [x] 传输完成操作面板 (查看/分享/删除 + 本次传输清单)
 - [x] 触觉反馈
 - [x] 存储空间状态栏
-- [x] 筛选芯片 (全部/新照片/RAW/JPEG)
-- [x] 富通知 (BigPictureStyle)
+- [x] 筛选芯片 (全部/新照片/RAW/JPEG，默认新照片)
 - [x] EXIF 详情面板 (快门/光圈/ISO/焦距/镜头等)
 - [x] 从相机删除照片
 - [x] 网格密度切换 (2/3/4 列)
 - [x] 传输历史记录
 - [x] 失败重试
-- [x] 设置页面 (自动同步、分组、排序、下载格式、主题)
+- [x] 设置页面 (分组、排序、下载格式、主题、网格密度)
 - [x] 深色主题 (跟随系统/浅色/深色)
 - [x] 渐进式照片加载 (先显示 30 张，后台继续)
 - [x] 三种照片分组模式 (按文件夹/按日期/不分组)
@@ -124,8 +122,7 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 │   ├── PhotoDetailSheet.kt       # EXIF 详情面板
 │   ├── TransferHistoryScreen.kt  # 传输历史
 │   ├── LocalPhotosViewModel.kt   # 本地相册 ViewModel
-│   ├── UsbSyncService.kt         # 前台服务 (后台同步)
-│   ├── UsbSyncCoordinator.kt     # 自动同步生命周期
+│   ├── FirstRunGuideScreen.kt    # 冷启动引导（设置页可重开）
 │   └── UsbSyncPreferences.kt     # 用户偏好设置
 ├── settings/
 │   └── SettingsScreen.kt         # 设置页面
@@ -146,10 +143,10 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 | P0 | 去重键不一致：UI 硬编码 `storageId=0` vs 后台真实 storageId | ✅ 已修复（`b75e87b`，action-plan P0-2） |
 | P0 | "会话级自动剪枝"假注释 | ✅ 已修复（`220aa12`，action-plan P0-4，改软校验） |
 | P0 | MediaStore 保存路径硬编码 "Nikon Z30" | ✅ 已修复（`2961280`，action-plan P0-1） |
-| P1 | 自动同步未接线：`UsbSyncService` 零调用，`autoSyncEnabled` 无消费者 | 待决策（action-plan P1-4，见 [review R7](../review/2026-08-09-design-review.md)） |
+| P1 | 自动同步未接线：`UsbSyncService` 零调用，`autoSyncEnabled` 无消费者 | ✅ 已移除死代码（`6a1c331`，action-plan P1-4） |
 | P2 | detekt baseline 技术债（原 24 条，P0 已清 1 条 → 23 条） | 已由 baseline 吸收，逐步偿还（action-plan P2-3） |
 
-> 应用功能层面历史 bug 均已修复（最后修复 2026-08-02 PhotoCell EXIF 竖构图）。2026-08-09 Apple 视角评审（[review](../review/2026-08-09-design-review.md)）发现的 4 项正确性缺陷 R1–R4 已全部修复（action-plan P0），另新增 R7（自动同步未接线）待 P1 决策。
+> 应用功能层面历史 bug 均已修复（最后修复 2026-08-02 PhotoCell EXIF 竖构图）。2026-08-09 Apple 视角评审（[review](../review/2026-08-09-design-review.md)）发现的 4 项正确性缺陷 R1–R4 已全部修复（action-plan P0）；R7（自动同步未接线）已按 YAGNI 移除死代码（action-plan P1-4）；R5 三个核心路径项（P1-1/2/3）已全部落地（action-plan P1）。
 
 ---
 

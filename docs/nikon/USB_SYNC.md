@@ -215,18 +215,15 @@ graph TB
     GalleryScreen --> GalleryViewModel["GalleryViewModel<br/>connection lifecycle<br/>USB detection, permission flow<br/>state machine, MediaStore save"]
     GalleryViewModel --> NikonUsbManager["NikonUsbManager<br/>raw MTP operations"]
     GalleryViewModel --> PhotoSyncManager["PhotoSyncManager<br/>dedup via SharedPreferences"]
-
-    UsbSyncService["UsbSyncService<br/>Foreground Service"] --> UsbSyncCoordinator["UsbSyncCoordinator<br/>auto-sync lifecycle"]
-    UsbSyncCoordinator --> NikonUsbManager2["NikonUsbManager<br/>MTP operations"]
-    UsbSyncCoordinator --> PhotoSyncManager2["PhotoSyncManager<br/>dedup"]
-    UsbSyncCoordinator --> UsbSyncPreferences["UsbSyncPreferences<br/>per-camera sync config"]
 ```
+
+> **单一管线**：`GalleryViewModel` 是唯一 MTP 会话所有者（P0-3 收敛双管线后）。曾存在后台自动同步管线（`UsbSyncService`/`UsbSyncCoordinator`），因从未接线、设置开关无效，已于 2026-08-09 按 YAGNI 移除（action-plan P1-4，commit `6a1c331`）。
 
 ### Key Design Decisions
 
 - **GalleryScreen is the production UI** — a full gallery experience, not a debug screen. Drives all user-initiated transfers.
 - **GalleryViewModel manages the full connection lifecycle** — USB detection, permission requests, MTP open/close, folder navigation state, selection state, and transfer orchestration.
-- **UsbSyncService handles background sync** — foreground service with notification progress for auto-sync when the app is not in the foreground.
+- **新照片是默认主路径** — 连接后落在「新照片」视图，主 CTA「传输全部新照片 (N)」（P1-2）。
 - **PhotoSyncManager handles deduplication** — record of transferred `(handle, dateAdded, size, storageId)` tuples in SharedPreferences, checked before download.
 
 ## 8. Key Files
@@ -237,8 +234,7 @@ graph TB
 | `usb/GalleryViewModel.kt` | USB detection, permission flow, connection, folder navigation, selection, transfer, MediaStore save |
 | `usb/GalleryScreen.kt` | Primary UI: 3-column grid, folder browsing, long-press selection, transfer progress |
 | `usb/PhotoSyncManager.kt` | Deduplication via SharedPreferences |
-| `usb/UsbSyncService.kt` | Foreground service for background sync |
-| `usb/UsbSyncCoordinator.kt` | Auto-sync lifecycle |
+| `usb/FirstRunGuideScreen.kt` | First-run MTP mode guide (also reachable from Settings) |
 | `usb/UsbSyncPreferences.kt` | Per-camera USB sync preferences |
 | `res/xml/nikon_usb_device_filter.xml` | USB device filter (Nikon VID 0x04B0) |
 | `res/drawable/ic_usb_24dp.xml` | USB icon |

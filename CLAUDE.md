@@ -54,14 +54,13 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 
 - `NikonUsbManager` — `android.mtp.MtpDevice` 封装：USB 权限（PendingIntent + BroadcastReceiver）、存储/文件夹 BFS 遍历、对象读取
 - `GalleryViewModel` — 核心状态机（sealed interface `GalleryState`）：`Disconnected → Connecting → Loading → Browsing / Empty / Error → Transferring → TransferDone`
-- `PhotoSyncManager` — SharedPreferences 去重（`storageId + handle` 键，跨会话，会话变更自动剪枝）
+- `PhotoSyncManager` — SharedPreferences 去重（`storageId + handle` 键 + `name:size` 身份软校验，跨会话，身份不匹配视为未导入）
 - `LocalPhotosViewModel` — Coil 3 + MediaStore 加载本地照片
-- `UsbSyncService` — 前台服务（`connectedDevice` 类型）
-- `UsbSyncCoordinator` / `UsbSyncPreferences` / `PhotoDetailSheet` / `TransferHistoryScreen` / `GalleryScreen` / `GalleryFolderScreen`
+- `UsbSyncPreferences` / `PhotoDetailSheet` / `TransferHistoryScreen` / `GalleryScreen` / `GalleryFolderScreen` / `FirstRunGuideScreen`
 
 ### Navigation 3（`MainActivity.kt` + `NavRoute.kt`）
 
-- `NavRoute` 是 `@Parcelize @Serializable` sealed interface：`Gallery` / `GalleryFolder(storageId, folderHandle, folderName)` / `LogViewer` / `Settings` / `TransferHistory`
+- `NavRoute` 是 `@Parcelize @Serializable` sealed interface：`Gallery` / `GalleryFolder(storageId, folderHandle, folderName)` / `FirstRunGuide` / `LogViewer` / `Settings` / `TransferHistory`
 - `MainActivity` 用 `NavDisplay(backStack, …)` + `NavEntry(key)` + `when(key)` 手工映射路由（非 XML 图）
 
 ### DI（Metro）
