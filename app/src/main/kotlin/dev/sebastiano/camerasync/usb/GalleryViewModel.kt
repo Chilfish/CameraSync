@@ -222,7 +222,7 @@ class GalleryViewModel(private val app: Application) {
 
     /** Updates [currentPhotos] and invalidates the filtered-groups cache. */
     private fun updateCurrentPhotos(groups: List<GalleryEntry.PhotoGroup>) {
-        updateCurrentPhotos(groups)
+        currentPhotos = groups
         invalidateFilterCache()
     }
 
