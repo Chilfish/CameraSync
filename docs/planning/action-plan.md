@@ -85,27 +85,33 @@
 
 ---
 
-## P2 — 工程债（1 周）
+## P2 — 工程债（2026-08-09 实施中）
 
 ### P2-1 拆分 God Object（R6）
 
-- **Commit**: `refactor(usb): split GalleryViewModel into focused modules`
-- **动作**: `GalleryViewModel`（1099 行）→ `ConnectionManager`（USB 生命周期）/ `TransferEngine`（传输编排）/ `ThumbnailProvider`（四类缓存 + EXIF）/ `GalleryStateMachine`（sealed state + 筛选排序）；`GalleryScreen`（1913 行）拆子组件
-- **验收**: 行为不变（diff 纯搬移）；`detekt` 的 `TooManyFunctions`/`LongMethod` baseline 条目减少
+- **Headline**: `refactor(usb): split GalleryViewModel into focused modules`
+- **动作**: `GalleryViewModel`（1105 行）→ 4 个原子 commit 顺序抽取，**行为不变（纯搬移）**，`GalleryViewModel` 收敛为门面（保留全部公共 API，GalleryScreen/PhotoDetailSheet 零改动）：
+  1. `refactor(usb): extract GalleryStateMachine from GalleryViewModel` — sealed state + 筛选/排序/分组/选择纯逻辑（最可测）
+  2. `refactor(usb): extract ThumbnailProvider from GalleryViewModel` — 四类缓存 + EXIF 方向
+  3. `refactor(usb): extract TransferEngine from GalleryViewModel` — 传输编排（含 MediaStore 保存）
+  4. `refactor(usb): extract ConnectionManager from GalleryViewModel` — USB 生命周期 + 浏览/枚举
+- **验收**: 行为不变；`LargeClass:GalleryViewModel` baseline 条目随拆分消除
 
 ### P2-2 核心路径补单测（R6）
 
-- **Commit**: `test(usb): add dedup and state machine tests`
+- **Headline**: `test(usb): add dedup and state machine tests`
 - **动作**（遵循 CLAUDE.md「Fakes over Mocks」+ Dispatcher 注入）:
-  - `PhotoSyncManagerTest`: 跨会话剪枝、storageId 一致性（P0-2 前置）
-  - `GalleryStateMachineTest`: `Disconnected → Connecting → Loading → Browsing/Empty/Error → Transferring → TransferDone` 全迁移
-  - `TransferEngineTest`: 失败重试、取消、MediaStore 保存失败路径
-- **验收**: 核心路径单测覆盖（`testDebugUnitTest` 通过）
+  1. `fix(usb): use injected dispatcher in LocalPhotosViewModel scope` — 修 6 个既有失败的根因之一（scope 硬编码 `Dispatchers.IO`）
+  2. `test(usb): fix LocalPhotosViewModel tests for plain JVM` — Uri/ContentUris 静态 mock、mockk Cursor 替代 MatrixCursor、删死代码 `baseDir`（连带去掉 Environment mock）、修 package 声明
+  3. `test(usb): add PhotoSyncManager dedup tests` — 跨会话剪枝、storageId 一致性（P0-2 前置）；`PhotoSyncManager` 构造注入 `SharedPreferences` 以便用内存 fake
+  4. `test(usb): add GalleryStateMachine transition tests` — `Disconnected → Connecting → Loading → Browsing/Empty/Error → Transferring → TransferDone` + 筛选/排序/选择
+  5. `test(usb): add TransferEngine failure tests` — 失败重试、取消、MediaStore 保存失败路径
+- **验收**: 核心路径单测覆盖，`testDebugUnitTest` 全绿
 
 ### P2-3 还清 detekt baseline（todo.md 原 P2）
 
 - **Commit**: `chore: repay detekt baseline debt`
-- **动作**: 24 条 → 0，逐步修复后从 `detekt-baseline.xml` 移除对应条目
+- **动作**: 17 条 → 0，逐步修复后从 `detekt-baseline.xml` 移除对应条目（含删死桩 `getBatteryLevel`/`UnusedParameter`、`TransferRecord` 独立文件、NestedBlockDepth 重构、ComplexCondition 提取局部变量等）
 - **验收**: `detekt` 无 baseline 吸收全绿
 
 ---
