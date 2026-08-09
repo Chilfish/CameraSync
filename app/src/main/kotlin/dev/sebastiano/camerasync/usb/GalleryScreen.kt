@@ -1,10 +1,13 @@
 package dev.sebastiano.camerasync.usb
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.net.Uri
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -24,9 +27,12 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
@@ -63,6 +69,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -1276,6 +1283,7 @@ private fun TransferDoneContent(
     val haptic = LocalHapticFeedback.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showSummary by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -1284,117 +1292,141 @@ private fun TransferDoneContent(
     }
 
     if (sheetState.isVisible) {
-        ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-            Column(
-                modifier =
-                    Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("✨", fontSize = 40.sp)
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.usb_transfer_complete_title),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    stringResource(R.string.usb_transfer_complete_count, s.synced),
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(24.dp))
+        ModalBottomSheet(
+            onDismissRequest = { if (showSummary) showSummary = false else onDismiss() },
+            sheetState = sheetState,
+        ) {
+            if (showSummary) {
+                TransferSummaryContent(savedUris = s.savedUris, onClose = { showSummary = false })
+            } else {
+                Column(
+                    modifier =
+                        Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text("✨", fontSize = 40.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.usb_transfer_complete_title),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(R.string.usb_transfer_complete_count, s.synced),
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(24.dp))
 
-                if (s.savedUris.isNotEmpty()) {
-                    OutlinedButton(
-                        onClick = {
-                            val intent =
-                                Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(s.savedUris.first(), "image/*")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(android.R.drawable.ic_menu_gallery),
-                            null,
-                            Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.usb_action_view_in_gallery))
-                    }
-                    Spacer(Modifier.height(8.dp))
+                    if (s.savedUris.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = { showSummary = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(
+                                painterResource(android.R.drawable.ic_menu_agenda),
+                                null,
+                                Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.usb_action_view_summary))
+                        }
+                        Spacer(Modifier.height(8.dp))
 
-                    OutlinedButton(
-                        onClick = {
-                            val intent =
-                                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                                    type = "image/*"
-                                    putParcelableArrayListExtra(
-                                        Intent.EXTRA_STREAM,
-                                        ArrayList(s.savedUris),
+                        OutlinedButton(
+                            onClick = {
+                                val intent =
+                                    Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(s.savedUris.first(), "image/*")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(
+                                painterResource(android.R.drawable.ic_menu_gallery),
+                                null,
+                                Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.usb_action_view_in_gallery))
+                        }
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                val intent =
+                                    Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                        type = "image/*"
+                                        putParcelableArrayListExtra(
+                                            Intent.EXTRA_STREAM,
+                                            ArrayList(s.savedUris),
+                                        )
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                context.startActivity(
+                                    Intent.createChooser(
+                                        intent,
+                                        context.getString(R.string.usb_share_chooser_title),
                                     )
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                            context.startActivity(
-                                Intent.createChooser(
-                                    intent,
-                                    context.getString(R.string.usb_share_chooser_title),
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(
+                                painterResource(android.R.drawable.ic_menu_share),
+                                null,
+                                Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.usb_action_share))
+                        }
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = { showDeleteConfirm = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(
+                                painterResource(android.R.drawable.ic_menu_delete),
+                                null,
+                                Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.usb_action_delete_from_camera))
+                        }
+                    }
+
+                    if (viewModel.failedHandles.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                onDismiss()
+                                viewModel.retryFailedTransfers()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(
+                                painterResource(android.R.drawable.ic_menu_revert),
+                                null,
+                                Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                stringResource(
+                                    R.string.usb_retry_failed,
+                                    viewModel.failedHandles.size,
                                 )
                             )
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(android.R.drawable.ic_menu_share),
-                            null,
-                            Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.usb_action_share))
+                        }
                     }
-                    Spacer(Modifier.height(8.dp))
 
-                    OutlinedButton(
-                        onClick = { showDeleteConfirm = true },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(android.R.drawable.ic_menu_delete),
-                            null,
-                            Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.usb_action_delete_from_camera))
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.usb_action_continue_browsing))
                     }
-                }
-
-                if (viewModel.failedHandles.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = {
-                            onDismiss()
-                            viewModel.retryFailedTransfers()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(android.R.drawable.ic_menu_revert),
-                            null,
-                            Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            stringResource(R.string.usb_retry_failed, viewModel.failedHandles.size)
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.usb_action_continue_browsing))
                 }
             }
         }
@@ -1444,6 +1476,97 @@ private fun TransferDoneContent(
         )
     }
 }
+
+// ── Per-session transfer summary (P1-3) ───────────────────────────────────
+
+/**
+ * List of files saved in the last transfer session. Each row shows a thumbnail + display name and
+ * opens the photo in the system gallery (album locate). Shown inside the transfer-done sheet when
+ * the user taps "本次传输清单".
+ */
+@Composable
+private fun TransferSummaryContent(savedUris: List<Uri>, onClose: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.usb_summary_title, savedUris.size),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onClose) {
+                Icon(
+                    painterResource(android.R.drawable.ic_menu_close_clear_cancel),
+                    stringResource(R.string.general_back),
+                )
+            }
+        }
+        LazyColumn(modifier = Modifier.heightIn(max = 420.dp).padding(bottom = 24.dp)) {
+            items(savedUris, key = { it.toString() }) { uri -> TransferSummaryRow(uri) }
+        }
+    }
+}
+
+@Composable
+private fun TransferSummaryRow(uri: Uri) {
+    val context = LocalContext.current
+    val fileName by
+        produceState(initialValue = "", key1 = uri) { value = queryMediaDisplayName(context, uri) }
+    Row(
+        modifier =
+            Modifier.fillMaxWidth()
+                .clickable {
+                    runCatching {
+                        val intent =
+                            Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, "image/*")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                        context.startActivity(intent)
+                    }
+                }
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(context).data(uri).size(72).build(),
+            contentDescription = null,
+            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop,
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            fileName.ifBlank { uri.lastPathSegment ?: "photo" },
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            painterResource(android.R.drawable.ic_menu_gallery),
+            null,
+            Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Resolves the [MediaStore] display name for a saved image [Uri], or "" if unavailable. */
+private fun queryMediaDisplayName(context: Context, uri: Uri): String =
+    runCatching {
+            context.contentResolver
+                .query(uri, arrayOf(MediaStore.Images.Media.DISPLAY_NAME), null, null, null)
+                ?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val idx = cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
+                        if (idx >= 0) cursor.getString(idx) else ""
+                    } else ""
+                } ?: ""
+        }
+        .getOrDefault("")
 
 // ── Transfer Preview Sheet ─────────────────────────────────────────────────
 

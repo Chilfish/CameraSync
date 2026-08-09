@@ -91,6 +91,8 @@
     <string name="usb_transfer_complete_title">同步完成</string>
     <string name="usb_transfer_complete_count">已保存 %d 张照片</string>
     <string name="usb_action_view_in_gallery">在相册中查看</string>
+    <string name="usb_action_view_summary">本次传输清单</string>
+    <string name="usb_summary_title">本次传输（%1$d 张）</string>
     <string name="usb_action_share">分享</string>
     <string name="usb_action_delete_from_camera">从相机删除</string>
     <string name="usb_action_delete_coming_soon">即将支持</string>
