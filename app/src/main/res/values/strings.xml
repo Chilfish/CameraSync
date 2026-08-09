@@ -106,6 +106,20 @@
     <string name="usb_filter_raw">RAW</string>
     <string name="usb_filter_jpeg">JPEG</string>
 
+    <!-- P1-2: new-photos primary path + view options menu -->
+    <string name="usb_transfer_all_new">传输全部新照片 (%1$d)</string>
+    <string name="usb_view_options">视图选项</string>
+    <string name="usb_view_grid">网格列数</string>
+    <string name="usb_view_grouping">分组</string>
+    <string name="usb_view_sorting">排序</string>
+    <string name="usb_grid_columns_n">%1$d 列</string>
+    <string name="usb_grouping_folder">按文件夹</string>
+    <string name="usb_grouping_date">按日期</string>
+    <string name="usb_grouping_flat">不分组</string>
+    <string name="usb_sorting_newest">最新优先</string>
+    <string name="usb_sorting_name">按名称</string>
+    <string name="usb_sorting_size">按大小</string>
+
     <!-- Transfer UI — Speed, ETA & Progress (Sprint 2) -->
     <string name="transfer_speed_mb_per_s">%1$.1f MB/s</string>
     <string name="transfer_speed_kb_per_s">%1$d KB/s</string>
@@ -182,7 +196,6 @@
     <string name="usb_action_transfer_count">传输 %d 张照片</string>
     <string name="general_back">返回</string>
     <string name="label_logs">日志</string>
-    <string name="usb_grid_columns">列数: %d</string>
     <string name="usb_preview_title">确认传输</string>
     <string name="usb_action_start_transfer">开始传输</string>
     <string name="usb_label_preview">预览</string>

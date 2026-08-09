@@ -148,7 +148,7 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("默认下载格式", fontWeight = FontWeight.Medium)
                     Text(
-                        "连接相机后默认显示的照片类型",
+                        "传输时包含的照片格式",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

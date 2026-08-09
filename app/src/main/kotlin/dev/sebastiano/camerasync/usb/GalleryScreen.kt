@@ -42,6 +42,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -164,6 +166,16 @@ fun GalleryScreen(
                     viewModel.gridColumns = it
                     prefs.setGridColumns(it)
                 },
+                grouping = viewModel.groupingMode,
+                onGroupingChange = {
+                    viewModel.setGrouping(it)
+                    viewModel.requestReload()
+                },
+                sorting = viewModel.sortingMode,
+                onSortingChange = {
+                    viewModel.setSorting(it)
+                    viewModel.requestReload()
+                },
             )
         },
         bottomBar = {
@@ -187,7 +199,17 @@ fun GalleryScreen(
             if (showLocal) {
                 LocalTabContent(localVm, viewModel.gridColumns)
             } else {
-                CameraTabContent(s, viewModel, inFolder, onFolderClick, onNavigateBack)
+                CameraTabContent(
+                    s,
+                    viewModel,
+                    inFolder,
+                    onFolderClick,
+                    onNavigateBack,
+                    onTransferAllNew = {
+                        viewModel.selectAllNew()
+                        showPreview = true
+                    },
+                )
             }
         }
 
@@ -243,7 +265,13 @@ private fun GalleryTopBar(
     onDeselectAll: () -> Unit,
     gridColumns: Int = 3,
     onGridChange: (Int) -> Unit = {},
+    grouping: UsbSyncPreferences.PhotoGrouping = UsbSyncPreferences.PhotoGrouping.BY_FOLDER,
+    onGroupingChange: (UsbSyncPreferences.PhotoGrouping) -> Unit = {},
+    sorting: UsbSyncPreferences.PhotoSorting = UsbSyncPreferences.PhotoSorting.DATE_DESC,
+    onSortingChange: (UsbSyncPreferences.PhotoSorting) -> Unit = {},
 ) {
+    var viewMenuExpanded by remember { mutableStateOf(false) }
+
     TopAppBar(
         title = {
             if (selectionCount > 0)
@@ -264,21 +292,97 @@ private fun GalleryTopBar(
             }
         },
         actions = {
-            IconButton(
-                onClick = {
-                    val next =
-                        when (gridColumns) {
-                            2 -> 3
-                            3 -> 4
-                            else -> 2
-                        }
-                    onGridChange(next)
+            // View options: grid columns, grouping, sorting — one overflow menu (Apple 减法).
+            Box {
+                IconButton(onClick = { viewMenuExpanded = true }) {
+                    Icon(
+                        painterResource(android.R.drawable.ic_menu_more),
+                        stringResource(R.string.usb_view_options),
+                    )
                 }
-            ) {
-                Icon(
-                    painterResource(android.R.drawable.ic_menu_view),
-                    stringResource(R.string.usb_grid_columns, gridColumns),
-                )
+                DropdownMenu(
+                    expanded = viewMenuExpanded,
+                    onDismissRequest = { viewMenuExpanded = false },
+                ) {
+                    Text(
+                        stringResource(R.string.usb_view_grid),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                    listOf(2, 3, 4).forEach { cols ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.usb_grid_columns_n, cols)) },
+                            onClick = {
+                                viewMenuExpanded = false
+                                onGridChange(cols)
+                            },
+                            trailingIcon = {
+                                if (gridColumns == cols)
+                                    Text("✓", color = MaterialTheme.colorScheme.primary)
+                            },
+                        )
+                    }
+                    HorizontalDivider()
+                    Text(
+                        stringResource(R.string.usb_view_grouping),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                    listOf(
+                            UsbSyncPreferences.PhotoGrouping.BY_FOLDER to
+                                stringResource(R.string.usb_grouping_folder),
+                            UsbSyncPreferences.PhotoGrouping.BY_DATE to
+                                stringResource(R.string.usb_grouping_date),
+                            UsbSyncPreferences.PhotoGrouping.FLAT to
+                                stringResource(R.string.usb_grouping_flat),
+                        )
+                        .forEach { (mode, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    viewMenuExpanded = false
+                                    onGroupingChange(mode)
+                                },
+                                trailingIcon = {
+                                    if (grouping == mode)
+                                        Text("✓", color = MaterialTheme.colorScheme.primary)
+                                },
+                            )
+                        }
+                    HorizontalDivider()
+                    Text(
+                        stringResource(R.string.usb_view_sorting),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                    listOf(
+                            UsbSyncPreferences.PhotoSorting.DATE_DESC to
+                                stringResource(R.string.usb_sorting_newest),
+                            UsbSyncPreferences.PhotoSorting.NAME_ASC to
+                                stringResource(R.string.usb_sorting_name),
+                            UsbSyncPreferences.PhotoSorting.SIZE_DESC to
+                                stringResource(R.string.usb_sorting_size),
+                        )
+                        .forEach { (mode, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    viewMenuExpanded = false
+                                    onSortingChange(mode)
+                                },
+                                trailingIcon = {
+                                    if (sorting == mode)
+                                        Text("✓", color = MaterialTheme.colorScheme.primary)
+                                },
+                            )
+                        }
+                }
             }
             if (selectionCount > 0) {
                 androidx.compose.material3.TextButton(onClick = onDeselectAll) {
@@ -384,6 +488,7 @@ private fun BrowsingContent(
     vm: GalleryViewModel,
     isRoot: Boolean,
     onFolderClick: (GalleryEntry.Folder) -> Unit = {},
+    onTransferAllNew: () -> Unit = {},
 ) {
     val entries = state.entries
     val photos = entries.filterIsInstance<GalleryEntry.PhotoGroup>()
@@ -413,6 +518,17 @@ private fun BrowsingContent(
             jpgCount = jpgCount,
             onFilterChange = vm::setFilter,
         )
+
+        // Primary CTA: transfer all new photos in one tap (P1-2). Root view only — the folder view
+        // keeps selection-driven transfer via the bottom bar.
+        if (isRoot && newCount > 0) {
+            Button(
+                onClick = onTransferAllNew,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(stringResource(R.string.usb_transfer_all_new, newCount), fontSize = 16.sp)
+            }
+        }
 
         PullToRefreshBox(
             isRefreshing = false,
@@ -1503,6 +1619,7 @@ private fun CameraTabContent(
     inFolder: Boolean,
     onFolderClick: (GalleryEntry.Folder) -> Unit,
     onNavigateBack: () -> Unit,
+    onTransferAllNew: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize()) {
         // Inline error banner — overlays on top instead of replacing the screen
@@ -1546,7 +1663,7 @@ private fun CameraTabContent(
             }
             is GalleryState.Loading -> LoadingContent(s)
             is GalleryState.Browsing ->
-                BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick)
+                BrowsingContent(s, viewModel, isRoot = !inFolder, onFolderClick, onTransferAllNew)
             is GalleryState.Empty -> EmptyCameraContent()
             is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
             is GalleryState.Transferring -> TransferringContent(s)

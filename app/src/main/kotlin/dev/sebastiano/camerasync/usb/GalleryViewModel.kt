@@ -435,7 +435,6 @@ class GalleryViewModel(private val app: Application) {
         // Re-read preferences on each load so settings take effect immediately
         groupingMode = prefs.photoGrouping
         sortingMode = prefs.photoSorting
-        filterMode = downloadFormatToFilter(prefs.downloadFormat)
 
         try {
             when (groupingMode) {
@@ -805,6 +804,18 @@ class GalleryViewModel(private val app: Application) {
             .forEach { if (it !in _selected) _selected.add(it) }
     }
 
+    /**
+     * Selects the transferable handles of all not-yet-imported groups, respecting download format.
+     */
+    fun selectAllNew() {
+        currentPhotos
+            .filter { group ->
+                listOfNotNull(group.raw, group.jpg).any { !photoSyncManager.isAlreadyImported(it) }
+            }
+            .flatMap { handlesForFormat(it) }
+            .forEach { if (it !in _selected) _selected.add(it) }
+    }
+
     fun deselectAll() {
         _selected.clear()
     }
@@ -818,7 +829,8 @@ class GalleryViewModel(private val app: Application) {
 
     // ── Filtering ──────────────────────────────────────────────────────────
 
-    var filterMode: PhotoFilter by mutableStateOf(downloadFormatToFilter(prefs.downloadFormat))
+    // Default view is the new-photos filter: connecting lands on what's ready to transfer (P1-2).
+    var filterMode: PhotoFilter by mutableStateOf(PhotoFilter.NEW)
         private set
 
     fun setFilter(mode: PhotoFilter) {
@@ -870,9 +882,9 @@ class GalleryViewModel(private val app: Application) {
     }
 
     fun setDownloadFormat(format: UsbSyncPreferences.DownloadFormat) {
+        // Download format controls which photos transfer (see handlesForFormat); it no longer
+        // drives the default filter — new photos are the default view (P1-2).
         prefs.downloadFormat = format
-        filterMode = downloadFormatToFilter(format)
-        invalidateFilterCache()
     }
 
     private fun applySorting(photos: List<GalleryEntry.PhotoGroup>): List<GalleryEntry.PhotoGroup> {
@@ -887,14 +899,6 @@ class GalleryViewModel(private val app: Application) {
             UsbSyncPreferences.PhotoSorting.NAME_DESC -> photos.sortedByDescending { it.baseName }
             UsbSyncPreferences.PhotoSorting.SIZE_DESC ->
                 photos.sortedByDescending { (it.raw?.size ?: 0L) + (it.jpg?.size ?: 0L) }
-        }
-    }
-
-    private fun downloadFormatToFilter(format: UsbSyncPreferences.DownloadFormat): PhotoFilter {
-        return when (format) {
-            UsbSyncPreferences.DownloadFormat.ALL -> PhotoFilter.ALL
-            UsbSyncPreferences.DownloadFormat.JPEG_ONLY -> PhotoFilter.JPEG_ONLY
-            UsbSyncPreferences.DownloadFormat.RAW_ONLY -> PhotoFilter.RAW_ONLY
         }
     }
 
