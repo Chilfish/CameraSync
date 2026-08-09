@@ -11,6 +11,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
@@ -26,6 +27,7 @@ import dev.sebastiano.camerasync.logging.LogViewerScreen
 import dev.sebastiano.camerasync.logging.LogViewerViewModel
 import dev.sebastiano.camerasync.settings.SettingsScreen
 import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
+import dev.sebastiano.camerasync.usb.FirstRunGuideScreen
 import dev.sebastiano.camerasync.usb.GalleryFolderScreen
 import dev.sebastiano.camerasync.usb.GalleryScreen
 import dev.sebastiano.camerasync.usb.GalleryViewModel
@@ -63,6 +65,15 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
                 mutableStateListOf<NavRoute>(NavRoute.Gallery)
             }
 
+        // Cold start: show the one-screen MTP guide before anything else. Never shown again after
+        // the first launch (guideSeen persists in prefs).
+        LaunchedEffect(Unit) {
+            if (!prefs.guideSeen) {
+                prefs.guideSeen = true
+                backStack.add(NavRoute.FirstRunGuide)
+            }
+        }
+
         NavDisplay(
             backStack = backStack,
             onBack = { backStack.removeLastOrNull() },
@@ -95,6 +106,13 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
                                     )
                                 )
                             },
+                        )
+                    }
+
+                    NavRoute.FirstRunGuide -> {
+                        FirstRunGuideScreen(
+                            onNavigateBack = { backStack.removeLastOrNull() },
+                            onDone = { backStack.removeLastOrNull() },
                         )
                     }
 
@@ -133,7 +151,7 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
                             prefs = p,
                             onNavigateBack = { backStack.removeLastOrNull() },
                             onNavigateToHistory = { backStack.add(NavRoute.TransferHistory) },
-                            onNavigateToOnboarding = {},
+                            onNavigateToOnboarding = { backStack.add(NavRoute.FirstRunGuide) },
                             onGroupingChanged = { galleryViewModel.requestReload() },
                             onSortingChanged = { galleryViewModel.requestReload() },
                             onDownloadFormatChanged = { galleryViewModel.requestReload() },

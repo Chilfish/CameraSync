@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -176,6 +177,28 @@ fun SettingsScreen(
             Spacer(Modifier.height(8.dp))
             HorizontalDivider()
             Spacer(Modifier.height(8.dp))
+
+            // Usage guide (first-run screen, re-openable here)
+            Card(modifier = Modifier.fillMaxWidth(), onClick = onNavigateToOnboarding) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            stringResource(R.string.settings_guide),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            stringResource(R.string.settings_guide_desc),
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text("→", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
 
             // Transfer history
             Card(modifier = Modifier.fillMaxWidth(), onClick = onNavigateToHistory) {

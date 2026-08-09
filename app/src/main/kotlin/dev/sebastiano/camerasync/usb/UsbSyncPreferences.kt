@@ -9,6 +9,11 @@ class UsbSyncPreferences(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    /** Whether the first-run MTP guide has been shown. */
+    var guideSeen: Boolean
+        get() = prefs.getBoolean(KEY_GUIDE_SEEN, false)
+        set(value) = prefs.edit().putBoolean(KEY_GUIDE_SEEN, value).apply()
+
     /** Which photo formats to include when listing photos. */
     var downloadFormat: DownloadFormat
         get() =
@@ -123,6 +128,7 @@ class UsbSyncPreferences(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "camera_sync_usb_prefs"
+        private const val KEY_GUIDE_SEEN = "guide_seen"
         private const val KEY_FORMAT = "download_format"
         private const val KEY_GROUPING = "photo_grouping"
         private const val KEY_SORTING = "photo_sorting"

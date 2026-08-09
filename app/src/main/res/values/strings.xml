@@ -10,6 +10,18 @@
     <string name="content_desc_back">Back</string>
     <string name="content_desc_refresh">Refresh</string>
 
+    <!-- First-run guide -->
+    <string name="guide_topbar_title">使用说明</string>
+    <string name="guide_headline">插上 USB，开始传照片</string>
+    <string name="guide_subtitle">三步完成相机照片同步</string>
+    <string name="guide_step1_title">相机切到 MTP/PTP 模式</string>
+    <string name="guide_step1_desc">在相机设置里把传输模式改为 MTP 或 PTP</string>
+    <string name="guide_step2_title">允许 USB 权限</string>
+    <string name="guide_step2_desc">插线后点击「允许」，同意访问相机</string>
+    <string name="guide_step3_title">插线即同步</string>
+    <string name="guide_step3_desc">新照片自动传到「Pictures/CameraSync」相册</string>
+    <string name="guide_cta">开始使用</string>
+
     <!-- Log Viewer -->
     <string name="log_viewer_title">Log Viewer</string>
     <string name="content_desc_close_search">Close search</string>
@@ -145,6 +157,8 @@
 
     <!-- Sprint 3: Settings -->
     <string name="settings_title">设置</string>
+    <string name="settings_guide">使用说明</string>
+    <string name="settings_guide_desc">MTP 模式、USB 权限、插线同步</string>
     <string name="settings_grid_density">照片网格</string>
     <string name="settings_history">传输历史</string>
     <string name="settings_history_desc">查看以往的同步记录</string>

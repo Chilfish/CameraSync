@@ -10,6 +10,9 @@ sealed interface NavRoute : Parcelable {
     /** Gallery — primary screen (USB storage / folder list). */
     @Parcelize @Serializable data object Gallery : NavRoute
 
+    /** First-run MTP mode guide (also reachable from Settings). */
+    @Parcelize @Serializable data object FirstRunGuide : NavRoute
+
     /** Gallery folder — photos inside a specific MTP folder. */
     @Parcelize
     @Serializable

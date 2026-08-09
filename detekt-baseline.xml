@@ -16,7 +16,6 @@
     <ID>TooGenericExceptionCaught:LocalPhotosViewModel.kt$LocalPhotosViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:NikonUsbManager.kt$NikonUsbManager$e: Exception</ID>
     <ID>UnusedParameter:NikonUsbManager.kt$NikonUsbManager$mtpDevice: MtpDevice</ID>
-    <ID>UnusedParameter:SettingsScreen.kt$onNavigateToOnboarding: () -&gt; Unit</ID>
     <ID>UnusedPrivateProperty:GalleryScreen.kt$val totalSelected = viewModel.selectedCount</ID>
     <ID>UnusedPrivateProperty:GalleryViewModel.kt$GalleryViewModel$val gen = filterCacheGeneration // local snapshot to avoid TOCTOU</ID>
     <ID>UnusedPrivateProperty:LocalPhotosViewModel.kt$LocalPhotosViewModel$/** The base directory: Pictures/CameraSync */ private val baseDir = File( Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "CameraSync", ) .absolutePath + "/"</ID>
