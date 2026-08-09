@@ -1281,6 +1281,8 @@ private fun TransferDoneContent(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val shareChooserTitle = stringResource(R.string.usb_share_chooser_title)
+    val deleteSuccessTemplate = stringResource(R.string.usb_delete_success)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showSummary by remember { mutableStateOf(false) }
@@ -1367,10 +1369,7 @@ private fun TransferDoneContent(
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                 context.startActivity(
-                                    Intent.createChooser(
-                                        intent,
-                                        context.getString(R.string.usb_share_chooser_title),
-                                    )
+                                    Intent.createChooser(intent, shareChooserTitle)
                                 )
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -1453,7 +1452,7 @@ private fun TransferDoneContent(
                             withContext(Dispatchers.Main) {
                                 Toast.makeText(
                                         context,
-                                        context.getString(R.string.usb_delete_success, deleted),
+                                        deleteSuccessTemplate.format(deleted),
                                         Toast.LENGTH_SHORT,
                                     )
                                     .show()
