@@ -16,7 +16,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -46,7 +45,6 @@ fun SettingsScreen(
     onDownloadFormatChanged: (UsbSyncPreferences.DownloadFormat) -> Unit = {},
     onGridColumnsChanged: (Int) -> Unit = {},
 ) {
-    var autoSync by remember { mutableStateOf(prefs.autoSyncEnabled) }
     var gridCols by remember { mutableIntStateOf(prefs.getGridColumns()) }
     var grouping by remember { mutableStateOf(prefs.photoGrouping) }
     var sorting by remember { mutableStateOf(prefs.photoSorting) }
@@ -68,31 +66,6 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Auto-sync toggle
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("自动同步", fontWeight = FontWeight.Medium)
-                        Text(
-                            "插线时自动导入新照片",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(
-                        checked = autoSync,
-                        onCheckedChange = {
-                            autoSync = it
-                            prefs.autoSyncEnabled = it
-                        },
-                    )
-                }
-            }
-
             // Grid density
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(

@@ -11,19 +11,14 @@
     <ID>MatchingDeclarationName:TransferHistoryScreen.kt$TransferRecord</ID>
     <ID>NestedBlockDepth:GalleryScreen.kt$internal fun extractExifFromInterface(exif: ExifInterface?): List&lt;Pair&lt;String, String?&gt;&gt;</ID>
     <ID>NestedBlockDepth:PhotoDetailSheet.kt$internal fun extractExif(fileBytes: ByteArray?): List&lt;Pair&lt;String, String?&gt;&gt;</ID>
-    <ID>NestedBlockDepth:UsbSyncCoordinator.kt$UsbSyncCoordinator$suspend fun syncOnce(): SyncResult</ID>
     <ID>SwallowedException:GalleryViewModel.kt$GalleryViewModel$e: Exception</ID>
-    <ID>SwallowedException:UsbSyncService.kt$UsbSyncService$e: Exception</ID>
     <ID>TooGenericExceptionCaught:GalleryViewModel.kt$GalleryViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:LocalPhotosViewModel.kt$LocalPhotosViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:NikonUsbManager.kt$NikonUsbManager$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:UsbSyncCoordinator.kt$UsbSyncCoordinator$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:UsbSyncService.kt$UsbSyncService$e: Exception</ID>
     <ID>UnusedParameter:NikonUsbManager.kt$NikonUsbManager$mtpDevice: MtpDevice</ID>
     <ID>UnusedParameter:SettingsScreen.kt$onNavigateToOnboarding: () -&gt; Unit</ID>
     <ID>UnusedPrivateProperty:GalleryScreen.kt$val totalSelected = viewModel.selectedCount</ID>
     <ID>UnusedPrivateProperty:GalleryViewModel.kt$GalleryViewModel$val gen = filterCacheGeneration // local snapshot to avoid TOCTOU</ID>
     <ID>UnusedPrivateProperty:LocalPhotosViewModel.kt$LocalPhotosViewModel$/** The base directory: Pictures/CameraSync */ private val baseDir = File( Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "CameraSync", ) .absolutePath + "/"</ID>
-    <ID>UnusedPrivateProperty:UsbSyncCoordinator.kt$UsbSyncCoordinator$scope: CoroutineScope</ID>
   </CurrentIssues>
 </SmellBaseline>

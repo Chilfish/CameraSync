@@ -94,10 +94,6 @@
     <string name="usb_filter_raw">RAW</string>
     <string name="usb_filter_jpeg">JPEG</string>
 
-    <!-- Sprint 1: Notification -->
-    <string name="usb_notif_sync_complete_title">同步完成</string>
-    <string name="usb_notif_sync_complete_body">已保存 %d 张照片</string>
-
     <!-- Transfer UI — Speed, ETA & Progress (Sprint 2) -->
     <string name="transfer_speed_mb_per_s">%1$.1f MB/s</string>
     <string name="transfer_speed_kb_per_s">%1$d KB/s</string>
@@ -149,8 +145,6 @@
 
     <!-- Sprint 3: Settings -->
     <string name="settings_title">设置</string>
-    <string name="settings_auto_sync">自动同步</string>
-    <string name="settings_auto_sync_desc">插线时自动导入新照片</string>
     <string name="settings_grid_density">照片网格</string>
     <string name="settings_history">传输历史</string>
     <string name="settings_history_desc">查看以往的同步记录</string>

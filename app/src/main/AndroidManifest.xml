@@ -6,12 +6,7 @@
         android:name="android.hardware.usb.host"
         android:required="false" />
 
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <uses-permission
-        android:name="android.permission.FOREGROUND_SERVICE"
-        tools:ignore="ForegroundServicesPolicy" />
 
     <!-- Storage permissions -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -32,11 +27,6 @@
         android:theme="@style/Theme.CameraSync"
         tools:replace="android:appComponentFactory"
         tools:targetApi="34">
-
-        <service
-            android:name=".usb.UsbSyncService"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
 
         <activity
             android:name=".MainActivity"

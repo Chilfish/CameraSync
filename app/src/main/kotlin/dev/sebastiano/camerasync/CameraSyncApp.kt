@@ -1,9 +1,6 @@
 package dev.sebastiano.camerasync
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.os.Build
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -13,7 +10,6 @@ import com.juul.khronicle.ConsoleLogger
 import com.juul.khronicle.Log
 import com.juul.khronicle.Logger
 import dev.sebastiano.camerasync.di.AppGraph
-import dev.sebastiano.camerasync.usb.UsbSyncService
 import dev.zacsweers.metro.createGraphFactory
 import kotlin.getValue
 import okio.Path.Companion.toOkioPath
@@ -35,22 +31,6 @@ class CameraSyncApp : Application(), SingletonImageLoader.Factory {
 
         Log.info(javaClass.simpleName) {
             "-------------------- CAMERASYNC STARTED --------------------"
-        }
-
-        registerUsbSyncChannel()
-    }
-
-    @Suppress("TooGenericExceptionCaught")
-    private fun registerUsbSyncChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(NotificationManager::class.java)
-            val channel =
-                NotificationChannel(
-                    UsbSyncService.USB_SYNC_CHANNEL_ID,
-                    "USB 同步",
-                    NotificationManager.IMPORTANCE_LOW,
-                )
-            nm.createNotificationChannel(channel)
         }
     }
 
