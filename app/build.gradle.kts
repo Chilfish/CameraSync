@@ -33,6 +33,10 @@ val keystoreProperties =
         }
     }
 
+// 版本单源：gradle.properties（VERSION_NAME / VERSION_CODE，由 scripts/release.sh 管理）
+val releaseVersionName: String = (project.findProperty("VERSION_NAME") as String?) ?: "1.0.0"
+val releaseVersionCode: Int = ((project.findProperty("VERSION_CODE") as String?) ?: "1").toInt()
+
 android {
     namespace = "dev.sebastiano.camerasync"
     compileSdk = 36
@@ -41,8 +45,8 @@ android {
         applicationId = "dev.sebastiano.camerasync"
         minSdk = 33
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = releaseVersionCode
+        versionName = releaseVersionName
     }
 
     signingConfigs {
