@@ -45,11 +45,13 @@ fun SettingsScreen(
     onSortingChanged: (UsbSyncPreferences.PhotoSorting) -> Unit = {},
     onDownloadFormatChanged: (UsbSyncPreferences.DownloadFormat) -> Unit = {},
     onGridColumnsChanged: (Int) -> Unit = {},
+    onThemeModeChanged: (String) -> Unit = {},
 ) {
     var gridCols by remember { mutableIntStateOf(prefs.getGridColumns()) }
     var grouping by remember { mutableStateOf(prefs.photoGrouping) }
     var sorting by remember { mutableStateOf(prefs.photoSorting) }
     var downloadFormat by remember { mutableStateOf(prefs.downloadFormat) }
+    var themeMode by remember { mutableStateOf(prefs.getThemeMode()) }
 
     Scaffold(
         topBar = {
@@ -67,6 +69,32 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // Theme (P4-3, R11): three-way selector wired to prefs + the root theme state.
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(stringResource(R.string.settings_theme), fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                                "system" to stringResource(R.string.settings_theme_system),
+                                "light" to stringResource(R.string.settings_theme_light),
+                                "dark" to stringResource(R.string.settings_theme_dark),
+                            )
+                            .forEach { (mode, label) ->
+                                FilterChip(
+                                    selected = themeMode == mode,
+                                    onClick = {
+                                        themeMode = mode
+                                        prefs.setThemeMode(mode)
+                                        onThemeModeChanged(mode)
+                                    },
+                                    label = { Text(label, fontSize = 13.sp) },
+                                )
+                            }
+                    }
+                }
+            }
+
             // Grid density
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(

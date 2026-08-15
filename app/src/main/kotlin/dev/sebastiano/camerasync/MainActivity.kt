@@ -13,10 +13,13 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelProvider
@@ -53,7 +56,9 @@ class MainActivity : ComponentActivity() {
 private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
     val ctx = LocalContext.current
     val prefs = remember { UsbSyncPreferences(ctx) }
-    val themeMode = prefs.getThemeMode()
+    // Compose-reactive copy of the persisted theme so the settings screen can switch it live
+    // (R11, P4-3): SharedPreferences reads alone don't trigger recomposition.
+    var themeMode by remember { mutableStateOf(prefs.getThemeMode()) }
 
     CameraSyncTheme(themeMode = themeMode) {
         val app = ctx.applicationContext as Application
@@ -169,6 +174,7 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
                             onSortingChanged = { galleryViewModel.requestReload() },
                             onDownloadFormatChanged = { galleryViewModel.requestReload() },
                             onGridColumnsChanged = { galleryViewModel.gridColumns = it },
+                            onThemeModeChanged = { themeMode = it },
                         )
                     }
 
