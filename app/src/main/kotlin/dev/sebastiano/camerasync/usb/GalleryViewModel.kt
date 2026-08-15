@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import java.io.File
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -98,15 +99,18 @@ enum class PhotoFilter {
  * screens consume; implements [GalleryScreenHost] so the gallery states can render with a fake host
  * in `@Preview` (P5-3).
  */
-class GalleryViewModel(private val app: Application) : GalleryScreenHost {
+class GalleryViewModel(
+    private val app: Application,
+    private val nikon: NikonUsbManager,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : GalleryScreenHost {
     private val usbManager = app.getSystemService(Context.USB_SERVICE) as UsbManager
-    private val nikon = NikonUsbManager(usbManager)
     private val photoSyncManager = PhotoSyncManager(app)
 
     /** Preferences (auto-sync, format, grouping, sorting, theme, history). */
     val prefs = UsbSyncPreferences(app)
 
-    private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var scope = CoroutineScope(ioDispatcher + SupervisorJob())
 
     private val stateMachine =
         GalleryStateMachine(photoSyncManager, prefs.photoGrouping, prefs.photoSorting)
@@ -206,12 +210,12 @@ class GalleryViewModel(private val app: Application) : GalleryScreenHost {
         connection.start()
     }
 
-    /** Only unregisters the receiver — does NOT close MTP. */
+    /** Stops the USB lifecycle (unregisters receiver, closes MTP) and cancels in-flight work. */
     fun stop() {
         connection.stop()
         transferEngine.cancelTransfer()
         scope.cancel()
-        scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        scope = CoroutineScope(ioDispatcher + SupervisorJob())
     }
 
     /** Load root level: all storages → folders + loose photos, progressively. */

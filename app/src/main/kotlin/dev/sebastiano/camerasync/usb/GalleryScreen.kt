@@ -111,6 +111,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun GalleryScreen(
     viewModel: GalleryViewModel,
+    localPhotosViewModel: LocalPhotosViewModel? = null,
     onNavigateToLogs: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onFolderClick: (GalleryEntry.Folder) -> Unit = {},
@@ -146,7 +147,7 @@ fun GalleryScreen(
 
     // Local photos — auto-shown when camera is disconnected
     val app = context.applicationContext as Application
-    val localVm = remember { LocalPhotosViewModel(app) }
+    val localVm = localPhotosViewModel ?: remember { LocalPhotosViewModel(app) }
     val showLocal = s is GalleryState.Disconnected && !inFolder
 
     // Reload local photos every time we enter the local view

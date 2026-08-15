@@ -1,6 +1,5 @@
 package dev.sebastiano.camerasync
 
-import android.app.Application
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,6 +34,7 @@ import dev.sebastiano.camerasync.usb.FirstRunGuideScreen
 import dev.sebastiano.camerasync.usb.GalleryFolderScreen
 import dev.sebastiano.camerasync.usb.GalleryScreen
 import dev.sebastiano.camerasync.usb.GalleryViewModel
+import dev.sebastiano.camerasync.usb.LocalPhotosViewModel
 import dev.sebastiano.camerasync.usb.TransferHistoryScreen
 import dev.sebastiano.camerasync.usb.UsbSyncPreferences
 import dev.zacsweers.metro.Inject
@@ -48,12 +48,22 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        setContent { RootComposable(viewModelFactory = appGraph.viewModelFactory()) }
+        setContent {
+            RootComposable(
+                viewModelFactory = appGraph.viewModelFactory(),
+                galleryViewModel = appGraph.galleryViewModel(),
+                localPhotosViewModel = appGraph.localPhotosViewModel(),
+            )
+        }
     }
 }
 
 @Composable
-private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
+private fun RootComposable(
+    viewModelFactory: ViewModelProvider.Factory,
+    galleryViewModel: GalleryViewModel,
+    localPhotosViewModel: LocalPhotosViewModel,
+) {
     val ctx = LocalContext.current
     val prefs = remember { UsbSyncPreferences(ctx) }
     // Compose-reactive copy of the persisted theme so the settings screen can switch it live
@@ -61,12 +71,12 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
     var themeMode by remember { mutableStateOf(prefs.getThemeMode()) }
 
     CameraSyncTheme(themeMode = themeMode) {
-        val app = ctx.applicationContext as Application
-        val galleryViewModel = remember { GalleryViewModel(app) }
 
         // Pair the USB lifecycle with the root composition: a configuration change (rotation)
-        // disposes the old instance — closing its receiver and MtpDevice — before the new instance
-        // starts, so a second MtpDevice can never open on the same connection (R8, P4-1).
+        // disposes the composition — closing the receiver and MtpDevice — before the new
+        // composition starts it again, so a second MtpDevice can never open on the same connection
+        // (R8, P4-1). The ViewModel itself is held by AppGraph (P5-2, 方案 A): the same instance
+        // survives rotation and its stop() resets state, preserving the pre-DI fresh-instance UX.
         // Accepted tradeoff: brief reconnect on rotation (action-plan P4-1 option B).
         DisposableEffect(galleryViewModel) {
             galleryViewModel.start()
@@ -110,6 +120,7 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
                     NavRoute.Gallery -> {
                         GalleryScreen(
                             viewModel = galleryViewModel,
+                            localPhotosViewModel = localPhotosViewModel,
                             onNavigateToLogs = { backStack.add(NavRoute.LogViewer) },
                             onNavigateToSettings = { backStack.add(NavRoute.Settings) },
                             onFolderClick = { folder ->

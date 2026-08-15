@@ -116,13 +116,13 @@ class ConnectionManager(
      *
      * Paired with [start] from the composable's `DisposableEffect` so a configuration change
      * (rotation) closes the old instance's `MtpDevice` before the new instance opens it again —
-     * prevents two `MtpDevice`s open on the same physical connection (R8).
+     * prevents two `MtpDevice`s open on the same physical connection (R8). State/selection/caches
+     * are reset exactly like a detach ([closeMtpAndClear]) so a DI-held singleton behaves like a
+     * fresh instance after recreation (P5-2, 方案 A).
      */
     fun stop() {
-        syncJob?.cancel()
-        transferEngine.cancelTransfer()
         runCatching { app.unregisterReceiver(receiver) }
-        closeMtp()
+        closeMtpAndClear()
         started = false
     }
 
