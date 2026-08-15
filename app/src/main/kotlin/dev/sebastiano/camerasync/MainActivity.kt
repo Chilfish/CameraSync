@@ -11,6 +11,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -58,6 +59,15 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
         val app = ctx.applicationContext as Application
         val galleryViewModel = remember { GalleryViewModel(app) }
 
+        // Pair the USB lifecycle with the root composition: a configuration change (rotation)
+        // disposes the old instance — closing its receiver and MtpDevice — before the new instance
+        // starts, so a second MtpDevice can never open on the same connection (R8, P4-1).
+        // Accepted tradeoff: brief reconnect on rotation (action-plan P4-1 option B).
+        DisposableEffect(galleryViewModel) {
+            galleryViewModel.start()
+            onDispose { galleryViewModel.stop() }
+        }
+
         val backStack =
             rememberSaveable(
                 saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() })
@@ -65,11 +75,11 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
                 mutableStateListOf<NavRoute>(NavRoute.Gallery)
             }
 
-        // Cold start: show the one-screen MTP guide before anything else. Never shown again after
-        // the first launch (guideSeen persists in prefs).
+        // Cold start: show the one-screen MTP guide before anything else. guideSeen is only set
+        // once the guide is actually dismissed (onDone) — never before showing it, so a crash on
+        // the guide screen doesn't permanently hide it (R18, P4-4).
         LaunchedEffect(Unit) {
             if (!prefs.guideSeen) {
-                prefs.guideSeen = true
                 backStack.add(NavRoute.FirstRunGuide)
             }
         }
@@ -112,7 +122,10 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
                     NavRoute.FirstRunGuide -> {
                         FirstRunGuideScreen(
                             onNavigateBack = { backStack.removeLastOrNull() },
-                            onDone = { backStack.removeLastOrNull() },
+                            onDone = {
+                                prefs.guideSeen = true
+                                backStack.removeLastOrNull()
+                            },
                         )
                     }
 

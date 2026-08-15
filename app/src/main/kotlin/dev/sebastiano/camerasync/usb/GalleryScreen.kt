@@ -117,9 +117,9 @@ fun GalleryScreen(
     folderName: String = "",
     onNavigateBack: () -> Unit = {},
 ) {
-    // Register broadcast receiver once — never close MTP on navigation.
-    // USB detach events are handled by the BroadcastReceiver in the ViewModel.
-    LaunchedEffect(Unit) { viewModel.start() }
+    // USB lifecycle (start/stop) is paired at the root composition in MainActivity — the shared
+    // GalleryViewModel outlives individual screens (gallery vs folder), so starting/stopping here
+    // would tear down MTP when navigating between them.
 
     // Load folder contents when in folder mode
     if (storageId != null && folderHandle != null) {

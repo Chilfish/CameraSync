@@ -106,12 +106,17 @@ class ConnectionManager(
     }
 
     /**
-     * Only unregisters the receiver — does NOT close MTP. The ViewModel cancels the shared scope
-     * afterwards.
+     * Stops the connection: cancels in-flight work, unregisters the receiver and closes MTP.
+     *
+     * Paired with [start] from the composable's `DisposableEffect` so a configuration change
+     * (rotation) closes the old instance's `MtpDevice` before the new instance opens it again —
+     * prevents two `MtpDevice`s open on the same physical connection (R8).
      */
     fun stop() {
         syncJob?.cancel()
+        transferEngine.cancelTransfer()
         runCatching { app.unregisterReceiver(receiver) }
+        closeMtp()
         started = false
     }
 
