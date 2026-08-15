@@ -30,7 +30,6 @@ USB wired photo sync for Nikon series cameras — quickly transfer photos from y
 ### Permissions
 
 - **USB**: For detecting and communicating with the camera.
-- **Notifications**: For the foreground service that keeps background transfers running.
 - **Photos/Media**: For saving transferred photos via MediaStore.
 
 ## How It Works
@@ -39,7 +38,7 @@ USB wired photo sync for Nikon series cameras — quickly transfer photos from y
 2. Grant USB permission when the system prompt appears.
 3. The app auto-detects the camera and connects via MTP.
 4. Browse photos stored on the camera's SD card.
-5. Select the photos you want (or tap "Download All").
+5. Select the photos you want (or transfer all new photos in one tap).
 6. Photos are saved to `Pictures/CameraSync/{camera model}/YYYY-MM-DD/`.
 
 ## Architecture

@@ -4,14 +4,14 @@
 
 ---
 
-## 当前状态: ⚠️ 发布前（v2.3 + P2 收尾中）
+## 当前状态: ⚠️ 发布前（P5/P6 收尾中）
 
 **撤回"生产就绪 / 0 个已知问题"表述（2026-08-15 第二期评审 R19）**。事实状态：
 
-- ✅ 功能层面：P0 正确性止血（去重/路径/管线/剪枝）、P1 核心路径（引导/新照片主路径/传输回看）、P2-1 God Object 拆分全部落地
-- ⚠️ `testDebugUnitTest` **19 tests / 6 failed**（`LocalPhotosViewModelTest`，纯 JVM mock 问题，P2-2 修复中）
-- ⚠️ detekt baseline **17 条**待偿还（P2-3）
-- ⚠️ README 宣称已删除的自动同步（R9）、幽灵权限 `MANAGE_EXTERNAL_STORAGE`（R12）、旋转双开 MTP 风险（R8）——见 [action-plan](action-plan.md) P3-4/P4
+- ✅ 功能层面：P0 正确性止血（去重/路径/管线/剪枝）、P1 核心路径（引导/新照片主路径/传输回看）、P2-1 God Object 拆分、P2-2 核心单测、P2-3 detekt 归零全部落地
+- ✅ `testDebugUnitTest` **43 tests 全绿**（P2-2，2026-08-15）
+- ✅ detekt baseline **0 条**（P2-3，2026-08-15）
+- ✅ R8 旋转双开 MTP、R12 幽灵权限、R11 主题闭环、R13 电量删除（P4-1/2/3/4，2026-08-15）
 - 完整已知问题清单见下方「已知问题」表 + [第二期评审](../review/2026-08-15-design-review-2.md)
 
 ### 已完成功能总览
@@ -32,8 +32,8 @@
 - [x] 网格密度切换 (2/3/4 列)
 - [x] 传输历史记录
 - [x] 失败重试
-- [x] 设置页面 (分组、排序、下载格式、网格密度) — ⚠️ 主题入口缺失（R11，见 action-plan P4-3）
-- [x] 深色主题渲染 (跟随系统/浅色/深色) — ⚠️ 渲染支持在，但无切换入口（R11，`setThemeMode` 零调用）
+- [x] 设置页面 (分组、排序、下载格式、网格密度、主题、使用说明)
+- [x] 深色主题渲染 + 切换入口 (跟随系统/浅色/深色，设置页三选一)
 - [x] 渐进式照片加载 (先显示 30 张，后台继续)
 - [x] 三种照片分组模式 (按文件夹/按日期/不分组)
 - [x] 五种排序方式 (最新优先/按名称/按大小等)
@@ -90,13 +90,13 @@
 
 测试设备三处说法矛盾（`USB_SYNC.md` §9 = Xiaomi MIUI；README/CONTRIBUTING = Pixel 9）未闭环，回填见 action-plan P3-1。
 
-### 旧 P2 — 偿还 detekt baseline 债务 → action-plan P2-3
+### 旧 P2 — 偿还 detekt baseline 债务 ✅（action-plan P2-3）
 
-baseline 剩余 **24 条**违规，逐步修复后从 `detekt-baseline.xml` 移除，最终归零。
+`9f373eb chore: repay detekt baseline debt`：baseline 17 条 → **0 条**（含删电量死桩 getBatteryLevel、TransferRecord 独立文件、NestedBlockDepth/ComplexCondition 重构、死代码清理）。
 
 ### 旧 P3 — 推送 & 验证 CI → action-plan P3-2
 
-推送本地未推送 commit（领先远程 5 个）+ 确认 GitHub CI 全绿。
+推送本地未推送 commit（领先远程 13 个，P2/P4 落地后）+ 确认 GitHub CI 全绿。
 
 ---
 
@@ -143,20 +143,21 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 ## 已知问题
 
-> 2026-08-15 更新：除下列外，见 [第二期评审](../review/2026-08-15-design-review-2.md) R8–R19（旋转双开 MTP / 幽灵权限 / README 脱节 / 主题·电量闭环缺失 / 硬编码字符串 / 测试 6 红 等），行动项在 [action-plan](action-plan.md) P2–P6。
+> 2026-08-15 更新：R8/R12/R11/R13/R18 已闭环（P4，见 [action-plan](action-plan.md)）；剩余 P5（字符串资源化/DI/Preview/缓存）与 P6（发布闭环）按序推进。
 
 | 严重度 | 问题 | 状态 |
 |---|---|---|
-| P0 | 双 MTP 管线：前台 UI 与后台自动同步各持一个 `MtpDevice` 并发操作 | ✅ 已修复（`9344686` 护栏 + `6a1c331` 移除后台管线）；**R8 发现旋转可经生命周期漏洞复活**（P4-1） |
+| P0 | 双 MTP 管线：前台 UI 与后台自动同步各持一个 `MtpDevice` 并发操作 | ✅ 已修复（`9344686` 护栏 + `6a1c331` 移除后台管线） |
 | P0 | 去重键不一致：UI 硬编码 `storageId=0` vs 后台真实 storageId | ✅ 已修复（`b75e87b`，action-plan P0-2） |
 | P0 | "会话级自动剪枝"假注释 | ✅ 已修复（`220aa12`，action-plan P0-4，改软校验） |
 | P0 | MediaStore 保存路径硬编码 "Nikon Z30" | ✅ 已修复（`2961280`，action-plan P0-1） |
-| P1 | 自动同步未接线：`UsbSyncService` 零调用，`autoSyncEnabled` 无消费者 | ✅ 已移除死代码（`6a1c331`，action-plan P1-4）；⚠️ README 残留描述（P3-4） |
-| P2 | detekt baseline 技术债（17 条） | 已由 baseline 吸收，逐步偿还（action-plan P2-3） |
-| P2 | `testDebugUnitTest` 6 个失败（LocalPhotosViewModelTest） | 修复中（action-plan P2-2，工作区已有 dispatcher 注入改动） |
-| P0 | 旋转重建 Activity 后双 `MtpDevice` open 同一连接（R8） | 待修（action-plan P4-1） |
-| P0 | `MANAGE_EXTERNAL_STORAGE` 幽灵权限（R12） | 待删（action-plan P4-2） |
-| P1 | 主题/电量"宣称已实现"实际不可用（R11/R13） | 待决策接线或删除（action-plan P4-3） |
+| P1 | 自动同步未接线：`UsbSyncService` 零调用，`autoSyncEnabled` 无消费者 | ✅ 已移除死代码（`6a1c331`，action-plan P1-4） |
+| P2 | detekt baseline 技术债（17 条） | ✅ 已还清（`9f373eb`，action-plan P2-3，baseline 归零） |
+| P2 | `testDebugUnitTest` 6 个失败（LocalPhotosViewModelTest） | ✅ 已修复 + 补 25 条核心单测（`d263935` `b015182` `cf88244` `134674b`，43 全绿） |
+| P0 | 旋转重建 Activity 后双 `MtpDevice` open 同一连接（R8） | ✅ 已修复（`18c3b9b`，action-plan P4-1，DisposableEffect 配对） |
+| P0 | `MANAGE_EXTERNAL_STORAGE` 幽灵权限（R12） | ✅ 已删（`f0f12f3`，action-plan P4-2） |
+| P1 | 主题"宣称已实现"实际不可用（R11） | ✅ 已接线（`bb1dc29`，action-plan P4-3，设置页三选一） |
+| P1 | 电量"宣称已实现"实际恒 null（R13） | ✅ 已删除（`9f373eb`，action-plan P4-3，YAGNI） |
 | P2 | 硬编码字符串、核心屏零 Preview、核心路径未接 DI（R10/R15/R14） | 待修（action-plan P5） |
 
 > 应用功能层面历史 bug 均已修复（最后修复 2026-08-02 PhotoCell EXIF 竖构图）。2026-08-09 Apple 视角评审（[review](../review/2026-08-09-design-review.md)）发现的 4 项正确性缺陷 R1–R4 已全部修复（action-plan P0）；R7（自动同步未接线）已按 YAGNI 移除死代码（action-plan P1-4）；R5 三个核心路径项（P1-1/2/3）已全部落地（action-plan P1）。
