@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,10 +36,13 @@ fun TransferHistoryScreen(records: List<TransferRecord>, onNavigateBack: () -> U
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("传输历史") },
+                title = { Text(stringResource(R.string.history_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back_24dp), "返回")
+                        Icon(
+                            painterResource(R.drawable.ic_arrow_back_24dp),
+                            stringResource(R.string.content_desc_back),
+                        )
                     }
                 },
             )
@@ -50,13 +54,13 @@ fun TransferHistoryScreen(records: List<TransferRecord>, onNavigateBack: () -> U
                     Text("📷", fontSize = 48.sp)
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "暂无传输记录",
+                        stringResource(R.string.history_empty),
                         fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "连接相机并传输照片后\n记录将显示在这里",
+                        stringResource(R.string.history_empty_desc),
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 20.sp,
@@ -85,7 +89,7 @@ fun TransferHistoryScreen(records: List<TransferRecord>, onNavigateBack: () -> U
                                 )
                             }
                             Text(
-                                "${record.photoCount} 张",
+                                stringResource(R.string.label_photo_count, record.photoCount),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,

@@ -43,7 +43,10 @@ fun FirstRunGuideScreen(onNavigateBack: () -> Unit, onDone: () -> Unit) {
                 title = { Text(stringResource(R.string.guide_topbar_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back_24dp), "返回")
+                        Icon(
+                            painterResource(R.drawable.ic_arrow_back_24dp),
+                            stringResource(R.string.content_desc_back),
+                        )
                     }
                 },
             )

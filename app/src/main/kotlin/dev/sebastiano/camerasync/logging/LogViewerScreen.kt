@@ -83,7 +83,12 @@ fun LogViewerScreen(viewModel: LogViewerViewModel, onNavigateBack: () -> Unit) {
                     putExtra(Intent.EXTRA_TEXT, text)
                     type = "text/plain"
                 }
-            context.startActivity(Intent.createChooser(sendIntent, "分享日志"))
+            context.startActivity(
+                Intent.createChooser(
+                    sendIntent,
+                    context.getString(R.string.log_export_chooser_title),
+                )
+            )
         },
     )
 }
@@ -163,7 +168,7 @@ private fun LogViewerScreenContent(
                     IconButton(onClick = onExport) {
                         Icon(
                             painterResource(android.R.drawable.ic_menu_share),
-                            contentDescription = "导出日志",
+                            contentDescription = stringResource(R.string.content_desc_export_logs),
                         )
                     }
                     IconButton(onClick = onRefresh, enabled = !isRefreshing) {
