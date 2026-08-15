@@ -13,10 +13,11 @@ import androidx.core.content.edit
  * is what prevents silently skipping a newly-shot photo that happened to receive a recycled handle,
  * without needing to prune old handles on reconnect.
  */
-class PhotoSyncManager(context: Context) {
+class PhotoSyncManager(private val prefs: SharedPreferences) {
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    constructor(
+        context: Context
+    ) : this(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE))
 
     /** Returns true if this photo was imported in a previous session with the same identity. */
     fun isAlreadyImported(photo: NikonUsbManager.PhotoInfo): Boolean =
