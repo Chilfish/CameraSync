@@ -18,6 +18,7 @@ CameraSync — 基于 USB/MTP 的相机照片有线同步 Android 应用（Nikon
 - **VCS**: GitHub，Conventional Commits
 - **UI 语言**: 中文（`res/values/strings.xml`）
 - **规范对标**: 本项目流程与规范对标 Float（`I:\dev\Float`）——commit 纪律、文档先行、postmortem、git hooks 均借鉴自该仓库
+- **Key reference projects**: [rock3r/CameraSync](https://github.com/rock3r/CameraSync)（上游，BLE GPS 已移除，USB 重写）
 
 ## Essential Commands
 
@@ -98,3 +99,13 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 ## Git Hooks
 
 Pre-push hook 在 `.githooks/pre-push` → `detekt + ktfmtCheck + lint + test + assembleDebug`。启用：`git config core.hooksPath .githooks`。手动运行：`bash .githooks/pre-push`。
+
+## GitHub CLI Flow
+
+```bash
+gh issue list --state open                # 查看活跃 Issue（模板见 .github/ISSUE_TEMPLATE/）
+gh pr create --title "feat(scope): ..." --body "..."  # 开 PR（模板见 .github/PULL_REQUEST_TEMPLATE.md）
+gh pr checks <N>                          # 验证 CI（ktfmtCheck + detekt + lint + test + assembleDebug）
+gh pr merge <N> --merge --delete-branch   # Create a Merge Commit（保留原子 commit + 合并提交）
+gh release create v1.0.0 --generate-notes # 发版（版本单源 gradle.properties，见 docs/engineering/release-checklist.md）
+```

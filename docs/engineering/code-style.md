@@ -13,6 +13,8 @@
 | 类/接口 | PascalCase | `NikonUsbManager`, `PhotoSyncManager` |
 | 函数/方法 | camelCase | `markAsImported()`, `enumeratePhotos()` |
 | 常量 | UPPER_SNAKE_CASE | `PREFS_NAME`, `ACTION_USB_PERMISSION` |
+| 变量/参数 | camelCase | `storageId`, `currentPhoto` |
+| StateFlow/Hot Flow | 名词 + Flow | `syncProgress: StateFlow<Int>` |
 | Compose 函数 | PascalCase | `GalleryScreen()`, `PhotoDetailSheet()` |
 | XML 资源 | snake_case | `nikon_usb_device_filter.xml`, `strings.xml` |
 | 包名 | 全小写 + 点分隔 | `dev.sebastiano.camerasync.usb` |
@@ -72,7 +74,7 @@ sealed interface GalleryState {
 - **UDF**：ViewModel 暴露 `mutableStateOf<SealedInterface>`（如 `GalleryState`），Composable 通过 `.value` + `when` 渲染
 - **服务级状态**用 `MutableStateFlow`；**响应式列表**用 `SnapshotStateList`（`mutableStateListOf`）
 - **Dispatcher 注入**：ViewModel/协调器必须注入 `CoroutineDispatcher`（如 `Dispatchers.IO`），测试用 `runTest` + `advanceUntilIdle()`
-- **一次性事件**用 Channel；可重读状态用 StateFlow（见 postmortem `003`）
+- **一次性事件**用 Channel；可重读状态用 StateFlow（见 [`docs/postmortem/README.md`](../postmortem/README.md)「设计/建模」节）
 
 ## 测试规范
 

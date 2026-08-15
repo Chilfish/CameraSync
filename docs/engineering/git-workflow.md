@@ -92,6 +92,83 @@ git commit -m "docs: update development log for settings work"
 - 各 commit message 沿用 Conventional Commits 格式；PR 标题用于 PR 描述与关联 Issue
 - 若 PR 内含大量 WIP / 格式修正等无意义 commit，先本地 `git rebase -i` 整理为原子 commit 再合并
 
+### PR 流程
+
+1. 创建 PR → 自动运行 CI（ktfmtCheck + Detekt + Lint + Unit Tests + AssembleDebug）
+2. 至少 1 人 Approve；AI 辅助先进行自动化 Code Review
+3. 所有 CI 检查通过
+4. Create a Merge Commit 合并到 `master`
+
+## AI 协作开发
+
+本项目由 AI 主导开发，使用 `gh` CLI 进行 GitHub 全流程管理。
+
+### gh CLI 常用操作
+
+```bash
+# 查阅 Issue/PR
+gh issue list --state open
+gh issue view 1
+gh pr list --state open
+gh pr view 1
+
+# 创建与管理
+gh issue create --title "feat: xxx" --body "..."
+gh pr create --title "feat: xxx" --body "$(cat <<'EOF'
+## Summary
+...
+EOF
+)"
+
+# Code Review
+gh pr diff 1                    # 查看 PR diff
+gh pr review 1 --approve        # 批准 PR
+gh pr review 1 --request-changes --body "需要修改..."
+gh pr comment 1 --body "LGTM!"
+
+# PR 状态检查与合并
+gh pr checks 1                  # 检查 CI 状态
+gh pr merge 1 --merge --delete-branch   # Create a Merge Commit（保留原子 commit + 合并提交）
+
+# Release
+gh release create v1.0.0 --generate-notes
+```
+
+### AI Code Review 流程
+
+1. **PR 创建后**，AI 自动执行：
+   ```bash
+   gh pr diff <PR_NUMBER>       # 获取 diff
+   gh pr view <PR_NUMBER> --json title,body,files  # 获取元信息
+   ```
+2. **AI 根据审查清单逐项检查**，在 PR 下添加 Review 评论
+3. **检测项**：
+   - 架构一致性（是否符合 ADR，见 `docs/planning/architecture.md`）
+   - 命名规范（是否符合 code-style）
+   - 测试覆盖（新增代码是否有对应测试 + `@Preview`）
+   - 正确性（去重判定、MTP 会话、MediaStore 事务）
+   - 边界情况处理
+4. **AI Review 结论**：
+   - `--approve` — 无问题，建议合并
+   - `--request-changes` — 有问题，列出具体修改点
+   - `--comment` — 仅供参考的改进建议
+
+### PR 合并判断标准
+
+AI 辅助判断 PR 是否可合并，基于：
+- CI 全部通过（ktfmtCheck + Detekt + Lint + Test + AssembleDebug）
+- AI Code Review 通过
+- 无未解决的 Review 评论
+- PR 与对应 Issue 描述一致
+- Commit message 符合 Conventional Commits
+
+## Issue 管理
+
+- Bugs 用 **Bug Report** 模板（`.github/ISSUE_TEMPLATE/bug_report.md`）
+- 新功能用 **Feature Request** 模板
+- 技术债/重构用 **Tech Debt** 模板
+- 所有 PR 关联对应 Issue（`Closes #123`）
+
 ## 版本发布
 
 使用语义化版本 [SemVer 2.0.0](https://semver.org/lang/zh-CN/)：
@@ -100,11 +177,13 @@ git commit -m "docs: update development log for settings work"
 - **MINOR** (x.1.x) — 向后兼容的功能新增
 - **PATCH** (x.x.1) — 向后兼容的 Bug 修复
 
-### 发布步骤
+> **实际发版走 `scripts/release.sh <version>`**（版本单源在 `gradle.properties`，见 `release-checklist.md`「版本纪律」）：
+> versionCode 自动 +1 → 跑全量门禁 → commit `release: vX` → tag `vX` → push。tag 只打在门禁绿的 commit 上。
 
-1. 从 `master` 创建 `release/x.y.z` 分支
+### 发布步骤（脚本等价流程）
+
+1. 更新 `gradle.properties`：`VERSION_NAME` / `VERSION_CODE`（单源，不手改 build 文件）
 2. 更新 `CHANGELOG.md`（Unreleased → 版本）
-3. 更新 `versionCode` / `versionName`（`app/build.gradle.kts`，仅此一次变更）
-4. 创建 PR → 合并到 `master`
-5. 打 Tag：`git tag v1.0.0 && git push --tags`
-6. GitHub Release 自动构建发布 APK（`release.yml`，需配置 keystore secrets）
+3. 跑全量门禁（`ktfmtCheck` + `detekt` + `lintDebug` + `testDebugUnitTest` + `assembleDebug`）
+4. Commit `release: vX` → Tag `vX` → Push
+5. GitHub Release 自动构建发布 APK（`release.yml`，需配置 keystore secrets）

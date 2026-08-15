@@ -11,8 +11,7 @@ USB wired photo sync for Nikon series cameras — quickly transfer photos from y
 - **RAW+JPEG Grouping**: NEF and JPEG pairs are shown as a single grouped item so you can transfer both at once.
 - **Selective Transfer**: Long-press to pick specific photos, or transfer an entire batch in one tap.
 - **Auto-Detect**: The camera is detected automatically as soon as the USB cable is plugged in — no manual pairing flow.
-- **Background Sync**: A foreground service keeps transfers running even when the app moves to the background.
-- **Deduplication**: Photos already imported during a previous sync are automatically skipped.
+- **Deduplication**: Photos already imported during a previous sync are automatically skipped (cross-session, `name:size` identity soft-check).
 - **Material 3 UI**: Modern interface built with Jetpack Compose.
 
 ## Supported Cameras
