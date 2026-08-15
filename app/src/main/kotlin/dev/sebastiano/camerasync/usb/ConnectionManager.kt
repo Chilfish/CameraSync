@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.juul.khronicle.Log
+import dev.sebastiano.camerasync.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -78,7 +79,12 @@ class ConnectionManager(
                     ACTION_USB_PERMISSION -> {
                         if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false))
                             getDevice(intent)?.let { connectAndBrowse() }
-                        else stateMachine.setState(GalleryState.Error("USB 权限被拒绝"))
+                        else
+                            stateMachine.setState(
+                                GalleryState.Error(
+                                    app.getString(R.string.usb_status_permission_denied)
+                                )
+                            )
                     }
                 }
             }
@@ -170,7 +176,7 @@ class ConnectionManager(
     @Suppress("TooGenericExceptionCaught")
     private fun connectAndBrowse() {
         syncJob?.cancel()
-        stateMachine.setState(GalleryState.Loading("正在连接相机…"))
+        stateMachine.setState(GalleryState.Loading(app.getString(R.string.usb_status_connecting)))
         syncJob =
             scope.launch {
                 try {
@@ -187,7 +193,11 @@ class ConnectionManager(
                         nikon.openMtpDevice(device)
                             ?: run {
                                 Log.error(tag = TAG) { "MTP open failed for ${device.deviceName}" }
-                                stateMachine.setState(GalleryState.Error("无法连接相机，请重试"))
+                                stateMachine.setState(
+                                    GalleryState.Error(
+                                        app.getString(R.string.usb_error_connect_failed)
+                                    )
+                                )
                                 return@launch
                             }
                     mtp = m
@@ -211,9 +221,18 @@ class ConnectionManager(
                     if (currentCoroutineContext().isActive) {
                         // If we already have camera info, show banner instead of replacing screen
                         if (cameraInfo != null) {
-                            errorBanner = "加载照片时出错: ${e.localizedMessage ?: "未知错误"}"
+                            errorBanner =
+                                app.getString(
+                                    R.string.usb_error_load_photos,
+                                    e.localizedMessage
+                                        ?: app.getString(R.string.label_unknown_error),
+                                )
                         } else {
-                            stateMachine.setState(GalleryState.Error(e.localizedMessage ?: "连接失败"))
+                            stateMachine.setState(
+                                GalleryState.Error(
+                                    e.localizedMessage ?: app.getString(R.string.usb_error_connect)
+                                )
+                            )
                         }
                     }
                 }
@@ -247,7 +266,11 @@ class ConnectionManager(
         } catch (e: Exception) {
             Log.error(tag = TAG, throwable = e) { "loadRoot failed: ${e.message}" }
             // Show inline banner instead of replacing the entire screen
-            errorBanner = "部分照片加载失败: ${e.localizedMessage ?: "未知错误"}"
+            errorBanner =
+                app.getString(
+                    R.string.usb_error_load_partial,
+                    e.localizedMessage ?: app.getString(R.string.label_unknown_error),
+                )
             // If we haven't entered browsing yet, show empty
             if (stateMachine.state.value !is GalleryState.Browsing) {
                 stateMachine.setState(GalleryState.Empty)
@@ -305,7 +328,11 @@ class ConnectionManager(
                         thumbnails.preloadThumbnails(partial.size.coerceAtMost(50))
                     } else if (!enteredBrowsing) {
                         stateMachine.setState(
-                            GalleryState.Loading("正在扫描…", globalScanned, globalTotal)
+                            GalleryState.Loading(
+                                app.getString(R.string.usb_status_scanning),
+                                globalScanned,
+                                globalTotal,
+                            )
                         )
                     }
                 },
@@ -343,7 +370,9 @@ class ConnectionManager(
             entries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
         }
         // Show folders immediately even before photos are enumerated
-        stateMachine.setState(GalleryState.Loading("正在读取文件夹…"))
+        stateMachine.setState(
+            GalleryState.Loading(app.getString(R.string.usb_status_loading_folder))
+        )
         stateMachine.updateCurrentPhotos(emptyList())
         stateMachine.setState(GalleryState.Browsing(cameraInfo, storages, entries.toList()))
 
@@ -401,12 +430,16 @@ class ConnectionManager(
         currentFolder = storageId to folderHandle
         val m = mtp ?: return
         errorBanner = null
-        stateMachine.setState(GalleryState.Loading("正在读取文件夹…"))
+        stateMachine.setState(
+            GalleryState.Loading(app.getString(R.string.usb_status_loading_folder))
+        )
 
         try {
             // Show sub-folders first (cheap)
             val subFolders = nikon.listFolders(m, storageId, folderHandle)
-            stateMachine.setState(GalleryState.Loading("正在读取照片…", 0, 0))
+            stateMachine.setState(
+                GalleryState.Loading(app.getString(R.string.usb_status_loading_photos), 0, 0)
+            )
 
             val photos = nikon.listPhotosInFolder(m, storageId, folderHandle)
             stateMachine.updateCurrentPhotos(GalleryViewModel.groupByBaseFilename(photos))
@@ -420,7 +453,11 @@ class ConnectionManager(
             thumbnails.preloadThumbnails(stateMachine.currentPhotos.size.coerceAtMost(50))
         } catch (e: Exception) {
             Log.error(tag = TAG, throwable = e) { "loadFolder failed: ${e.message}" }
-            errorBanner = "读取文件夹失败: ${e.localizedMessage ?: "未知错误"}"
+            errorBanner =
+                app.getString(
+                    R.string.usb_error_load_folder,
+                    e.localizedMessage ?: app.getString(R.string.label_unknown_error),
+                )
             if (stateMachine.state.value !is GalleryState.Browsing) {
                 stateMachine.setState(GalleryState.Empty)
             }

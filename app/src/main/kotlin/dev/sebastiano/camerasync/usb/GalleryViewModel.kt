@@ -52,28 +52,11 @@ data class TransferProgress(
             return if (elapsed > 2 && bytesTransferred > 0) bytesTransferred / elapsed else 0.0
         }
 
-    val speedFormatted: String
-        get() =
-            when {
-                speedBps >= 1_000_000 -> "%.1f MB/s".format(speedBps / 1_000_000)
-                speedBps >= 1_000 -> "%d KB/s".format((speedBps / 1_000).toInt())
-                speedBps > 0 -> "%.0f B/s".format(speedBps)
-                else -> "计算中…"
-            }
-
     val etaSeconds: Long
         get() {
             val remaining = totalBytes - bytesTransferred
             return if (speedBps > 0) (remaining / speedBps).toLong() else -1
         }
-
-    val etaFormatted: String
-        get() =
-            when {
-                etaSeconds < 0 -> "计算中…"
-                etaSeconds < 60 -> "还剩 ${etaSeconds}s"
-                else -> "还剩 ${etaSeconds / 60}m ${etaSeconds % 60}s"
-            }
 }
 
 sealed interface GalleryEntry {

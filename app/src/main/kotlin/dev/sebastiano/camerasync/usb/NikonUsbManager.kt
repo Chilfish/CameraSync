@@ -178,7 +178,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                 continue
             }
 
-            onDiagnostic("  parent=$parent ⇒ ${handles.size} 个子对象")
+            onDiagnostic("  parent=$parent ⇒ ${handles.size} children")
 
             for (handle in handles) {
                 val info = mtpDevice.getObjectInfo(handle)

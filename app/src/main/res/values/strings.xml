@@ -58,6 +58,14 @@
     <string name="usb_status_connected">MTP 已连接</string>
     <string name="usb_status_connecting">正在连接…</string>
     <string name="usb_status_permission_denied">USB 权限被拒绝</string>
+    <string name="usb_status_scanning">正在扫描…</string>
+    <string name="usb_status_loading_folder">正在读取文件夹…</string>
+    <string name="usb_error_connect_failed">无法连接相机，请重试</string>
+    <string name="usb_error_connect">连接失败</string>
+    <string name="usb_error_load_photos">加载照片时出错: %1$s</string>
+    <string name="usb_error_load_partial">部分照片加载失败: %1$s</string>
+    <string name="usb_error_load_folder">读取文件夹失败: %1$s</string>
+    <string name="label_unknown_error">未知错误</string>
     <string name="usb_action_request_permission">请求权限</string>
     <string name="usb_action_connect">连接 MTP</string>
     <string name="usb_action_list_photos">列出照片</string>

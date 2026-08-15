@@ -1220,6 +1220,26 @@ private fun FilterChipsRow(
 @Composable
 private fun TransferringContent(s: GalleryState.Transferring) {
     val p = s.progress
+    val speedText =
+        when {
+            p.speedBps >= 1_000_000 ->
+                stringResource(R.string.transfer_speed_mb_per_s, p.speedBps / 1_000_000)
+            p.speedBps >= 1_000 ->
+                stringResource(R.string.transfer_speed_kb_per_s, (p.speedBps / 1_000).toInt())
+            p.speedBps > 0 -> stringResource(R.string.transfer_speed_b_per_s, p.speedBps)
+            else -> stringResource(R.string.transfer_calculating)
+        }
+    val etaText =
+        when {
+            p.etaSeconds < 0 -> stringResource(R.string.transfer_calculating)
+            p.etaSeconds < 60 -> stringResource(R.string.transfer_eta_seconds, p.etaSeconds)
+            else ->
+                stringResource(
+                    R.string.transfer_eta_minutes_seconds,
+                    p.etaSeconds / 60,
+                    p.etaSeconds % 60,
+                )
+        }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1247,12 +1267,12 @@ private fun TransferringContent(s: GalleryState.Transferring) {
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
-                        p.speedFormatted,
+                        speedText,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        p.etaFormatted,
+                        etaText,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
