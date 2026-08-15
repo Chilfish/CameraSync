@@ -90,10 +90,10 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 
 ## Current State
 
-**生产就绪 v2.3**：0 known issues（已完成阶段文档归档于 `docs/archive/`，see `docs/README.md`）。
+**⚠️ 发布前（v2.3 + P2 收尾中）**：`testDebugUnitTest` 19/6 红、detekt baseline 17 条。状态以 [`docs/planning/todo.md`](docs/planning/todo.md)「已知问题」表为准，**不使用"0 known issues"表述**（2026-08-15 第二期评审 R19，见 [`docs/review/2026-08-15-design-review-2.md`](docs/review/2026-08-15-design-review-2.md)）。
 
 - USB/MTP 照片同步是**唯一**功能路径；BLE GPS 子系统已于 2026-08-02 移除（commit `a385378`，Ricoh/Sony 文档归档于 `docs/ricoh/`、`docs/sony/` 供历史查阅）
-- 活跃文档：`docs/README.md`（索引）、`docs/development-log/`（按天开发日志）、`docs/planning/`（规划）、`docs/engineering/`（工程规范）
+- 活跃文档：`docs/README.md`（索引）、`docs/development-log/`（按天开发日志）、`docs/planning/`（规划 + ADR）、`docs/engineering/`（工程规范）、`docs/requirements/`（需求）
 - 测试设备：Nikon Z30（USB）
 
 ## Git Hooks

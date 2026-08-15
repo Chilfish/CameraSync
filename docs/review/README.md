@@ -7,7 +7,8 @@
 
 | 日期 | 主题 | 视角 | 状态 |
 |---|---|---|---|
-| [2026-08-09](2026-08-09-design-review.md) | Apple 视角全项目设计评审 | Apple 产品与研发 | 已记录，行动项待执行（见 action-plan） |
+| [2026-08-09](2026-08-09-design-review.md) | Apple 视角全项目设计评审 | Apple 产品与研发 | 已记录，P0/P1 ✅、P2 实施中（见 action-plan） |
+| [2026-08-15](2026-08-15-design-review-2.md) | Apple 视角第二期评审（P2-1 之后） | Apple 产品与研发 | 已记录，行动项见 action-plan P4/P5/P6 |
 
 ## 约定
 

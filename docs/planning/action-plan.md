@@ -1,7 +1,7 @@
 # CameraSync 后续行动计划 & 开发步骤
 
-> **依据**: [`docs/review/2026-08-09-design-review.md`](../review/2026-08-09-design-review.md)（Apple 视角设计评审）
-> **最后更新**: 2026-08-09 | **原则**: docs-first；先修复再新功能；先写 commit message 再写代码；每 commit 本地跑 detekt + ktfmtCheck
+> **依据**: [`docs/review/2026-08-09-design-review.md`](../review/2026-08-09-design-review.md)（第一期 Apple 视角评审）+ [`docs/review/2026-08-15-design-review-2.md`](../review/2026-08-15-design-review-2.md)（第二期，P2-1 之后）
+> **最后更新**: 2026-08-15 | **原则**: docs-first；先修复再新功能；先写 commit message 再写代码；每 commit 本地跑 detekt + ktfmtCheck
 
 ---
 
@@ -11,12 +11,13 @@
 
 - **绝不错传** — 去重键一致（R2）
 - **绝不丢片** — 剪枝真实化，不留假注释（R3）
-- **单一管线** — 一条数据通路，一个所有者（R1）
+- **单一管线** — 一条数据通路，一个所有者（R1）；**资源有生命周期所有者，旋转不复活双开（R8）**
+- **状态诚实** — 文档、UI 宣称与代码一致；"0 已知问题"只在真的为 0 时写（R9/R13/R19）
 - 功能做减法，聚焦冷启动与默认主路径（R5）
 
 ## 二、排序
 
-**P0 止血 → P1 核心路径 → P2 工程债 → P3 运营收尾**。P0 阻塞发布，其余按序推进。
+**P0 止血 → P1 核心路径 → P2 工程债 → P3 运营收尾 → P4 信任与生命周期 → P5 工程债深水 → P6 发布闭环**。P0/P4 阻塞发布，其余按序推进。
 
 ---
 
@@ -85,44 +86,118 @@
 
 ---
 
-## P2 — 工程债（2026-08-09 实施中）
+## P2 — 工程债（2026-08-09 起，P2-1 ✅ / P2-2 进行中 / P2-3 待办）
 
-### P2-1 拆分 God Object（R6）
+### P2-1 拆分 God Object（R6）✅ `62f1922` `c75fc72` `22e9f8e` `976fd3f`（附 `b1fa3a3` 修复）
 
 - **Headline**: `refactor(usb): split GalleryViewModel into focused modules`
 - **动作**: `GalleryViewModel`（1105 行）→ 4 个原子 commit 顺序抽取，**行为不变（纯搬移）**，`GalleryViewModel` 收敛为门面（保留全部公共 API，GalleryScreen/PhotoDetailSheet 零改动）：
-  1. `refactor(usb): extract GalleryStateMachine from GalleryViewModel` — sealed state + 筛选/排序/分组/选择纯逻辑（最可测）
-  2. `refactor(usb): extract ThumbnailProvider from GalleryViewModel` — 四类缓存 + EXIF 方向
-  3. `refactor(usb): extract TransferEngine from GalleryViewModel` — 传输编排（含 MediaStore 保存）
-  4. `refactor(usb): extract ConnectionManager from GalleryViewModel` — USB 生命周期 + 浏览/枚举
-- **验收**: 行为不变；`LargeClass:GalleryViewModel` baseline 条目随拆分消除
+  1. ✅ `62f1922` `refactor(usb): extract GalleryStateMachine from GalleryViewModel` — sealed state + 筛选/排序/分组/选择纯逻辑（最可测）
+  2. ✅ `c75fc72` `refactor(usb): extract ThumbnailProvider from GalleryViewModel` — 四类缓存 + EXIF 方向
+  3. ✅ `22e9f8e` `refactor(usb): extract TransferEngine from GalleryViewModel` — 传输编排（含 MediaStore 保存）
+  4. ✅ `976fd3f` `refactor(usb): extract ConnectionManager from GalleryViewModel` — USB 生命周期 + 浏览/枚举
+  5. ✅ `b1fa3a3` `fix(usb): assign currentPhotos instead of recursing in updateCurrentPhotos`（拆分暴露的既有 bug）
+- **验收**: 行为不变；`LargeClass:GalleryViewModel` baseline 条目随拆分消除（注：`GalleryViewModel` 现 377 行门面，baseline 条目待 P2-3 核实移除）
 
-### P2-2 核心路径补单测（R6）
+### P2-2 核心路径补单测（R6/R16）
 
 - **Headline**: `test(usb): add dedup and state machine tests`
 - **动作**（遵循 CLAUDE.md「Fakes over Mocks」+ Dispatcher 注入）:
-  1. `fix(usb): use injected dispatcher in LocalPhotosViewModel scope` — 修 6 个既有失败的根因之一（scope 硬编码 `Dispatchers.IO`）
-  2. `test(usb): fix LocalPhotosViewModel tests for plain JVM` — Uri/ContentUris 静态 mock、mockk Cursor 替代 MatrixCursor、删死代码 `baseDir`（连带去掉 Environment mock）、修 package 声明
+  1. ⏳ `fix(usb): use injected dispatcher in LocalPhotosViewModel scope` — **工作区已改（scope 用注入 ioDispatcher + 删死代码 baseDir），未提交**；提交时连带移除 detekt baseline 中 baseDir 条目
+  2. `test(usb): fix LocalPhotosViewModel tests for plain JVM` — Uri/ContentUris 静态 mock、mockk Cursor 替代 MatrixCursor、修 package 声明（baseline `InvalidPackageDeclaration`）；**当前 6 个红测试全在此**
   3. `test(usb): add PhotoSyncManager dedup tests` — 跨会话剪枝、storageId 一致性（P0-2 前置）；`PhotoSyncManager` 构造注入 `SharedPreferences` 以便用内存 fake
   4. `test(usb): add GalleryStateMachine transition tests` — `Disconnected → Connecting → Loading → Browsing/Empty/Error → Transferring → TransferDone` + 筛选/排序/选择
   5. `test(usb): add TransferEngine failure tests` — 失败重试、取消、MediaStore 保存失败路径
-- **验收**: 核心路径单测覆盖，`testDebugUnitTest` 全绿
+- **验收**: 核心路径单测覆盖，`testDebugUnitTest` 全绿（当前 19 tests / 6 failed）
 
 ### P2-3 还清 detekt baseline（todo.md 原 P2）
 
 - **Commit**: `chore: repay detekt baseline debt`
-- **动作**: 17 条 → 0，逐步修复后从 `detekt-baseline.xml` 移除对应条目（含删死桩 `getBatteryLevel`/`UnusedParameter`、`TransferRecord` 独立文件、NestedBlockDepth 重构、ComplexCondition 提取局部变量等）
+- **动作**: 17 条 → 0，逐步修复后从 `detekt-baseline.xml` 移除对应条目（含删死桩 `getBatteryLevel`/`UnusedParameter`、`TransferRecord` 独立文件、NestedBlockDepth 重构、ComplexCondition 提取局部变量、`filterCacheGeneration` 死代码、`GalleryScreen.totalSelected` 死代码等）
 - **验收**: `detekt` 无 baseline 吸收全绿
 
 ---
 
-## P3 — 运营收尾（半天）
+## P3 — 运营收尾（半天，2026-08-09 起未完成）
 
 | # | 事项 | 说明 |
 |---|---|---|
 | 3-1 | 确认测试设备 | `USB_SYNC.md` §9（Xiaomi MIUI）vs README（Nikon Z30）统一回填（todo.md 原 P1） |
-| 3-2 | 推送 & 验证 CI | 推送本地未推送 commit；确认 `ktfmtCheck` / `detekt` / `lint` / `test` / `assembleDebug` 全绿（todo.md 原 P3） |
+| 3-2 | 推送 & 验证 CI | 推送本地未推送 commit（当前领先远程 2 个：`22e9f8e` `976fd3f`）；确认 `ktfmtCheck` / `detekt` / `lint` / `test` / `assembleDebug` 全绿 |
 | 3-3 | 真机回归 | Nikon Z30 连接验证 MTP 同步链路（P0 改动后必做） |
+| 3-4 | **README 真实化（R9）** | 删除已删功能描述（Background Sync / UsbSyncService 结构条目 / "Download All"），与代码单一事实源对齐 |
+
+---
+
+## P4 — 信任与生命周期（发布前必做，2026-08-15 第二期评审新增）
+
+> 依据 R8/R12/R11/R13/R18。此阶段是"发布前信任"：用户看到的、系统信任的、进程存活的都要是真的。
+
+### P4-1 修复 GalleryViewModel 生命周期所有权（R8）🔴
+
+- **Headline**: `fix(usb): pair MTP lifecycle with composable dispose or retain instance`
+- **证据**: `MainActivity.kt:59` `remember` 非保留实例 + `GalleryScreen.kt:122` 无 `onDispose` + `GalleryViewModel.stop()` 零调用 → 旋转重建后双 `MtpDevice` open 同一连接
+- **方案（二选一，推荐 A）**:
+  - A. `GalleryViewModel` 移入 DI/`ViewModel` 层（retained 实例，旋转不重建），`stop()` 挂 Activity 销毁
+  - B. `DisposableEffect(Unit) { start(); onDispose { stop() } }` 成对，旋转时旧实例先关再开（有瞬断）
+- **验收**: 旋转前后仅一个 `MtpDevice` open；无 receiver 泄漏
+
+### P4-2 删除幽灵权限（R12）🔴
+
+- **Commit**: `chore: remove unused MANAGE_EXTERNAL_STORAGE permission`
+- **证据**: `AndroidManifest.xml:15` 声明、全代码零使用（MediaStore IS_PENDING 已合规）
+- **验收**: Play 政策红线消除；README Permissions 一节同步真实化
+
+### P4-3 产品闭环决策：主题 / 电量（R11/R13）
+
+- **主题（R11）**: 接线设置页主题卡片（三选一：跟随系统/浅色/深色，复用 `settings_theme*` strings）——`feat(settings): add theme selector card`；或删除 `setThemeMode` 与 MainActivity 读取（YAGNI）
+- **电量（R13）**: 真实现（PTP `GetDevicePropValue` 0xD303，需 Z30 真机验证）或删除电量 UI 承诺与 todo 勾选（删 `getBatteryLevel` 死桩随 P2-3）
+- **决策原则**: 要么用户能用，要么 UI 里不存在。**不允许"宣称已实现"**
+
+### P4-4 引导标记后置（R18）
+
+- **Commit**: `fix(usb): mark first-run guide seen on completion`
+- **证据**: `MainActivity.kt:70-75` 压栈前置位 `guideSeen` → 崩溃后引导永不显示
+- **动作**: 置位移到 `onDone`（`FirstRunGuideScreen` 回调）
+
+---
+
+## P5 — 工程债深水区（1–2 天）
+
+### P5-1 硬编码字符串资源化（R10）
+
+- **Headline**: `refactor(ui): move hardcoded strings to resources`
+- **动作**: `SettingsScreen` ~20 处、`GalleryScreen` ~10 处、`FirstRunGuideScreen`、`GalleryViewModel`（"计算中…"）全部改 `stringResource()`；优先复用 `strings.xml` 已定义未使用的 key（`settings_grid_density`/`settings_history`/`settings_theme_*`/`usb_exif_*`），缺的补 key
+- **验收**: 主代码无中文硬编码（detekt 可加 `HardCodedString` 规则防回潮）
+
+### P5-2 核心路径接入 DI + 注入 dispatcher（R14）
+
+- **Headline**: `refactor(di): inject GalleryViewModel dependencies from AppGraph`
+- **动作**: `AppGraph` 增加 `GalleryViewModel`/`LocalPhotosViewModel`/`NikonUsbManager` 提供者；`GalleryViewModel` scope 用注入 `ioDispatcher`；与 P4-1 方案 A 合并实施
+- **验收**: CLAUDE.md「Dispatcher 注入」在核心路径成立；测试可注入 fake 调度器
+
+### P5-3 核心屏 Preview（R15）
+
+- **Headline**: `feat(ui): add gallery screen previews`
+- **动作**: `GalleryScreen` 各状态（Disconnected/Connecting/Loading/Browsing/Empty/Error/Transferring/TransferDone）各一个 `@Preview`；`SettingsScreen` 一个
+- **验收**: CLAUDE.md 🔴 强制规范全覆盖
+
+### P5-4 降低 fullPhotoCache OOM 风险（R17）
+
+- **Headline**: `fix(usb): cap full-photo cache and use path-based EXIF`
+- **动作**: `downloadFullPhoto` 改为 temp 文件 + 路径构造 `ExifInterface`（LocalPhotoDetail 已示范）；缓存上限 12 → 3–4 条或改磁盘
+- **验收**: 翻看 NEF 详情峰值内存可预测 < 120MB
+
+---
+
+## P6 — 发布闭环（0.5 天）
+
+| # | 事项 | 说明 |
+|---|---|---|
+| 6-1 | CHANGELOG 制度落地 | `CHANGELOG.md` 已建（2026-08-15 并行流，Unreleased + 回溯 v1.0.0）；剩余：**PR 更新 Unreleased 纪律执行**（CLAUDE.md 已声明） |
+| 6-2 | 状态诚实化（R19） | ✅ `todo.md` 已撤回"0 已知问题"；`CLAUDE.md` Current State 已改为发布前状态；评审更新后同步（postmortem 001 教训） |
+| 6-3 | Play 上架材料 | `docs/legal/privacy-policy.md` 已建（并行流）；剩余：核对与代码一致（无数据收集）、store listing、截图、`MANAGE_EXTERNAL_STORAGE` 移除（P4-2）后权限页核对 |
+| 6-4 | 发布后指标 | 从 Khronicle 日志聚合传输成功率/失败率（现有 TransferHistory 已存会话记录），建立发布后观测，对齐 PRD 成功指标 |
 
 ---
 
@@ -134,6 +209,7 @@
 | 视频文件支持 | 大文件 + 不同 MTP 处理；非核心使命 |
 | 多相机并发 USB | Android 平台硬限制（仅支持一个 USB host 设备） |
 | Wi-Fi 传输 | Z30 缺 infra 模式；有线是差异化卖点 |
+| 通用 MTP 多厂商支持 | 保持 Nikon-only，直至单设备可靠性 99.9%（第二期评审新增） |
 
 ---
 
@@ -143,13 +219,22 @@
 |---|---|---|---|
 | P0-1 | 保存路径真实化 | R4 | ✅ 目录名随模型变化（`2961280`） |
 | P0-2 | 去重键一致 | R2 | ✅ 双管线判定一致（`b75e87b`） |
-| P0-3 | 单 MTP 管线 | R1 | ✅ 阶段1 护栏单 MtpDevice open（`9344686`） |
+| P0-3 | 单 MTP 管线 | R1 | ✅ 单 MtpDevice open（`9344686`，构造保证） |
 | P0-4 | 剪枝真实化 | R3 | ✅ 软校验不误判，注释与代码一致（`220aa12`） |
 | P1-1 | 冷启动引导 | R5 | ✅ 新用户看到引导（`61fc9a7`） |
 | P1-2 | 新照片默认主路径 | R5 | ✅ 插线→传输 ≤3 次点击（`97f7c8e`） |
 | P1-3 | 传输回看 | R5 | ✅ 可追溯本次传输（`f6d2f9b`） |
-| P1-4 | 自动同步决策 | R7 | ✅ 移除无效开关 + 死代码（`6a1c331`） |
-| P2-1 | 拆 God Object | R6 | 纯搬移无行为变化 |
-| P2-2 | 核心单测 | R6 | testDebugUnitTest 通过 |
-| P2-3 | detekt 归零 | R6 | baseline 空 |
-| P3 | 运营收尾 | — | 设备统一 + CI 全绿 + 真机回归 |
+| P1-4 | 自动同步决策 | R7 | ✅ 移除无效开关 + 死代码（`6a1c331`；README 清理见 P3-4） |
+| P2-1 | 拆 God Object | R6 | ✅ 纯搬移无行为变化（`62f1922` `c75fc72` `22e9f8e` `976fd3f` + `b1fa3a3`） |
+| P2-2 | 核心单测 | R6/R16 | testDebugUnitTest 全绿（当前 19/6 红） |
+| P2-3 | detekt 归零 | R6 | baseline 空（当前 17 条） |
+| P3 | 运营收尾 | — | 设备统一 + README 真实化 + CI 全绿 + 真机回归 |
+| P4-1 | MTP 生命周期所有权 | R8 | 旋转前后仅一个 MtpDevice open |
+| P4-2 | 删幽灵权限 | R12 | Manifest 无 MANAGE_EXTERNAL_STORAGE |
+| P4-3 | 主题/电量闭环 | R11/R13 | 用户能用，或 UI 不存在（不允许"宣称已实现"） |
+| P4-4 | 引导标记后置 | R18 | guideSeen 在 onDone 置位 |
+| P5-1 | 字符串资源化 | R10 | 主代码无中文硬编码 |
+| P5-2 | 核心路径接 DI | R14 | GalleryViewModel 构造注入 ioDispatcher |
+| P5-3 | 核心屏 Preview | R15 | GalleryScreen 每状态一个 @Preview |
+| P5-4 | 缓存降内存 | R17 | NEF 详情峰值内存 < 120MB |
+| P6 | 发布闭环 | R19 | CHANGELOG 落地 + todo.md 状态真实 + 上架材料齐 |

@@ -97,8 +97,6 @@ compatible JDK (JDK 11+).
     - `GalleryScreen.kt` — Primary UI (3-column grid, folder browsing, selection)
     - `PhotoSyncManager.kt` — Import deduplication
     - `LocalPhotosViewModel.kt` — Local photo browsing via Coil 3 + MediaStore
-    - `UsbSyncService.kt` — Foreground service for background transfers
-    - `UsbSyncCoordinator.kt` — Auto-sync lifecycle and hot-plug detection
     - `UsbSyncPreferences.kt` — User preferences
 - `app/src/main/kotlin/dev/sebastiano/camerasync/logging/` — Khronicle log repository + log viewer
 - `app/src/main/kotlin/dev/sebastiano/camerasync/settings/` — Settings screen
