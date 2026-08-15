@@ -1,0 +1,222 @@
+package dev.sebastiano.camerasync.usb
+
+import android.app.Application
+import android.content.ContentResolver
+import android.mtp.MtpDevice
+import android.net.Uri
+import dev.sebastiano.camerasync.InMemorySharedPreferences
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import java.io.OutputStream
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+/**
+ * Transfer engine tests (P2-2): happy path, MediaStore save failures, retry of failed handles and
+ * camera deletion — orchestration extracted in P2-1, all collaborators are fakes/mocks.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class TransferEngineTest {
+
+    private val manager = PhotoSyncManager(InMemorySharedPreferences())
+    private val machine = GalleryStateMachine(manager)
+
+    private lateinit var app: Application
+    private lateinit var contentResolver: ContentResolver
+    private lateinit var nikon: NikonUsbManager
+    private lateinit var mtpDevice: MtpDevice
+
+    @Before
+    fun setUp() {
+        app = mockk(relaxed = true)
+        contentResolver = mockk(relaxed = true)
+        every { app.contentResolver } returns contentResolver
+        nikon = mockk(relaxed = true)
+        mtpDevice = mockk(relaxed = true)
+    }
+
+    /** Engine whose coroutines run on the test scheduler (driven by advanceUntilIdle). */
+    private fun createEngine(scope: CoroutineScope) =
+        TransferEngine(
+            scope = scope,
+            app = app,
+            nikon = nikon,
+            photoSyncManager = manager,
+            stateMachine = machine,
+            prefs = UsbSyncPreferences(app),
+            mtp = { mtpDevice },
+            cameraInfo = { null },
+            cancelPendingWork = {},
+        )
+
+    private fun photo(
+        handle: Int,
+        name: String = "DSC_%04d.JPG".format(handle),
+        size: Long = 5_000_000L,
+    ) =
+        NikonUsbManager.PhotoInfo(
+            handle = handle,
+            storageId = 0,
+            name = name,
+            size = size,
+            dateModified = 1000L,
+            formatName = "JPEG",
+        )
+
+    private fun group(p: NikonUsbManager.PhotoInfo) = GalleryEntry.PhotoGroup(p.name, null, p)
+
+    // ── Happy path ───────────────────────────────────────────────────────────
+
+    @Test
+    fun `startTransfer saves photos and marks them imported`() = runTest {
+        val engine = createEngine(this)
+        val p = photo(1)
+        machine.updateCurrentPhotos(listOf(group(p)))
+        machine.selected.add(1)
+        val uri = mockk<Uri>(relaxed = true)
+        every { contentResolver.insert(any(), any()) } returns uri
+        every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
+        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } returns p.size
+
+        engine.startTransfer()
+        advanceUntilIdle()
+
+        val done = machine.state.value as GalleryState.TransferDone
+        assertEquals(1, done.synced)
+        assertEquals(listOf(uri), done.savedUris)
+        assertTrue(manager.isAlreadyImported(p))
+        assertEquals(listOf(1), engine.lastTransferredHandles)
+        assertTrue(engine.failedHandles.isEmpty())
+        assertTrue(machine.selected.isEmpty())
+        verify { contentResolver.update(uri, any(), any(), any()) }
+    }
+
+    @Test
+    fun `startTransfer with empty selection is a no-op TransferDone`() = runTest {
+        val engine = createEngine(this)
+        engine.startTransfer()
+        assertEquals(GalleryState.TransferDone(0), machine.state.value)
+    }
+
+    @Test
+    fun `already imported photos are skipped without downloading`() = runTest {
+        val engine = createEngine(this)
+        val p = photo(1)
+        manager.markAsImported(p)
+        machine.updateCurrentPhotos(listOf(group(p)))
+        machine.selected.add(1)
+
+        engine.startTransfer()
+        advanceUntilIdle()
+
+        assertEquals(GalleryState.TransferDone(0), machine.state.value)
+        coVerify(exactly = 0) { nikon.downloadPhoto(any(), any(), any(), any()) }
+    }
+
+    // ── Failure paths ────────────────────────────────────────────────────────
+
+    @Test
+    fun `insert returning null records the handle as failed`() = runTest {
+        val engine = createEngine(this)
+        val p = photo(1)
+        machine.updateCurrentPhotos(listOf(group(p)))
+        machine.selected.add(1)
+        every { contentResolver.insert(any(), any()) } returns null
+
+        engine.startTransfer()
+        advanceUntilIdle()
+
+        val done = machine.state.value as GalleryState.TransferDone
+        assertEquals(0, done.synced)
+        assertEquals(listOf(1), engine.failedHandles)
+        assertFalse(manager.isAlreadyImported(p))
+    }
+
+    @Test
+    fun `null output stream deletes the pending uri and fails the photo`() = runTest {
+        val engine = createEngine(this)
+        val p = photo(1)
+        machine.updateCurrentPhotos(listOf(group(p)))
+        machine.selected.add(1)
+        val uri = mockk<Uri>(relaxed = true)
+        every { contentResolver.insert(any(), any()) } returns uri
+        every { contentResolver.openOutputStream(uri) } returns null
+
+        engine.startTransfer()
+        advanceUntilIdle()
+
+        val done = machine.state.value as GalleryState.TransferDone
+        assertEquals(0, done.synced)
+        assertEquals(listOf(1), engine.failedHandles)
+        verify { contentResolver.delete(uri, null, null) }
+    }
+
+    @Test
+    fun `download throwing deletes the pending uri and fails the photo`() = runTest {
+        val engine = createEngine(this)
+        val p = photo(1)
+        machine.updateCurrentPhotos(listOf(group(p)))
+        machine.selected.add(1)
+        val uri = mockk<Uri>(relaxed = true)
+        every { contentResolver.insert(any(), any()) } returns uri
+        every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
+        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } throws
+            RuntimeException("MTP error")
+
+        engine.startTransfer()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1), engine.failedHandles)
+        verify { contentResolver.delete(uri, null, null) }
+        assertFalse(manager.isAlreadyImported(p))
+    }
+
+    // ── Retry & delete ───────────────────────────────────────────────────────
+
+    @Test
+    fun `retryFailedTransfers retries only the failed handles`() = runTest {
+        val engine = createEngine(this)
+        val p1 = photo(1)
+        val p2 = photo(2)
+        machine.updateCurrentPhotos(listOf(group(p1), group(p2)))
+        machine.selected.addAll(listOf(1, 2))
+        // First pass: both inserts fail.
+        every { contentResolver.insert(any(), any()) } returns null
+        engine.startTransfer()
+        advanceUntilIdle()
+        assertEquals(listOf(1, 2), engine.failedHandles)
+
+        // Second pass: inserts succeed.
+        val uri = mockk<Uri>(relaxed = true)
+        every { contentResolver.insert(any(), any()) } returns uri
+        every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
+        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } returns 5_000_000L
+
+        engine.retryFailedTransfers()
+        advanceUntilIdle()
+
+        val done = machine.state.value as GalleryState.TransferDone
+        assertEquals(2, done.synced)
+        assertTrue(engine.failedHandles.isEmpty())
+        assertTrue(manager.isAlreadyImported(p1))
+        assertTrue(manager.isAlreadyImported(p2))
+    }
+
+    @Test
+    fun `deletePhotos returns count of successfully deleted handles`() = runTest {
+        val engine = createEngine(this)
+        every { nikon.deletePhoto(any(), 1) } returns true
+        every { nikon.deletePhoto(any(), 2) } returns false
+        assertEquals(1, engine.deletePhotos(listOf(1, 2)))
+    }
+}
