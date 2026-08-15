@@ -65,6 +65,7 @@ fun LogViewerScreen(viewModel: LogViewerViewModel, onNavigateBack: () -> Unit) {
     val filterLevel by viewModel.filterLevel.collectAsState()
     val isRefreshing by viewModel.isRefreshing
     val context = LocalContext.current
+    val exportChooserTitle = stringResource(R.string.log_export_chooser_title)
 
     LogViewerScreenContent(
         logs = logs,
@@ -83,12 +84,7 @@ fun LogViewerScreen(viewModel: LogViewerViewModel, onNavigateBack: () -> Unit) {
                     putExtra(Intent.EXTRA_TEXT, text)
                     type = "text/plain"
                 }
-            context.startActivity(
-                Intent.createChooser(
-                    sendIntent,
-                    context.getString(R.string.log_export_chooser_title),
-                )
-            )
+            context.startActivity(Intent.createChooser(sendIntent, exportChooserTitle))
         },
     )
 }
