@@ -1,16 +1,11 @@
-package io.github.chilfish.camerasync.usb
+package dev.sebastiano.camerasync.usb
 
 import android.app.Application
 import android.content.ContentResolver
+import android.content.ContentUris
 import android.database.Cursor
-import android.database.MatrixCursor
 import android.net.Uri
-import android.os.Environment
 import android.provider.MediaStore
-import dev.sebastiano.camerasync.usb.LocalFolder
-import dev.sebastiano.camerasync.usb.LocalPhoto
-import dev.sebastiano.camerasync.usb.LocalPhotoGroup
-import dev.sebastiano.camerasync.usb.LocalPhotosViewModel
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -30,6 +25,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+/**
+ * Plain-JVM tests for [LocalPhotosViewModel]. android.net.Uri / ContentUris / Cursor are stubs in
+ * mockable android.jar, so they are mocked statically (Uri/ContentUris) or via mockk Cursor fakes
+ * instead of MatrixCursor.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocalPhotosViewModelTest {
 
@@ -37,6 +37,9 @@ class LocalPhotosViewModelTest {
     private lateinit var app: Application
     private lateinit var contentResolver: ContentResolver
     private lateinit var viewModel: LocalPhotosViewModel
+
+    /** Stable mock of MediaStore.Files.getContentUri("external") — the method is stubbed in JVM. */
+    private val filesContentUri: Uri = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -46,11 +49,12 @@ class LocalPhotosViewModelTest {
         every { app.applicationContext } returns app
         every { app.contentResolver } returns contentResolver
 
-        // Mock Environment.getExternalStoragePublicDirectory
-        mockkStatic(Environment::class)
-        every {
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-        } returns java.io.File("/storage/emulated/0/Pictures")
+        mockkStatic(Uri::class)
+        every { Uri.parse(any()) } answers { mockk(relaxed = true) }
+        mockkStatic(ContentUris::class)
+        every { ContentUris.withAppendedId(any(), any()) } answers { mockk(relaxed = true) }
+        mockkStatic(MediaStore.Files::class)
+        every { MediaStore.Files.getContentUri(any()) } returns filesContentUri
 
         viewModel = LocalPhotosViewModel(app, testDispatcher)
     }
@@ -58,7 +62,9 @@ class LocalPhotosViewModelTest {
     @After
     fun tearDown() {
         viewModel.stop()
-        unmockkStatic(Environment::class)
+        unmockkStatic(Uri::class)
+        unmockkStatic(ContentUris::class)
+        unmockkStatic(MediaStore.Files::class)
     }
 
     // ── Data Model Tests ─────────────────────────────────────────────────────
@@ -86,8 +92,10 @@ class LocalPhotosViewModelTest {
     fun `LocalPhotoGroup has jpg raw displayFile and cacheKey`() {
         val jpgFile = java.io.File("/pictures/CameraSync/DSC_0001.JPG")
         val rawFile = java.io.File("/pictures/CameraSync/DSC_0001.NEF")
-        val jpg = LocalPhoto(jpgFile, Uri.EMPTY, "DSC_0001.JPG", 1000L, 5_000_000L, false)
-        val raw = LocalPhoto(rawFile, Uri.EMPTY, "DSC_0001.NEF", 1000L, 25_000_000L, true)
+        val jpg =
+            LocalPhoto(jpgFile, Uri.parse("content://1"), "DSC_0001.JPG", 1000L, 5_000_000L, false)
+        val raw =
+            LocalPhoto(rawFile, Uri.parse("content://2"), "DSC_0001.NEF", 1000L, 25_000_000L, true)
         val group =
             LocalPhotoGroup(
                 baseName = "DSC 0001",
@@ -115,7 +123,8 @@ class LocalPhotosViewModelTest {
     @Test
     fun `LocalPhotoGroup without jpg uses raw as displayFile`() {
         val rawFile = java.io.File("/pictures/CameraSync/DSC_0001.NEF")
-        val raw = LocalPhoto(rawFile, Uri.EMPTY, "DSC_0001.NEF", 1000L, 25_000_000L, true)
+        val raw =
+            LocalPhoto(rawFile, Uri.parse("content://2"), "DSC_0001.NEF", 1000L, 25_000_000L, true)
         val group =
             LocalPhotoGroup(
                 baseName = "DSC 0001",
@@ -142,32 +151,54 @@ class LocalPhotosViewModelTest {
     @Test
     fun `loadRoot queries MediaStore and populates groups`() = runTest {
         // Arrange: mock ContentResolver to return test data
-        val imageCursor = createImageCursor()
-        every {
-            contentResolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                any(),
-                any(),
-                any(),
-                any(),
+        val imageCursor =
+            mockCursor(
+                imageColumns(),
+                listOf(
+                    arrayOf<Any?>(
+                        1L,
+                        "/storage/emulated/0/Pictures/CameraSync/DSC_0001.JPG",
+                        "DSC_0001.JPG",
+                        1000L,
+                        5_000_000L,
+                        "image/jpeg",
+                    ),
+                    arrayOf<Any?>(
+                        2L,
+                        "/storage/emulated/0/Pictures/CameraSync/DSC_0002.JPG",
+                        "DSC_0002.JPG",
+                        2000L,
+                        6_000_000L,
+                        "image/jpeg",
+                    ),
+                ),
             )
-        } answers
+        val nefCursor =
+            mockCursor(
+                fileColumns(),
+                listOf(
+                    arrayOf<Any?>(
+                        3L,
+                        "/storage/emulated/0/Pictures/CameraSync/DSC_0001.NEF",
+                        "DSC_0001.NEF",
+                        1000L,
+                        25_000_000L,
+                        "image/x-nikon-nef",
+                    )
+                ),
+            )
+        every { contentResolver.query(any(), any(), any(), any(), any()) } answers
             {
-                // Return image cursor on first call (photos), empty on second call (folders)
-                if (firstArg<String>() == "Pictures/CameraSync/") imageCursor
-                else MatrixCursor(arrayOf(MediaStore.Images.Media.RELATIVE_PATH))
+                val projection = arg<Array<String>>(1)
+                val selection = arg<Array<String>>(3)
+                when {
+                    // Folder queries project only RELATIVE_PATH (1 column).
+                    projection.size == 1 -> emptyFolderCursor()
+                    // NEF photo query appends the MIME type to the selection args.
+                    selection.lastOrNull() == "image/x-nikon-nef" -> nefCursor
+                    else -> imageCursor
+                }
             }
-
-        val filesCursor = createNefCursor()
-        every {
-            contentResolver.query(
-                MediaStore.Files.getContentUri("external"),
-                any(),
-                any(),
-                any(),
-                any(),
-            )
-        } returns filesCursor
 
         // Act
         viewModel.loadRoot()
@@ -196,31 +227,24 @@ class LocalPhotosViewModelTest {
     @Test
     fun `enterFolder sets currentPath and loads photos`() = runTest {
         val cursor =
-            createImageCursor(
-                path = "Pictures/CameraSync/Nikon Z30/",
-                names = listOf("DSC_0001.JPG"),
-                ids = listOf(100),
-                dates = listOf(2000L),
-                sizes = listOf(5_000_000L),
+            mockCursor(
+                imageColumns(),
+                listOf(
+                    arrayOf<Any?>(
+                        100L,
+                        "/storage/emulated/0/Pictures/CameraSync/Nikon Z30/DSC_0001.JPG",
+                        "DSC_0001.JPG",
+                        2000L,
+                        5_000_000L,
+                        "image/jpeg",
+                    )
+                ),
             )
-        every {
-            contentResolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                any(),
-                any<String>(),
-                any<Array<String>>(),
-                any(),
-            )
-        } returns cursor
-        every {
-            contentResolver.query(
-                MediaStore.Files.getContentUri("external"),
-                any(),
-                any(),
-                any(),
-                any(),
-            )
-        } returns null
+        every { contentResolver.query(any(), any(), any(), any(), any()) } answers
+            {
+                val projection = arg<Array<String>>(1)
+                if (projection.size == 1) emptyFolderCursor() else cursor
+            }
 
         viewModel.enterFolder("Pictures/CameraSync/Nikon Z30/")
         advanceUntilIdle()
@@ -238,7 +262,7 @@ class LocalPhotosViewModelTest {
         advanceUntilIdle()
         assertTrue(viewModel.isBrowsingFolder)
 
-        // Then go back
+        // Then go back — leaving a top-level folder must land on root (null)
         viewModel.goBack()
         advanceUntilIdle()
 
@@ -255,69 +279,51 @@ class LocalPhotosViewModelTest {
 
     // ── Helper: create test cursors ──────────────────────────────────────────
 
-    private fun createImageCursor(
-        path: String = "Pictures/CameraSync/",
-        names: List<String> = listOf("DSC_0001.JPG", "DSC_0002.JPG"),
-        ids: List<Long> = listOf(1, 2),
-        dates: List<Long> = listOf(1000L, 2000L),
-        sizes: List<Long> = listOf(5_000_000L, 6_000_000L),
-    ): Cursor {
-        val cursor =
-            MatrixCursor(
-                arrayOf(
-                    MediaStore.Images.Media._ID,
-                    MediaStore.Images.Media.DATA,
-                    MediaStore.Images.Media.DISPLAY_NAME,
-                    MediaStore.Images.Media.DATE_MODIFIED,
-                    MediaStore.Images.Media.SIZE,
-                    MediaStore.Images.Media.MIME_TYPE,
-                )
-            )
-        for (i in names.indices) {
-            cursor.addRow(
-                arrayOf<Any>(
-                    ids[i],
-                    "/storage/emulated/0/$path${names[i]}",
-                    names[i],
-                    dates[i],
-                    sizes[i],
-                    "image/jpeg",
-                )
-            )
-        }
-        return cursor
-    }
+    private fun imageColumns() =
+        arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DATA,
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.DATE_MODIFIED,
+            MediaStore.Images.Media.SIZE,
+            MediaStore.Images.Media.MIME_TYPE,
+        )
 
-    private fun createNefCursor(
-        path: String = "Pictures/CameraSync/",
-        names: List<String> = listOf("DSC_0001.NEF"),
-        ids: List<Long> = listOf(3),
-        dates: List<Long> = listOf(1000L),
-        sizes: List<Long> = listOf(25_000_000L),
-    ): Cursor {
-        val cursor =
-            MatrixCursor(
-                arrayOf(
-                    MediaStore.Files.FileColumns._ID,
-                    MediaStore.Files.FileColumns.DATA,
-                    MediaStore.Files.FileColumns.DISPLAY_NAME,
-                    MediaStore.Files.FileColumns.DATE_MODIFIED,
-                    MediaStore.Files.FileColumns.SIZE,
-                    MediaStore.Files.FileColumns.MIME_TYPE,
-                )
-            )
-        for (i in names.indices) {
-            cursor.addRow(
-                arrayOf<Any>(
-                    ids[i],
-                    "/storage/emulated/0/$path${names[i]}",
-                    names[i],
-                    dates[i],
-                    sizes[i],
-                    "image/x-nikon-nef",
-                )
-            )
-        }
+    private fun fileColumns() =
+        arrayOf(
+            MediaStore.Files.FileColumns._ID,
+            MediaStore.Files.FileColumns.DATA,
+            MediaStore.Files.FileColumns.DISPLAY_NAME,
+            MediaStore.Files.FileColumns.DATE_MODIFIED,
+            MediaStore.Files.FileColumns.SIZE,
+            MediaStore.Files.FileColumns.MIME_TYPE,
+        )
+
+    /** Folder-browsing cursor: only RELATIVE_PATH is projected, and no rows. */
+    private fun emptyFolderCursor(): Cursor =
+        mockCursor(arrayOf(MediaStore.Images.Media.RELATIVE_PATH), emptyList())
+
+    /**
+     * Simulates a Cursor over [rows] (each row aligned with [columns]). MatrixCursor is not usable
+     * in plain JVM (mockable android.jar), so a mockk fake is used instead.
+     */
+    private fun mockCursor(columns: Array<String>, rows: List<Array<Any?>>): Cursor {
+        val cursor = mockk<Cursor>(relaxed = true)
+        var rowIndex = -1
+        every { cursor.moveToNext() } answers
+            {
+                rowIndex++
+                rowIndex < rows.size
+            }
+        every { cursor.getColumnIndexOrThrow(any()) } answers
+            {
+                columns.indexOf(firstArg<String>())
+            }
+        every { cursor.getString(any()) } answers { rows[rowIndex][firstArg<Int>()] as String? }
+        every { cursor.getLong(any()) } answers
+            {
+                (rows[rowIndex][firstArg<Int>()] as Number).toLong()
+            }
         return cursor
     }
 }
