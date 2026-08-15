@@ -6,13 +6,6 @@
         android:name="android.hardware.usb.host"
         android:required="false" />
 
-    <uses-permission android:name="android.permission.VIBRATE" />
-
-    <!-- Storage permissions -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-
     <application
         android:name="dev.sebastiano.camerasync.CameraSyncApp"
         android:allowBackup="true"
