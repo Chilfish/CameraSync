@@ -144,7 +144,7 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 ## 已知问题
 
-> 2026-08-15 更新：R8/R12/R11/R13/R18 已闭环（P4）；**R10/R15/R14/R17 已闭环（P5）**；剩余 P6（发布闭环：CHANGELOG 纪律、上架材料、发布后观测）按序推进。
+> 2026-08-15 更新：R8/R12/R11/R13/R18 已闭环（P4）；**R10/R15/R14/R17 已闭环（P5）**；剩余 P6（发布闭环：CHANGELOG 纪律、上架材料、发布后观测）按序推进。**P6-3 store listing 文案已建**（`docs/legal/store-listing.md`）；截图/隐私政策托管待真机环境。
 
 | 严重度 | 问题 | 状态 |
 |---|---|---|

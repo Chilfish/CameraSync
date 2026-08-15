@@ -60,3 +60,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 - **缓存降内存（R17）**：fullPhotoCache 由 12 条内存字节数组改为磁盘 temp 文件 LRU 3，EXIF 走路径构造
 - **权限核对（P6-3 联动）**：移除 `VIBRATE` / `READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` / `READ_MEDIA_IMAGES`（minSdk 33 下均无用或零运行时请求）；隐私政策同步消除「前台服务通知」「release 仅 WARN+」不实声明
 - **发布后观测（P6-4）**：新增 `docs/planning/release-metrics.md`（零埋点，从 TransferHistory + 日志聚合对齐 PRD 成功指标）
+- **上架材料（P6-3）**：新增 `docs/legal/store-listing.md`（Play Store listing 文案——短/长描述、What's new、Data Safety 表单口径、内容分级、素材清单、上架前核对清单）；截图与隐私政策托管待真机/托管环境

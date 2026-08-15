@@ -194,7 +194,7 @@
 |---|---|---|
 | 6-1 | CHANGELOG 制度落地 | `CHANGELOG.md` 已建（2026-08-15 并行流，Unreleased + 回溯 v1.0.0）；剩余：**PR 更新 Unreleased 纪律执行**（CLAUDE.md 已声明） |
 | 6-2 | 状态诚实化（R19） | ✅ `todo.md` 已撤回"0 已知问题"；`CLAUDE.md` Current State 已改为发布前状态；评审更新后同步（postmortem 001 教训） |
-| 6-3 | Play 上架材料 | `docs/legal/privacy-policy.md` 已建（并行流）；剩余：核对与代码一致（无数据收集）、store listing、截图、`MANAGE_EXTERNAL_STORAGE` 移除（P4-2）后权限页核对 |
+| 6-3 | Play 上架材料 | `docs/legal/privacy-policy.md` 已建（并行流）；权限核对完成（`173d5c0`，仅 USB 无运行时权限）；**store listing 文案已建**（`docs/legal/store-listing.md`：短/长描述、What's new、Data Safety 口径、素材清单）；剩余：截图/feature graphic 待真机（Nikon Z30）、隐私政策托管 URL、Play Console 提交 |
 | 6-4 | 发布后指标 | 从 Khronicle 日志聚合传输成功率/失败率（现有 TransferHistory 已存会话记录），建立发布后观测，对齐 PRD 成功指标 |
 
 ---
@@ -235,4 +235,4 @@
 | P5-2 | 核心路径接 DI | R14 | ✅ GalleryViewModel 构造注入 ioDispatcher + AppGraph @SingleIn（`6785430`） |
 | P5-3 | 核心屏 Preview | R15 | ✅ GalleryScreen 每状态一个 @Preview（`35ca39b` `c30ce08` `8ee67eb`） |
 | P5-4 | 缓存降内存 | R17 | ✅ 磁盘 LRU 3 + 路径 EXIF（`ad54502`） |
-| P6 | 发布闭环 | R19 | CHANGELOG 落地 + todo.md 状态真实 + 上架材料齐（P6-2 ✅ 状态真实；P6-3 权限核对完成 `173d5c0`；store listing/截图待设备） |
+| P6 | 发布闭环 | R19 | CHANGELOG 落地 + todo.md 状态真实 + 上架材料齐（P6-2 ✅ 状态真实；P6-3 权限核对完成 `173d5c0` + store listing 文案 `docs/legal/store-listing.md`；截图/托管待设备） |
