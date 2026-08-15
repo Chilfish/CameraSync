@@ -3,7 +3,6 @@ package dev.sebastiano.camerasync.usb
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -2023,9 +2022,8 @@ private fun LocalPhotoDetail(group: LocalPhotoGroup, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val file = group.jpg?.file ?: group.raw?.file ?: return
 
-    var exifFields by remember { mutableStateOf<List<Pair<Int, String?>>>(emptyList()) }
+    var exifFields by remember { mutableStateOf<List<Pair<Int, ExifValue?>>>(emptyList()) }
     var exifLoaded by remember { mutableStateOf(false) }
-    val resources = LocalContext.current.resources
 
     // Load EXIF in background (path-based constructor — efficient, no full file read)
     LaunchedEffect(file) {
@@ -2036,7 +2034,7 @@ private fun LocalPhotoDetail(group: LocalPhotoGroup, onDismiss: () -> Unit) {
                 } catch (_: Exception) {
                     null
                 }
-            exifFields = extractExifFromInterface(exif, resources)
+            exifFields = extractExifFromInterface(exif)
             exifLoaded = true
         }
     }
@@ -2085,17 +2083,20 @@ private fun LocalPhotoDetail(group: LocalPhotoGroup, onDismiss: () -> Unit) {
                     Spacer(Modifier.height(8.dp))
                     for ((label, value) in exifFields) {
                         if (label == R.string.usb_exif_filename) continue
-                        if (!value.isNullOrBlank()) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text(
-                                    stringResource(label),
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(value, fontSize = 13.sp)
+                        if (value != null) {
+                            val valueText = exifValueText(value)
+                            if (valueText.isNotBlank()) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Text(
+                                        stringResource(label),
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(valueText, fontSize = 13.sp)
+                                }
                             }
                         }
                     }
@@ -2105,55 +2106,90 @@ private fun LocalPhotoDetail(group: LocalPhotoGroup, onDismiss: () -> Unit) {
     }
 }
 
+/** A resolved EXIF field value: either a plain string or a string-resource reference. */
+internal sealed interface ExifValue {
+    data class Text(val value: String) : ExifValue
+
+    data class Resource(val resId: Int, val formatArgs: List<Any> = emptyList()) : ExifValue
+}
+
+/** Resolves an [ExifValue] to its display string (composable — invalidates on config changes). */
+@Composable
+internal fun exifValueText(value: ExifValue): String =
+    when (value) {
+        is ExifValue.Text -> value.value
+        is ExifValue.Resource ->
+            if (value.formatArgs.isEmpty()) stringResource(value.resId)
+            else stringResource(value.resId, *value.formatArgs.toTypedArray())
+    }
+
 /**
  * Extracts human-readable EXIF fields from an already-opened [ExifInterface]. Mirrors [extractExif]
  * but takes the interface directly instead of raw bytes, so local file detail can use the
  * path-based constructor (no 26MB read).
  *
- * Labels are string-resource IDs (rendered via [stringResource]); values are resolved strings.
+ * Labels are string-resource IDs and values are [ExifValue] (rendered via [exifValueText]) — the
+ * extraction stays pure so it needs no [Resources] and can run on any dispatcher.
  */
-internal fun extractExifFromInterface(
-    exif: ExifInterface?,
-    resources: Resources,
-): List<Pair<Int, String?>> {
+internal fun extractExifFromInterface(exif: ExifInterface?): List<Pair<Int, ExifValue?>> {
     if (exif == null) return emptyList()
+    fun text(value: String?): ExifValue? = value?.let { ExifValue.Text(it) }
     return try {
         listOf(
             R.string.usb_exif_filename to null,
             R.string.usb_exif_resolution to
-                formatResolution(
-                    exif.getAttributeInt(ExifInterface.TAG_IMAGE_WIDTH, 0),
-                    exif.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, 0),
+                text(
+                    formatResolution(
+                        exif.getAttributeInt(ExifInterface.TAG_IMAGE_WIDTH, 0),
+                        exif.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, 0),
+                    )
                 ),
-            R.string.usb_exif_date to formatExifDate(exif.getAttribute(ExifInterface.TAG_DATETIME)),
+            R.string.usb_exif_date to
+                text(formatExifDate(exif.getAttribute(ExifInterface.TAG_DATETIME))),
             R.string.usb_exif_shutter to
-                exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME)?.let { formatShutterSpeed(it) },
-            R.string.usb_exif_aperture to
-                exif.getAttribute(ExifInterface.TAG_F_NUMBER)?.let {
-                    "f/${it.toDoubleOrNull()?.let { v -> "%.1f".format(v) } ?: it}"
-                },
-            R.string.usb_exif_iso to
-                (exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)
-                    ?: exif.getAttribute(ExifInterface.TAG_ISO_SPEED_RATINGS)),
-            R.string.usb_exif_focal_length to
-                exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH)?.let {
-                    it.toDoubleOrNull()?.let { v -> "${"%.0f".format(v)}mm" } ?: "$it mm"
-                },
-            R.string.usb_exif_35mm_equiv to
-                exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM)?.let { "${it}mm" },
-            R.string.usb_exif_lens to exif.getAttribute(ExifInterface.TAG_LENS_MODEL),
-            R.string.usb_exif_exposure_comp to formatExposureCompensation(exif),
-            R.string.usb_exif_metering_mode to getMeteringMode(exif, resources),
-            R.string.usb_exif_flash to getFlash(exif, resources),
-            R.string.usb_exif_orientation to getOrientation(exif, resources),
-            R.string.usb_exif_camera to
-                formatCamera(
-                    exif.getAttribute(ExifInterface.TAG_MAKE),
-                    exif.getAttribute(ExifInterface.TAG_MODEL),
+                text(
+                    exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME)?.let {
+                        formatShutterSpeed(it)
+                    }
                 ),
-            R.string.usb_exif_artist to exif.getAttribute(ExifInterface.TAG_ARTIST),
-            R.string.usb_exif_copyright to exif.getAttribute(ExifInterface.TAG_COPYRIGHT),
-            R.string.usb_exif_software to exif.getAttribute(ExifInterface.TAG_SOFTWARE),
+            R.string.usb_exif_aperture to
+                text(
+                    exif.getAttribute(ExifInterface.TAG_F_NUMBER)?.let {
+                        "f/${it.toDoubleOrNull()?.let { v -> "%.1f".format(v) } ?: it}"
+                    }
+                ),
+            R.string.usb_exif_iso to
+                text(
+                    exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)
+                        ?: exif.getAttribute(ExifInterface.TAG_ISO_SPEED_RATINGS)
+                ),
+            R.string.usb_exif_focal_length to
+                text(
+                    exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH)?.let {
+                        it.toDoubleOrNull()?.let { v -> "${"%.0f".format(v)}mm" } ?: "$it mm"
+                    }
+                ),
+            R.string.usb_exif_35mm_equiv to
+                text(
+                    exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM)?.let {
+                        "${it}mm"
+                    }
+                ),
+            R.string.usb_exif_lens to text(exif.getAttribute(ExifInterface.TAG_LENS_MODEL)),
+            R.string.usb_exif_exposure_comp to text(formatExposureCompensation(exif)),
+            R.string.usb_exif_metering_mode to getMeteringMode(exif),
+            R.string.usb_exif_flash to getFlash(exif),
+            R.string.usb_exif_orientation to getOrientation(exif),
+            R.string.usb_exif_camera to
+                text(
+                    formatCamera(
+                        exif.getAttribute(ExifInterface.TAG_MAKE),
+                        exif.getAttribute(ExifInterface.TAG_MODEL),
+                    )
+                ),
+            R.string.usb_exif_artist to text(exif.getAttribute(ExifInterface.TAG_ARTIST)),
+            R.string.usb_exif_copyright to text(exif.getAttribute(ExifInterface.TAG_COPYRIGHT)),
+            R.string.usb_exif_software to text(exif.getAttribute(ExifInterface.TAG_SOFTWARE)),
         )
     } catch (_: Exception) {
         emptyList()
