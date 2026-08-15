@@ -1,5 +1,6 @@
 package dev.sebastiano.camerasync.usb
 
+import android.content.res.Resources
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -34,10 +35,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
+import dev.sebastiano.camerasync.R
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -63,6 +67,7 @@ fun PhotoDetailSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val resources = LocalContext.current.resources
 
     // Instant: MTP thumbnail preview. Camera may pre-rotate the pixel data,
     // so skip extra rotation if the bitmap already matches the expected orientation.
@@ -83,7 +88,7 @@ fun PhotoDetailSheet(
 
     // Async: download full NEF/JPEG for complete EXIF
     var fullImage by remember { mutableStateOf<ImageBitmap?>(null) }
-    var exifFields by remember { mutableStateOf<List<Pair<String, String?>>>(emptyList()) }
+    var exifFields by remember { mutableStateOf<List<Pair<Int, String?>>>(emptyList()) }
     var exifLoading by remember { mutableStateOf(true) }
     var downloadError by remember { mutableStateOf(false) }
 
@@ -99,7 +104,7 @@ fun PhotoDetailSheet(
         }
 
         // Extract EXIF from the full RAW/JPEG bytes
-        val fields = withContext(Dispatchers.IO) { extractExif(bytes) }
+        val fields = withContext(Dispatchers.IO) { extractExif(bytes, resources) }
         exifFields = fields
 
         // Try to decode a high-quality preview from the full file bytes,
@@ -144,7 +149,7 @@ fun PhotoDetailSheet(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            "无预览",
+                            stringResource(R.string.usb_exif_no_preview),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -164,12 +169,16 @@ fun PhotoDetailSheet(
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
-                Text("EXIF 信息", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    stringResource(R.string.usb_exif_title),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Spacer(Modifier.height(8.dp))
 
                 if (downloadError) {
                     Text(
-                        "读取失败 — 请确认相机仍处于连接状态",
+                        stringResource(R.string.usb_exif_read_error),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(vertical = 16.dp),
@@ -185,7 +194,7 @@ fun PhotoDetailSheet(
                         )
                         Spacer(Modifier.padding(8.dp))
                         Text(
-                            "正在读取 RAW 文件…",
+                            stringResource(R.string.usb_exif_reading_full),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -200,7 +209,7 @@ fun PhotoDetailSheet(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
                                 Text(
-                                    label,
+                                    stringResource(label),
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -211,7 +220,9 @@ fun PhotoDetailSheet(
                 }
 
                 Spacer(Modifier.height(24.dp))
-                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("关闭") }
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.usb_exif_close))
+                }
             }
         }
     }
@@ -222,9 +233,9 @@ fun PhotoDetailSheet(
  * and JPEG — Android's ExifInterface handles both. Delegates to [extractExifFromInterface] so the
  * field list has a single source of truth.
  */
-internal fun extractExif(fileBytes: ByteArray?): List<Pair<String, String?>> {
+internal fun extractExif(fileBytes: ByteArray?, resources: Resources): List<Pair<Int, String?>> {
     if (fileBytes == null) return emptyList()
-    return extractExifFromInterface(ExifInterface(ByteArrayInputStream(fileBytes)))
+    return extractExifFromInterface(ExifInterface(ByteArrayInputStream(fileBytes)), resources)
 }
 
 /** Formats EXIF image dimensions as "W×H". Returns null if both are 0. */
@@ -249,47 +260,54 @@ internal fun formatExposureCompensation(exif: ExifInterface): String? {
 }
 
 /** Converts EXIF metering mode code to a human-readable Chinese label. */
-internal fun getMeteringMode(exif: ExifInterface): String? {
+internal fun getMeteringMode(exif: ExifInterface, resources: Resources): String? {
     val code = exif.getAttributeInt(ExifInterface.TAG_METERING_MODE, -1)
     return when (code) {
-        0 -> "未知"
-        1 -> "平均测光"
-        2 -> "中央重点测光"
-        3 -> "点测光"
-        4 -> "多点测光"
-        5 -> "矩阵测光"
-        6 -> "局部测光"
-        255 -> "其他"
+        0 -> resources.getString(R.string.usb_exif_metering_unknown)
+        1 -> resources.getString(R.string.usb_exif_metering_average)
+        2 -> resources.getString(R.string.usb_exif_metering_center_weighted)
+        3 -> resources.getString(R.string.usb_exif_metering_spot)
+        4 -> resources.getString(R.string.usb_exif_metering_multi)
+        5 -> resources.getString(R.string.usb_exif_metering_matrix)
+        6 -> resources.getString(R.string.usb_exif_metering_partial)
+        255 -> resources.getString(R.string.usb_exif_metering_other)
         -1 -> null
-        else -> "模式 $code"
+        else -> resources.getString(R.string.usb_exif_metering_mode_n, code)
     }
 }
 
 /** Converts EXIF flash code to a human-readable Chinese label. */
-internal fun getFlash(exif: ExifInterface): String? {
+internal fun getFlash(exif: ExifInterface, resources: Resources): String? {
     val raw = exif.getAttribute(ExifInterface.TAG_FLASH)
     if (raw == null) return null
     val code = raw.toIntOrNull() ?: return raw
     return when {
-        code and 1 == 0 -> "未闪光"
-        code and 1 == 1 -> "闪光"
+        code and 1 == 0 -> resources.getString(R.string.usb_exif_flash_not_fired)
+        code and 1 == 1 -> resources.getString(R.string.usb_exif_flash_fired)
         else -> raw
     }
 }
 
 /** Converts EXIF orientation code to a human-readable Chinese label. */
-internal fun getOrientation(exif: ExifInterface): String? {
+internal fun getOrientation(exif: ExifInterface, resources: Resources): String? {
     return when (
         exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
     ) {
         ExifInterface.ORIENTATION_NORMAL -> null
-        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> "水平翻转"
-        ExifInterface.ORIENTATION_ROTATE_180 -> "旋转 180°"
-        ExifInterface.ORIENTATION_FLIP_VERTICAL -> "垂直翻转"
-        ExifInterface.ORIENTATION_TRANSPOSE -> "对角翻转"
-        ExifInterface.ORIENTATION_ROTATE_90 -> "旋转 90°"
-        ExifInterface.ORIENTATION_TRANSVERSE -> "反对角翻转"
-        ExifInterface.ORIENTATION_ROTATE_270 -> "旋转 270°"
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL ->
+            resources.getString(R.string.usb_exif_orientation_flip_horizontal)
+        ExifInterface.ORIENTATION_ROTATE_180 ->
+            resources.getString(R.string.usb_exif_orientation_rotate_180)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL ->
+            resources.getString(R.string.usb_exif_orientation_flip_vertical)
+        ExifInterface.ORIENTATION_TRANSPOSE ->
+            resources.getString(R.string.usb_exif_orientation_transpose)
+        ExifInterface.ORIENTATION_ROTATE_90 ->
+            resources.getString(R.string.usb_exif_orientation_rotate_90)
+        ExifInterface.ORIENTATION_TRANSVERSE ->
+            resources.getString(R.string.usb_exif_orientation_transverse)
+        ExifInterface.ORIENTATION_ROTATE_270 ->
+            resources.getString(R.string.usb_exif_orientation_rotate_270)
         ExifInterface.ORIENTATION_UNDEFINED -> null
         else -> null
     }

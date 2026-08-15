@@ -165,6 +165,27 @@
     <string name="usb_exif_no_preview">无预览</string>
     <string name="usb_exif_flash_fired">闪光</string>
     <string name="usb_exif_flash_not_fired">未闪光</string>
+    <string name="usb_exif_read_error">读取失败 — 请确认相机仍处于连接状态</string>
+    <string name="usb_exif_reading_full">正在读取 RAW 文件…</string>
+    <string name="usb_exif_artist">拍摄者</string>
+    <string name="usb_exif_copyright">版权</string>
+    <string name="usb_exif_software">软件</string>
+    <string name="usb_exif_metering_unknown">未知</string>
+    <string name="usb_exif_metering_average">平均测光</string>
+    <string name="usb_exif_metering_center_weighted">中央重点测光</string>
+    <string name="usb_exif_metering_spot">点测光</string>
+    <string name="usb_exif_metering_multi">多点测光</string>
+    <string name="usb_exif_metering_matrix">矩阵测光</string>
+    <string name="usb_exif_metering_partial">局部测光</string>
+    <string name="usb_exif_metering_other">其他</string>
+    <string name="usb_exif_metering_mode_n">模式 %1$d</string>
+    <string name="usb_exif_orientation_flip_horizontal">水平翻转</string>
+    <string name="usb_exif_orientation_rotate_180">旋转 180°</string>
+    <string name="usb_exif_orientation_flip_vertical">垂直翻转</string>
+    <string name="usb_exif_orientation_transpose">对角翻转</string>
+    <string name="usb_exif_orientation_rotate_90">旋转 90°</string>
+    <string name="usb_exif_orientation_transverse">反对角翻转</string>
+    <string name="usb_exif_orientation_rotate_270">旋转 270°</string>
 
     <!-- Theme -->
     <string name="settings_theme">主题</string>
