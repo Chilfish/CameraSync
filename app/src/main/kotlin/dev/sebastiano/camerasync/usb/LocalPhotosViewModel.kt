@@ -76,18 +76,10 @@ class LocalPhotosViewModel(
     var isRefreshing by mutableStateOf(false)
         private set
 
-    private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var scope = CoroutineScope(ioDispatcher + SupervisorJob())
 
     /** Prevents concurrent scans — MediaStore cursor queries must be serialized. */
     private val scanMutex = Mutex()
-
-    /** The base directory: Pictures/CameraSync */
-    private val baseDir =
-        File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-                "CameraSync",
-            )
-            .absolutePath + "/"
 
     /**
      * Load the root view: folders at Pictures/CameraSync + photos at root level. Called on initial
@@ -155,7 +147,7 @@ class LocalPhotosViewModel(
 
     fun stop() {
         scope.cancel()
-        scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        scope = CoroutineScope(ioDispatcher + SupervisorJob())
     }
 
     private fun loadCurrent() {
