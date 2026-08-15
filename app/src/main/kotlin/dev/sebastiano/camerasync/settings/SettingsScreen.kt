@@ -56,10 +56,13 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back_24dp), "返回")
+                        Icon(
+                            painterResource(R.drawable.ic_arrow_back_24dp),
+                            stringResource(R.string.content_desc_back),
+                        )
                     }
                 },
             )
@@ -102,7 +105,10 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("照片网格", fontWeight = FontWeight.Medium)
+                    Text(
+                        stringResource(R.string.settings_grid_density),
+                        fontWeight = FontWeight.Medium,
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(2, 3, 4).forEach { cols ->
                             FilterChip(
@@ -112,7 +118,9 @@ fun SettingsScreen(
                                     prefs.setGridColumns(cols)
                                     onGridColumnsChanged(cols)
                                 },
-                                label = { Text("${cols}列") },
+                                label = {
+                                    Text(stringResource(R.string.settings_grid_columns_n, cols))
+                                },
                             )
                         }
                     }
@@ -122,13 +130,16 @@ fun SettingsScreen(
             // Photo grouping
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("照片分组", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_grouping), fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(
-                                UsbSyncPreferences.PhotoGrouping.BY_FOLDER to "按文件夹",
-                                UsbSyncPreferences.PhotoGrouping.BY_DATE to "按日期",
-                                UsbSyncPreferences.PhotoGrouping.FLAT to "不分组",
+                                UsbSyncPreferences.PhotoGrouping.BY_FOLDER to
+                                    stringResource(R.string.usb_grouping_folder),
+                                UsbSyncPreferences.PhotoGrouping.BY_DATE to
+                                    stringResource(R.string.usb_grouping_date),
+                                UsbSyncPreferences.PhotoGrouping.FLAT to
+                                    stringResource(R.string.usb_grouping_flat),
                             )
                             .forEach { (mode, label) ->
                                 FilterChip(
@@ -148,13 +159,16 @@ fun SettingsScreen(
             // Photo sorting
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("照片排序", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_sorting), fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(
-                                UsbSyncPreferences.PhotoSorting.DATE_DESC to "最新优先",
-                                UsbSyncPreferences.PhotoSorting.NAME_ASC to "按名称",
-                                UsbSyncPreferences.PhotoSorting.SIZE_DESC to "按大小",
+                                UsbSyncPreferences.PhotoSorting.DATE_DESC to
+                                    stringResource(R.string.usb_sorting_newest),
+                                UsbSyncPreferences.PhotoSorting.NAME_ASC to
+                                    stringResource(R.string.usb_sorting_name),
+                                UsbSyncPreferences.PhotoSorting.SIZE_DESC to
+                                    stringResource(R.string.usb_sorting_size),
                             )
                             .forEach { (mode, label) ->
                                 FilterChip(
@@ -174,18 +188,24 @@ fun SettingsScreen(
             // Download format
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("默认下载格式", fontWeight = FontWeight.Medium)
                     Text(
-                        "传输时包含的照片格式",
+                        stringResource(R.string.settings_download_format),
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        stringResource(R.string.settings_download_format_desc),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(
-                                UsbSyncPreferences.DownloadFormat.ALL to "全部",
-                                UsbSyncPreferences.DownloadFormat.JPEG_ONLY to "仅 JPEG",
-                                UsbSyncPreferences.DownloadFormat.RAW_ONLY to "仅 RAW",
+                                UsbSyncPreferences.DownloadFormat.ALL to
+                                    stringResource(R.string.usb_filter_all),
+                                UsbSyncPreferences.DownloadFormat.JPEG_ONLY to
+                                    stringResource(R.string.settings_download_format_jpeg_only),
+                                UsbSyncPreferences.DownloadFormat.RAW_ONLY to
+                                    stringResource(R.string.settings_download_format_raw_only),
                             )
                             .forEach { (format, label) ->
                                 FilterChip(
@@ -236,9 +256,12 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column {
-                        Text("传输历史", fontWeight = FontWeight.Medium)
                         Text(
-                            "查看以往的同步记录",
+                            stringResource(R.string.settings_history),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            stringResource(R.string.settings_history_desc),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

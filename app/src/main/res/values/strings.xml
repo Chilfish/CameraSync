@@ -176,6 +176,13 @@
     <string name="settings_guide">使用说明</string>
     <string name="settings_guide_desc">MTP 模式、USB 权限、插线同步</string>
     <string name="settings_grid_density">照片网格</string>
+    <string name="settings_grouping">照片分组</string>
+    <string name="settings_sorting">照片排序</string>
+    <string name="settings_download_format">默认下载格式</string>
+    <string name="settings_download_format_desc">传输时包含的照片格式</string>
+    <string name="settings_download_format_jpeg_only">仅 JPEG</string>
+    <string name="settings_download_format_raw_only">仅 RAW</string>
+    <string name="settings_grid_columns_n">%1$d 列</string>
     <string name="settings_history">传输历史</string>
     <string name="settings_history_desc">查看以往的同步记录</string>
     <string name="settings_onboarding">查看引导</string>
