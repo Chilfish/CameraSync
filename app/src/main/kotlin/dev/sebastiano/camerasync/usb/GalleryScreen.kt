@@ -517,7 +517,7 @@ private fun BrowsingContent(
     var detailGroup by remember { mutableStateOf<GalleryEntry.PhotoGroup?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        StorageStatusBar(state.storages, batteryLevel = vm.batteryLevel)
+        StorageStatusBar(state.storages)
         FilterChipsRow(
             currentFilter = vm.filterMode,
             newCount = newCount,
@@ -913,7 +913,8 @@ private fun PhotoCell(
                 // dimensions (5568×3712, landscape). If thumbPix says portrait
                 // (120×160, width < height), override to prevent landscape-shaped
                 // cells for portrait photos.
-                if (rawAspect > 1f && thumbW > 0 && thumbH > 0 && thumbW < thumbH) {
+                val hasPortraitThumb = thumbW > 0 && thumbH > 0 && thumbW < thumbH
+                if (rawAspect > 1f && hasPortraitThumb) {
                     thumbW.toFloat() / thumbH.toFloat()
                 } else {
                     rawAspect
@@ -1112,10 +1113,7 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
 // ── Storage Status Bar ─────────────────────────────────────────────────────
 
 @Composable
-private fun StorageStatusBar(
-    storages: List<NikonUsbManager.StorageInfo>,
-    batteryLevel: Int? = null,
-) {
+private fun StorageStatusBar(storages: List<NikonUsbManager.StorageInfo>) {
     if (storages.isEmpty()) return
     val totalBytes = storages.sumOf { it.maxCapacity }
     val freeBytes = storages.sumOf { it.freeSpace }
@@ -1159,14 +1157,6 @@ private fun StorageStatusBar(
             )
         }
         Spacer(Modifier.weight(1f))
-        if (batteryLevel != null) {
-            Text(
-                stringResource(R.string.usb_battery_level, batteryLevel),
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.width(8.dp))
-        }
         LinearProgressIndicator(
             progress = { ratio },
             modifier = Modifier.width(80.dp).height(4.dp).clip(RoundedCornerShape(2.dp)),
@@ -1587,7 +1577,6 @@ private fun TransferPreviewSheet(
             .filter { viewModel.isGroupSelected(it) }
             .take(6) // show first 6 thumbnails
 
-    val totalSelected = viewModel.selectedCount
     val totalGroups = selectedGroups.size
 
     // Compute total size of all selected photos (unfiltered).
@@ -1813,6 +1802,7 @@ private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
     val loadState = localVm.loading.value
     val isRefreshing = localVm.isRefreshing
     val isBrowsingFolder = localVm.isBrowsingFolder
+    val hasNoContent = folders.isEmpty() && groups.isEmpty()
     var detailGroup by remember { mutableStateOf<LocalPhotoGroup?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -1829,7 +1819,7 @@ private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-        } else if (folders.isEmpty() && groups.isEmpty() && !isRefreshing && !isBrowsingFolder) {
+        } else if (hasNoContent && !isRefreshing && !isBrowsingFolder) {
             // Root-level empty state
             Column(
                 Modifier.fillMaxSize().padding(32.dp),
@@ -1842,7 +1832,7 @@ private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        } else if (isBrowsingFolder && folders.isEmpty() && groups.isEmpty()) {
+        } else if (isBrowsingFolder && hasNoContent) {
             // Folder-level empty state
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
@@ -2097,18 +2087,6 @@ private fun LocalPhotoDetail(group: LocalPhotoGroup, onDismiss: () -> Unit) {
 internal fun extractExifFromInterface(exif: ExifInterface?): List<Pair<String, String?>> {
     if (exif == null) return emptyList()
     return try {
-        val dateStr =
-            exif.getAttribute(ExifInterface.TAG_DATETIME)?.let { raw ->
-                try {
-                    val parsed =
-                        SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).parse(raw)
-                    if (parsed != null)
-                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(parsed)
-                    else raw
-                } catch (_: Exception) {
-                    raw
-                }
-            }
         listOf(
             "文件名" to null,
             "分辨率" to
@@ -2116,7 +2094,7 @@ internal fun extractExifFromInterface(exif: ExifInterface?): List<Pair<String, S
                     exif.getAttributeInt(ExifInterface.TAG_IMAGE_WIDTH, 0),
                     exif.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, 0),
                 ),
-            "日期" to dateStr,
+            "日期" to formatExifDate(exif.getAttribute(ExifInterface.TAG_DATETIME)),
             "快门" to
                 exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME)?.let { formatShutterSpeed(it) },
             "光圈" to
@@ -2148,5 +2126,21 @@ internal fun extractExifFromInterface(exif: ExifInterface?): List<Pair<String, S
         )
     } catch (_: Exception) {
         emptyList()
+    }
+}
+
+/**
+ * Formats an EXIF DATETIME ("yyyy:MM:dd HH:mm:ss") into a readable form, falling back to the raw
+ * value when parsing fails. Extracted from the EXIF builders to keep their nesting shallow.
+ */
+private fun formatExifDate(raw: String?): String? {
+    if (raw == null) return null
+    return try {
+        val parsed = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).parse(raw)
+        if (parsed != null)
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(parsed)
+        else raw
+    } catch (_: Exception) {
+        raw
     }
 }

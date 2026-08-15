@@ -52,10 +52,6 @@ class ConnectionManager(
     var storages = emptyList<NikonUsbManager.StorageInfo>()
         private set
 
-    /** Camera battery level (0–100), or null if the device doesn't report it. */
-    var batteryLevel: Int? = null
-        private set
-
     /** Inline error banner message — shown above content instead of replacing the entire screen. */
     var errorBanner by mutableStateOf<String?>(null)
         private set
@@ -199,7 +195,6 @@ class ConnectionManager(
                     storages = nikon.getStorages(m)
                     Log.info(tag = TAG) { "Found ${storages.size} storage(s)" }
 
-                    batteryLevel = nikon.getBatteryLevel(m)
                     stateMachine.selected.clear()
                     errorBanner = null
 

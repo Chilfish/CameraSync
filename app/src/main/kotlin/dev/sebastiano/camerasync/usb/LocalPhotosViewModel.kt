@@ -84,6 +84,9 @@ class LocalPhotosViewModel(
      * Load the root view: folders at Pictures/CameraSync + photos at root level. Called on initial
      * enter and pull-to-refresh.
      */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // MediaStore queries throw unchecked framework exceptions
     fun loadRoot() {
         scope.launch {
             scanMutex.withLock {
@@ -110,6 +113,9 @@ class LocalPhotosViewModel(
      *
      * @param relativePath e.g. "Pictures/CameraSync/Nikon Z30/"
      */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // MediaStore queries throw unchecked framework exceptions
     fun enterFolder(relativePath: String) {
         scope.launch {
             scanMutex.withLock {

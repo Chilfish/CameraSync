@@ -172,10 +172,6 @@ class GalleryViewModel(private val app: Application) {
     val failedHandles: List<Int>
         get() = transferEngine.failedHandles
 
-    /** Camera battery level (0–100), or null if the device doesn't report it. */
-    val batteryLevel: Int?
-        get() = connection.batteryLevel
-
     // ── UI state & reload ──────────────────────────────────────────────────
 
     /**

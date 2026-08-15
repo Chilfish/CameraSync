@@ -29,12 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.sebastiano.camerasync.R
 
-data class TransferRecord(
-    val date: String, // "yyyy-MM-dd HH:mm"
-    val photoCount: Int,
-    val cameraModel: String,
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransferHistoryScreen(records: List<TransferRecord>, onNavigateBack: () -> Unit) {

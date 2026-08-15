@@ -39,8 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import java.io.ByteArrayInputStream
-import java.text.SimpleDateFormat
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -221,65 +219,12 @@ fun PhotoDetailSheet(
 
 /**
  * Extracts human-readable EXIF fields from a RAW/JPEG byte array. Works on both NEF (TIFF-based)
- * and JPEG — Android's ExifInterface handles both.
+ * and JPEG — Android's ExifInterface handles both. Delegates to [extractExifFromInterface] so the
+ * field list has a single source of truth.
  */
 internal fun extractExif(fileBytes: ByteArray?): List<Pair<String, String?>> {
     if (fileBytes == null) return emptyList()
-    return try {
-        val exif = ExifInterface(ByteArrayInputStream(fileBytes))
-        val dateStr =
-            exif.getAttribute(ExifInterface.TAG_DATETIME)?.let { raw ->
-                try {
-                    val parsed =
-                        SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).parse(raw)
-                    if (parsed != null)
-                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(parsed)
-                    else raw
-                } catch (_: Exception) {
-                    raw
-                }
-            }
-        // Build full field list; null/blank values filtered by caller
-        listOf(
-            "文件名" to null,
-            "分辨率" to
-                formatResolution(
-                    exif.getAttributeInt(ExifInterface.TAG_IMAGE_WIDTH, 0),
-                    exif.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, 0),
-                ),
-            "日期" to dateStr,
-            "快门" to
-                exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME)?.let { formatShutterSpeed(it) },
-            "光圈" to
-                exif.getAttribute(ExifInterface.TAG_F_NUMBER)?.let {
-                    "f/${it.toDoubleOrNull()?.let { v -> "%.1f".format(v) } ?: it}"
-                },
-            "ISO" to
-                (exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)
-                    ?: exif.getAttribute(ExifInterface.TAG_ISO_SPEED_RATINGS)),
-            "焦距" to
-                exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH)?.let {
-                    it.toDoubleOrNull()?.let { v -> "${"%.0f".format(v)}mm" } ?: "$it mm"
-                },
-            "35mm 等效" to
-                exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM)?.let { "${it}mm" },
-            "镜头" to exif.getAttribute(ExifInterface.TAG_LENS_MODEL),
-            "曝光补偿" to formatExposureCompensation(exif),
-            "测光模式" to getMeteringMode(exif),
-            "闪光灯" to getFlash(exif),
-            "方向" to getOrientation(exif),
-            "相机" to
-                formatCamera(
-                    exif.getAttribute(ExifInterface.TAG_MAKE),
-                    exif.getAttribute(ExifInterface.TAG_MODEL),
-                ),
-            "拍摄者" to exif.getAttribute(ExifInterface.TAG_ARTIST),
-            "版权" to exif.getAttribute(ExifInterface.TAG_COPYRIGHT),
-            "软件" to exif.getAttribute(ExifInterface.TAG_SOFTWARE),
-        )
-    } catch (_: Exception) {
-        emptyList()
-    }
+    return extractExifFromInterface(ExifInterface(ByteArrayInputStream(fileBytes)))
 }
 
 /** Formats EXIF image dimensions as "W×H". Returns null if both are 0. */

@@ -80,10 +80,15 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         return mtp
     }
 
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // MTP close throws unchecked exceptions from native layer
     fun closeMtpDevice() {
         try {
             mtpDevice?.close()
             usbConnection?.close()
+            // Android's MtpDevice/UsbDeviceConnection throw unchecked exceptions from the native
+            // MTP layer; close must always proceed to the finally block regardless of failure.
         } catch (e: Exception) {
             Log.warn(tag = TAG, throwable = e) { "Error closing: ${e.message}" }
         } finally {
@@ -302,6 +307,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
      * Deletes a photo from the camera via MTP. Returns true if deletion was successful. WARNING:
      * Irreversible. Only call after successful transfer to phone.
      */
+    @Suppress("TooGenericExceptionCaught") // MTP throws unchecked exceptions from the native layer
     fun deletePhoto(mtpDevice: MtpDevice, handle: Int): Boolean {
         return try {
             val ok = mtpDevice.deleteObject(handle)
@@ -318,20 +324,12 @@ class NikonUsbManager(private val usbManager: UsbManager) {
     }
 
     /**
-     * Attempts to read battery level from the camera via MTP PTP properties.
-     *
-     * Most MTP/PTP devices do not implement the BatteryLevel property (0xD303), and Android's
-     * [MtpDevice] does not expose a public API to query arbitrary device properties. Returns `null`
-     * to indicate "not available".
-     */
-    fun getBatteryLevel(mtpDevice: MtpDevice): Int? = null
-
-    /**
      * Downloads a photo from the MTP device to [outputStream], using [cacheDir] as a temporary
      * staging area.
      *
      * @return the number of bytes transferred, or `null` if the transfer failed.
      */
+    @Suppress("TooGenericExceptionCaught") // MTP I/O throws unchecked exceptions from native layer
     suspend fun downloadPhoto(
         mtpDevice: MtpDevice,
         photoInfo: PhotoInfo,

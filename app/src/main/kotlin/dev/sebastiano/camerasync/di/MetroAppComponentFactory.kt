@@ -3,7 +3,6 @@ package dev.sebastiano.camerasync.di
 import android.app.Activity
 import android.app.AppComponentFactory
 import android.app.Application
-import android.app.Service
 import android.content.Intent
 import androidx.annotation.Keep
 import dev.sebastiano.camerasync.CameraSyncApp
@@ -32,9 +31,5 @@ class MetroAppComponentFactory : AppComponentFactory() {
         } else {
             super.instantiateActivity(cl, className, intent)
         }
-    }
-
-    override fun instantiateService(cl: ClassLoader, className: String, intent: Intent?): Service {
-        return super.instantiateService(cl, className, intent)
     }
 }
