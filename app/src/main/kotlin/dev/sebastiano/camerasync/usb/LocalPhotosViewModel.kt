@@ -1,7 +1,6 @@
 package dev.sebastiano.camerasync.usb
 
 import android.app.Application
-import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -133,12 +132,14 @@ class LocalPhotosViewModel(
     /** Go back to parent directory. If already at root, no-op. */
     fun goBack() {
         val path = currentPath ?: return
-        // Strip trailing "/" then find parent: "Pictures/CameraSync/Nikon Z30/" → null (root)
+        // Strip trailing "/" then find parent: "Pictures/CameraSync/Nikon Z30/" →
+        // "Pictures/CameraSync/"
         val clean = path.trimEnd('/')
         val lastSlash = clean.lastIndexOf('/')
-        currentPath =
-            if (lastSlash <= 0) null // back to root
-            else clean.substring(0, lastSlash + 1)
+        val parent = if (lastSlash <= 0) null else clean.substring(0, lastSlash + 1)
+        // Leaving a top-level folder lands on the root view (currentPath == null), not a
+        // "Pictures/CameraSync/" folder that would render as a browsing folder.
+        currentPath = if (parent == null || parent == ROOT_DIR) null else parent
         loadCurrent()
     }
 
@@ -165,7 +166,7 @@ class LocalPhotosViewModel(
      * @return sorted list of folders (alphabetically by name)
      */
     private fun queryFolders(parentPath: String?): List<LocalFolder> {
-        val likePattern = if (parentPath == null) "Pictures/CameraSync/%" else "${parentPath}%"
+        val likePattern = if (parentPath == null) "$ROOT_DIR%" else "${parentPath}%"
 
         // Query 1: Images
         val imageFolders = mutableSetOf<String>()
@@ -177,7 +178,7 @@ class LocalPhotosViewModel(
                     MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                     arrayOf(MediaStore.Images.Media.RELATIVE_PATH),
                     "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Images.Media.RELATIVE_PATH} != ?",
-                    arrayOf(likePattern, parentPath ?: "Pictures/CameraSync/"),
+                    arrayOf(likePattern, parentPath ?: ROOT_DIR),
                     null,
                 )
                 ?.use { cursor ->
@@ -201,7 +202,7 @@ class LocalPhotosViewModel(
                     MediaStore.Files.getContentUri("external"),
                     arrayOf(MediaStore.Files.FileColumns.RELATIVE_PATH),
                     "${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.Files.FileColumns.RELATIVE_PATH} != ?",
-                    arrayOf(likePattern, parentPath ?: "Pictures/CameraSync/"),
+                    arrayOf(likePattern, parentPath ?: ROOT_DIR),
                     null,
                 )
                 ?.use { cursor ->
@@ -236,7 +237,7 @@ class LocalPhotosViewModel(
      * Returns null if the path points to a file directly in the parent.
      */
     private fun extractSubFolder(fullPath: String, parentPath: String?): String? {
-        val prefix = parentPath ?: "Pictures/CameraSync/"
+        val prefix = parentPath ?: ROOT_DIR
         if (!fullPath.startsWith(prefix)) return null
         val relative = fullPath.removePrefix(prefix)
         val firstSlash = relative.indexOf('/')
@@ -253,7 +254,7 @@ class LocalPhotosViewModel(
     private fun queryPhotos(parentPath: String?): List<LocalPhotoGroup> {
         val files = mutableSetOf<LocalPhoto>()
 
-        val pathClause = if (parentPath == null) "Pictures/CameraSync/" else parentPath
+        val pathClause = parentPath ?: ROOT_DIR
 
         // Query 1: MediaStore.Images for JPEG
         try {
@@ -376,6 +377,9 @@ class LocalPhotosViewModel(
     // ── Projection Constants ──────────────────────────────────────────────────
 
     companion object {
+        /** Root export directory (MediaStore RELATIVE_PATH form). */
+        private const val ROOT_DIR = "Pictures/CameraSync/"
+
         private val PHOTO_PROJECTION =
             arrayOf(
                 MediaStore.Images.Media._ID,
