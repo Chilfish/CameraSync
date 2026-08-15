@@ -7,6 +7,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -242,10 +243,10 @@ class GalleryViewModel(private val app: Application) {
     fun getThumbnail(handle: Int): ByteArray? = thumbnails.getThumbnail(handle)
 
     /**
-     * Downloads the full photo file (NEF/JPEG/etc) to a ByteArray for EXIF extraction. See
+     * Downloads the full photo file (NEF/JPEG/etc) to a temp file for EXIF extraction. See
      * [ThumbnailProvider.downloadFullPhoto].
      */
-    suspend fun downloadFullPhoto(handle: Int): ByteArray? = thumbnails.downloadFullPhoto(handle)
+    suspend fun downloadFullPhoto(handle: Int): File? = thumbnails.downloadFullPhoto(handle)
 
     // ── Selection & filtering (delegated to GalleryStateMachine) ────────────
 

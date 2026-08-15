@@ -19,6 +19,9 @@ import kotlinx.coroutines.withContext
 
 private const val TAG = "ThumbnailProvider"
 
+/** Max entries in the full-photo (NEF/JPEG) temp-file cache — caps disk usage, not RAM. */
+private const val FULL_PHOTO_CACHE_MAX = 3
+
 /**
  * Owns the four MTP caches (thumbnail bytes, full-photo bytes, EXIF orientation, decoded bitmaps)
  * plus the orientation-detection and thumbnail-preload logic (P2-1 extraction from
@@ -46,14 +49,20 @@ class ThumbnailProvider(
             }
         )
 
-    // Full-photo download cache — keyed by handle, stores full NEF/JPEG bytes (up to 26MB each).
-    // LRU eviction at 12 entries to cap memory at ~300MB. Cleared on disconnect.
-    // Thread-safe: accessed from PhotoDetailSheet coroutine (IO) and cleared from main thread.
+    // Full-photo download cache — keyed by handle, stores the temp file path of full NEF/JPEG
+    // downloads (up to 26MB each on disk, not in RAM — P5-4, R17). LRU eviction at 3 entries; the
+    // evicted file is deleted. Cleared on disconnect. Thread-safe: accessed from PhotoDetailSheet
+    // coroutine (IO) and cleared from main thread.
     private val fullPhotoCache =
         java.util.Collections.synchronizedMap(
-            object : LinkedHashMap<Int, ByteArray>(12, 0.75f, true) {
-                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, ByteArray>?) =
-                    size > 12
+            object : LinkedHashMap<Int, File>(FULL_PHOTO_CACHE_MAX, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, File>?) =
+                    if (size > FULL_PHOTO_CACHE_MAX) {
+                        eldest?.value?.delete()
+                        true
+                    } else {
+                        false
+                    }
             }
         )
 
@@ -209,14 +218,13 @@ class ThumbnailProvider(
     }
 
     /**
-     * Downloads the full photo file (NEF/JPEG/etc) to a ByteArray for EXIF extraction. Uses MTP
-     * importFile to temp, reads bytes, deletes temp. Returns null on failure.
+     * Downloads the full photo file (NEF/JPEG/etc) to a temp file for EXIF extraction. Keeps the
+     * file in an LRU temp-file cache (disk, capped at [FULL_PHOTO_CACHE_MAX]) so callers never hold
+     * the full bytes in RAM and EXIF can be read path-based (P5-4). Returns null on failure.
      */
-    suspend fun downloadFullPhoto(handle: Int): ByteArray? {
-        // Check cache first — avoids re-downloading 26MB NEF files
-        fullPhotoCache[handle]?.let {
-            return it
-        }
+    suspend fun downloadFullPhoto(handle: Int): File? {
+        // Check cache first — avoids re-downloading 26MB NEF files.
+        fullPhotoCache[handle]?.let { if (it.exists()) return it }
 
         val m = mtp() ?: return null
         return withContext(Dispatchers.IO) {
@@ -224,11 +232,12 @@ class ThumbnailProvider(
                     val tempFile = File(app.cacheDir, "detail_$handle")
                     tempFile.parentFile?.mkdirs()
                     val ok = m.importFile(handle, tempFile.absolutePath)
-                    if (!ok) return@runCatching null
-                    val bytes = tempFile.readBytes()
-                    tempFile.delete()
-                    fullPhotoCache[handle] = bytes
-                    bytes
+                    if (!ok) {
+                        tempFile.delete()
+                        return@runCatching null
+                    }
+                    fullPhotoCache[handle] = tempFile
+                    tempFile
                 }
                 .getOrElse { e ->
                     Log.error(tag = TAG, throwable = e) { "downloadFullPhoto failed" }
@@ -237,8 +246,9 @@ class ThumbnailProvider(
         }
     }
 
-    /** Clears the full-photo download cache (called when the MTP device is closed). */
+    /** Clears the full-photo temp-file cache, deleting the cached files (MTP closed/disconnect). */
     fun clearFullPhotoCache() {
+        fullPhotoCache.values.toList().forEach { it.delete() }
         fullPhotoCache.clear()
     }
 

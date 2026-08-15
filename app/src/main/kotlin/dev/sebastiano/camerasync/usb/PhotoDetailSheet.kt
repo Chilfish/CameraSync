@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import dev.sebastiano.camerasync.R
-import java.io.ByteArrayInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -92,30 +91,43 @@ fun PhotoDetailSheet(
     LaunchedEffect(photoInfo.handle) {
         exifLoading = true
         downloadError = false
-        val bytes = withContext(Dispatchers.IO) { viewModel.downloadFullPhoto(photoInfo.handle) }
+        val file = withContext(Dispatchers.IO) { viewModel.downloadFullPhoto(photoInfo.handle) }
 
-        if (bytes == null) {
+        if (file == null) {
             downloadError = true
             exifLoading = false
             return@LaunchedEffect
         }
 
-        // Extract EXIF from the full RAW/JPEG bytes
-        val fields = withContext(Dispatchers.IO) { extractExif(bytes) }
-        exifFields = fields
+        // Read EXIF from the temp file (path-based constructor — no full-file byte array in RAM).
+        val exif =
+            withContext(Dispatchers.IO) {
+                runCatching { ExifInterface(file.absolutePath) }.getOrNull()
+            }
+        exifFields = extractExifFromInterface(exif)
 
-        // Try to decode a high-quality preview from the full file bytes,
-        // rotating by EXIF. For NEF, ExifInterface on the full file may
-        // not find orientation in the TIFF structure, so pass the cached
-        // orientation from the JPEG counterpart as fallback.
+        // Try to decode a high-quality preview from the full file, rotating by EXIF.
+        // For NEF, ExifInterface on the full file may not find orientation in the TIFF
+        // structure, so pass the cached orientation from the JPEG counterpart as fallback.
         val cachedOri = orientationFallback
         val decoded =
             withContext(Dispatchers.IO) {
                 val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-                val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-                raw?.let { rotateByExif(it, bytes, cachedOri) }
+                BitmapFactory.decodeFile(file.absolutePath, opts)
             }
-        fullImage = decoded?.asImageBitmap()
+        val orientation =
+            exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        val effectiveOrientation =
+            if (orientation != null && orientation != ExifInterface.ORIENTATION_NORMAL) orientation
+            else cachedOri
+        fullImage =
+            decoded
+                ?.let {
+                    withContext(Dispatchers.IO) {
+                        rotateByDegrees(it, orientationToDegrees(effectiveOrientation))
+                    }
+                }
+                ?.asImageBitmap()
         exifLoading = false
     }
 
@@ -226,16 +238,6 @@ fun PhotoDetailSheet(
             }
         }
     }
-}
-
-/**
- * Extracts human-readable EXIF fields from a RAW/JPEG byte array. Works on both NEF (TIFF-based)
- * and JPEG — Android's ExifInterface handles both. Delegates to [extractExifFromInterface] so the
- * field list has a single source of truth.
- */
-internal fun extractExif(fileBytes: ByteArray?): List<Pair<Int, ExifValue?>> {
-    if (fileBytes == null) return emptyList()
-    return extractExifFromInterface(ExifInterface(ByteArrayInputStream(fileBytes)))
 }
 
 /** Formats EXIF image dimensions as "W×H". Returns null if both are 0. */

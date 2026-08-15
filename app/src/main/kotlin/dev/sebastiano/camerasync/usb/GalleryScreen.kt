@@ -989,19 +989,6 @@ internal fun rotateByExif(
     jpegBytes: ByteArray,
     fallbackOrientation: Int? = null,
 ): Bitmap {
-    fun rotate(deg: Float) =
-        if (deg == 0f) bitmap
-        else
-            Bitmap.createBitmap(
-                bitmap,
-                0,
-                0,
-                bitmap.width,
-                bitmap.height,
-                Matrix().apply { postRotate(deg) },
-                true,
-            )
-
     return try {
         val exif = ExifInterface(ByteArrayInputStream(jpegBytes))
         var orientation =
@@ -1015,26 +1002,35 @@ internal fun rotateByExif(
         ) {
             orientation = fallbackOrientation
         }
-        val degrees =
-            when (orientation) {
-                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                else -> 0f
-            }
-        rotate(degrees)
+        rotateByDegrees(bitmap, orientationToDegrees(orientation))
     } catch (_: Exception) {
         // EXIF read failed (e.g. TIFF thumbnail). Use fallback if available.
-        val degrees =
-            when (fallbackOrientation) {
-                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                else -> 0f
-            }
-        rotate(degrees)
+        rotateByDegrees(bitmap, orientationToDegrees(fallbackOrientation))
     }
 }
+
+/** Converts an EXIF orientation constant to clockwise rotation degrees (0 when not rotated). */
+internal fun orientationToDegrees(orientation: Int?): Float =
+    when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        else -> 0f
+    }
+
+/** Rotates [bitmap] by [degrees] clockwise, returning the same instance when [degrees] is 0. */
+internal fun rotateByDegrees(bitmap: Bitmap, degrees: Float): Bitmap =
+    if (degrees == 0f) bitmap
+    else
+        Bitmap.createBitmap(
+            bitmap,
+            0,
+            0,
+            bitmap.width,
+            bitmap.height,
+            Matrix().apply { postRotate(degrees) },
+            true,
+        )
 
 /**
  * Converts an EXIF orientation to an aspect ratio (width/height).
