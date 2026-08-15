@@ -19,6 +19,7 @@
 | [行动计划](planning/action-plan.md) | **活跃行动计划**：P0 止血（去重/管线/路径/剪枝）→ P1 核心路径 → P2 工程债 → P3 收尾（2026-08-09 起，Apple 视角评审后重排） |
 | [Float 对标差距分析](planning/benchmark-float.md) | 对照 Float（`I:\dev\Float`）流程与规范的差距清单：CHANGELOG / requirements / ADR / GitHub 模板 / release 脚本 / skills 等 7 类缺口 + 5 处文档漂移，含落地顺序 |
 | [架构决策记录 (ADR)](planning/architecture.md) | 关键架构决策：MTP 方案、单模块、Metro、去重软校验、BLE 移除、质量门禁等 |
+| [发布后观测计划](planning/release-metrics.md) | 对齐 PRD 成功指标的发布后观测：零新增埋点，从 TransferHistory + 日志聚合（P6-4） |
 
 ## 工程规范（engineering/）
 
