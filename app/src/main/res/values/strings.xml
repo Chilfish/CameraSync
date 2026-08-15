@@ -2,11 +2,6 @@
     <string name="app_name">CameraSync</string>
 
     <!-- General -->
-    <string name="label_unknown">Unknown</string>
-    <string name="default_device_name">Camera (%1$s)</string>
-    <string name="action_ok">OK</string>
-    <string name="action_cancel">Cancel</string>
-    <string name="action_retry">Retry</string>
     <string name="content_desc_back">Back</string>
     <string name="content_desc_refresh">Refresh</string>
     <string name="content_desc_close">关闭</string>
@@ -36,26 +31,7 @@
     <string name="content_desc_export_logs">导出日志</string>
     <string name="log_export_chooser_title">分享日志</string>
 
-    <!-- Notifications and Time Formatting -->
-    <string name="time_never">never</string>
-    <string name="time_just_now">just now</string>
-    <string name="time_seconds_ago">seconds ago</string>
-    <plurals name="time_minutes_ago">
-        <item quantity="one">1 minute ago</item>
-        <item quantity="other">%1$d minutes ago</item>
-    </plurals>
-    <plurals name="time_hours_ago">
-        <item quantity="one">1 hour ago</item>
-        <item quantity="other">%1$d hours ago</item>
-    </plurals>
-    <string name="time_yesterday_at">yesterday at %1$s</string>
-
     <!-- USB Sync Screen -->
-    <string name="usb_sync_title">Nikon USB 同步</string>
-    <string name="usb_menu_title">USB 同步</string>
-    <string name="usb_status_waiting">等待 USB 连接…</string>
-    <string name="usb_status_detected">检测到相机: %1$s</string>
-    <string name="usb_status_connected">MTP 已连接</string>
     <string name="usb_status_connecting">正在连接…</string>
     <string name="usb_status_permission_denied">USB 权限被拒绝</string>
     <string name="usb_status_scanning">正在扫描…</string>
@@ -66,39 +42,10 @@
     <string name="usb_error_load_partial">部分照片加载失败: %1$s</string>
     <string name="usb_error_load_folder">读取文件夹失败: %1$s</string>
     <string name="label_unknown_error">未知错误</string>
-    <string name="usb_action_request_permission">请求权限</string>
-    <string name="usb_action_connect">连接 MTP</string>
-    <string name="usb_action_list_photos">列出照片</string>
-    <string name="usb_action_download_all">全部下载</string>
-    <string name="usb_action_refresh">刷新</string>
-    <string name="usb_action_reset">重置</string>
-    <string name="usb_action_cancel_download">取消下载</string>
     <string name="usb_action_retry">重试</string>
-    <string name="usb_photos_found">已发现 %1$d 张照片</string>
-    <string name="usb_download_progress">%1$d / %2$d (%3$s)</string>
-    <string name="usb_info_manufacturer">制造商</string>
-    <string name="usb_info_model">型号</string>
     <string name="usb_info_serial">序列号</string>
-    <string name="usb_info_storage">存储</string>
-    <string name="usb_console_hint">插入 Z30 USB 数据线以启动…</string>
-    <string name="usb_console_title">控制台</string>
-    <string name="usb_label_photos">照片列表</string>
-    <string name="usb_label_camera_info">相机信息</string>
-    <string name="usb_label_connection_status">连接状态</string>
-
-    <!-- USB Sync Screen — Phase 7.1 -->
-    <string name="usb_action_start_sync">开始同步</string>
-    <string name="usb_action_download_selected">下载选中 (%1$d)</string>
-    <string name="usb_action_select_all">全选</string>
-    <string name="usb_action_deselect_all">取消全选</string>
-    <string name="usb_status_syncing">同步中…</string>
-    <string name="usb_transfer_speed">%s</string>
-    <string name="usb_select_photos">选择要下载的照片</string>
 
     <!-- Sprint 1: Transfer & Post-transfer -->
-    <string name="usb_transfer_eta_calculating">计算中…</string>
-    <string name="usb_transfer_eta_seconds">还剩 %ds</string>
-    <string name="usb_transfer_eta_minutes">还剩 %dm %ds</string>
     <string name="usb_transfer_complete_title">同步完成</string>
     <string name="usb_transfer_complete_count">已保存 %d 张照片</string>
     <string name="usb_action_view_in_gallery">在相册中查看</string>
@@ -106,12 +53,10 @@
     <string name="usb_summary_title">本次传输（%1$d 张）</string>
     <string name="usb_action_share">分享</string>
     <string name="usb_action_delete_from_camera">从相机删除</string>
-    <string name="usb_action_delete_coming_soon">即将支持</string>
     <string name="usb_action_continue_browsing">继续浏览</string>
 
     <!-- Sprint 1: Storage -->
     <string name="usb_storage_used">已用 %s / %s</string>
-    <string name="usb_storage_low_warning">空间不足</string>
 
     <!-- Sprint 1: Filter chips -->
     <string name="usb_filter_all">全部</string>
@@ -140,7 +85,6 @@
     <string name="transfer_calculating">计算中…</string>
     <string name="transfer_eta_seconds">还剩 %1$ds</string>
     <string name="transfer_eta_minutes_seconds">还剩 %1$dm %2$ds</string>
-    <string name="transfer_progress_format">正在传输 %1$d/%2$d</string>
 
     <!-- Sprint 2: EXIF Detail -->
     <string name="usb_exif_title">EXIF 信息</string>
@@ -148,8 +92,6 @@
     <string name="usb_exif_aperture">光圈</string>
     <string name="usb_exif_iso">ISO</string>
     <string name="usb_exif_focal_length">焦距</string>
-    <string name="usb_exif_datetime">拍摄时间</string>
-    <string name="usb_exif_model">相机型号</string>
     <string name="usb_exif_flash">闪光灯</string>
     <string name="usb_exif_close">关闭</string>
     <string name="usb_exif_resolution">分辨率</string>
@@ -160,7 +102,6 @@
     <string name="usb_exif_orientation">方向</string>
     <string name="usb_exif_camera">相机</string>
     <string name="usb_exif_filename">文件名</string>
-    <string name="usb_exif_size">尺寸</string>
     <string name="usb_exif_date">日期</string>
     <string name="usb_exif_no_preview">无预览</string>
     <string name="usb_exif_flash_fired">闪光</string>
@@ -197,7 +138,6 @@
     <string name="usb_delete_confirm_title">确认删除</string>
     <string name="usb_delete_confirm_body">这些照片已安全保存到手机。\n从相机删除后无法恢复。\n\n确定要删除 %d 张照片吗？</string>
     <string name="usb_delete_confirm_yes">删除</string>
-    <string name="usb_delete_confirm_no">取消</string>
     <string name="usb_delete_success">已删除 %d 张</string>
 
     <!-- F14: Retry failed transfers -->
@@ -217,8 +157,6 @@
     <string name="settings_grid_columns_n">%1$d 列</string>
     <string name="settings_history">传输历史</string>
     <string name="settings_history_desc">查看以往的同步记录</string>
-    <string name="settings_onboarding">查看引导</string>
-    <string name="settings_onboarding_desc">重新查看使用指南</string>
 
     <!-- Sprint 3: History -->
     <string name="history_title">传输历史</string>
@@ -231,7 +169,6 @@
     <string name="general_cancel">取消</string>
     <string name="usb_prompt_connect">连接 Nikon 相机</string>
     <string name="usb_prompt_connect_desc">通过 USB-C 数据线连接\n插入后将自动识别</string>
-    <string name="usb_status_loading">正在读取…</string>
     <string name="usb_status_loading_photos">正在读取照片…</string>
     <string name="usb_label_folders">文件夹</string>
     <string name="usb_action_transfer_count">传输 %d 张照片</string>
