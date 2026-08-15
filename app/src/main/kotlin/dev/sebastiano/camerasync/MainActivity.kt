@@ -166,15 +166,34 @@ private fun RootComposable(viewModelFactory: ViewModelProvider.Factory) {
                     NavRoute.Settings -> {
                         val p = remember { UsbSyncPreferences(ctx) }
                         SettingsScreen(
-                            prefs = p,
+                            initialGridColumns = p.getGridColumns(),
+                            initialGrouping = p.photoGrouping,
+                            initialSorting = p.photoSorting,
+                            initialDownloadFormat = p.downloadFormat,
+                            initialThemeMode = p.getThemeMode(),
                             onNavigateBack = { backStack.removeLastOrNull() },
                             onNavigateToHistory = { backStack.add(NavRoute.TransferHistory) },
                             onNavigateToOnboarding = { backStack.add(NavRoute.FirstRunGuide) },
-                            onGroupingChanged = { galleryViewModel.requestReload() },
-                            onSortingChanged = { galleryViewModel.requestReload() },
-                            onDownloadFormatChanged = { galleryViewModel.requestReload() },
-                            onGridColumnsChanged = { galleryViewModel.gridColumns = it },
-                            onThemeModeChanged = { themeMode = it },
+                            onGroupingChanged = {
+                                p.photoGrouping = it
+                                galleryViewModel.requestReload()
+                            },
+                            onSortingChanged = {
+                                p.photoSorting = it
+                                galleryViewModel.requestReload()
+                            },
+                            onDownloadFormatChanged = {
+                                p.downloadFormat = it
+                                galleryViewModel.requestReload()
+                            },
+                            onGridColumnsChanged = {
+                                p.setGridColumns(it)
+                                galleryViewModel.gridColumns = it
+                            },
+                            onThemeModeChanged = {
+                                p.setThemeMode(it)
+                                themeMode = it
+                            },
                         )
                     }
 

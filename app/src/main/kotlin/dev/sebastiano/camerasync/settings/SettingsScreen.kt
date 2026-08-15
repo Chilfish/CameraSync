@@ -37,7 +37,11 @@ import dev.sebastiano.camerasync.usb.UsbSyncPreferences
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    prefs: UsbSyncPreferences,
+    initialGridColumns: Int,
+    initialGrouping: UsbSyncPreferences.PhotoGrouping,
+    initialSorting: UsbSyncPreferences.PhotoSorting,
+    initialDownloadFormat: UsbSyncPreferences.DownloadFormat,
+    initialThemeMode: String,
     onNavigateBack: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToOnboarding: () -> Unit,
@@ -47,11 +51,11 @@ fun SettingsScreen(
     onGridColumnsChanged: (Int) -> Unit = {},
     onThemeModeChanged: (String) -> Unit = {},
 ) {
-    var gridCols by remember { mutableIntStateOf(prefs.getGridColumns()) }
-    var grouping by remember { mutableStateOf(prefs.photoGrouping) }
-    var sorting by remember { mutableStateOf(prefs.photoSorting) }
-    var downloadFormat by remember { mutableStateOf(prefs.downloadFormat) }
-    var themeMode by remember { mutableStateOf(prefs.getThemeMode()) }
+    var gridCols by remember { mutableIntStateOf(initialGridColumns) }
+    var grouping by remember { mutableStateOf(initialGrouping) }
+    var sorting by remember { mutableStateOf(initialSorting) }
+    var downloadFormat by remember { mutableStateOf(initialDownloadFormat) }
+    var themeMode by remember { mutableStateOf(initialThemeMode) }
 
     Scaffold(
         topBar = {
@@ -88,7 +92,6 @@ fun SettingsScreen(
                                     selected = themeMode == mode,
                                     onClick = {
                                         themeMode = mode
-                                        prefs.setThemeMode(mode)
                                         onThemeModeChanged(mode)
                                     },
                                     label = { Text(label, fontSize = 13.sp) },
@@ -115,7 +118,6 @@ fun SettingsScreen(
                                 selected = gridCols == cols,
                                 onClick = {
                                     gridCols = cols
-                                    prefs.setGridColumns(cols)
                                     onGridColumnsChanged(cols)
                                 },
                                 label = {
@@ -146,7 +148,6 @@ fun SettingsScreen(
                                     selected = grouping == mode,
                                     onClick = {
                                         grouping = mode
-                                        prefs.photoGrouping = mode
                                         onGroupingChanged(mode)
                                     },
                                     label = { Text(label, fontSize = 13.sp) },
@@ -175,7 +176,6 @@ fun SettingsScreen(
                                     selected = sorting == mode,
                                     onClick = {
                                         sorting = mode
-                                        prefs.photoSorting = mode
                                         onSortingChanged(mode)
                                     },
                                     label = { Text(label, fontSize = 13.sp) },
@@ -212,7 +212,6 @@ fun SettingsScreen(
                                     selected = downloadFormat == format,
                                     onClick = {
                                         downloadFormat = format
-                                        prefs.downloadFormat = format
                                         onDownloadFormatChanged(format)
                                     },
                                     label = { Text(label, fontSize = 13.sp) },
