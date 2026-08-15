@@ -26,9 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.sebastiano.camerasync.R
+import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,5 +101,20 @@ fun TransferHistoryScreen(records: List<TransferRecord>, onNavigateBack: () -> U
                 }
             }
         }
+    }
+}
+
+@Preview(name = "Transfer History", showBackground = true)
+@Composable
+private fun TransferHistoryScreenPreview() {
+    CameraSyncTheme {
+        TransferHistoryScreen(
+            records =
+                listOf(
+                    TransferRecord("2026-08-15 10:30", 12, "Nikon Z30"),
+                    TransferRecord("2026-08-14 18:05", 3, "Nikon Z30"),
+                ),
+            onNavigateBack = {},
+        )
     }
 }

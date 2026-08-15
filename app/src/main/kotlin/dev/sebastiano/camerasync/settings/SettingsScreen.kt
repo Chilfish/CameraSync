@@ -29,9 +29,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.sebastiano.camerasync.R
+import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
 import dev.sebastiano.camerasync.usb.UsbSyncPreferences
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -269,5 +271,22 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Preview(name = "Settings", showBackground = true)
+@Composable
+private fun SettingsScreenPreview() {
+    CameraSyncTheme {
+        SettingsScreen(
+            initialGridColumns = 3,
+            initialGrouping = UsbSyncPreferences.PhotoGrouping.BY_FOLDER,
+            initialSorting = UsbSyncPreferences.PhotoSorting.DATE_DESC,
+            initialDownloadFormat = UsbSyncPreferences.DownloadFormat.ALL,
+            initialThemeMode = "system",
+            onNavigateBack = {},
+            onNavigateToHistory = {},
+            onNavigateToOnboarding = {},
+        )
     }
 }
