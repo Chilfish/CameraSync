@@ -2077,7 +2077,11 @@ private fun LocalPhotoDetail(group: LocalPhotoGroup, onDismiss: () -> Unit) {
                     Spacer(Modifier.height(20.dp))
                     HorizontalDivider()
                     Spacer(Modifier.height(12.dp))
-                    Text("EXIF 信息", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        stringResource(R.string.usb_exif_title),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                     Spacer(Modifier.height(8.dp))
                     for ((label, value) in exifFields) {
                         if (label == R.string.usb_exif_filename) continue
