@@ -51,3 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 
 - 文档体系对标 Float：CLAUDE.md 真实化、AGENTS.md 弃用、engineering / postmortem / development-log / archive / review 体系搭建
 - Apple 视角设计评审两期（R1–R19）落地与处置：双管线收敛、去重键统一、剪枝真实化、保存路径真实化、核心路径打磨、God Object 拆分、评审 R8 生命周期 / R12 幽灵权限等进入 P4–P6 行动计划
+
+### P5 工程债深水（2026-08-15）
+
+- **字符串资源化（R10）**：全部用户可见中文移入 `strings.xml`（含 VM/Manager 状态消息、EXIF 标签与取值）；EXIF 提取纯函数化（`ExifValue`，渲染时解析）；清理 52 条未用字符串
+- **核心路径接 DI（R14）**：`AppGraph` 提供 `NikonUsbManager` / `GalleryViewModel` / `LocalPhotosViewModel`（`@SingleIn`），GalleryViewModel 构造注入 dispatcher
+- **核心屏 Preview（R15）**：Gallery 八状态 + Settings + TransferHistory 各一 `@Preview`；抽 `GalleryScreenHost` 接口与 `TransferDonePanel` 纯渲染支撑可预览
+- **缓存降内存（R17）**：fullPhotoCache 由 12 条内存字节数组改为磁盘 temp 文件 LRU 3，EXIF 走路径构造
+- **权限核对（P6-3 联动）**：移除 `VIBRATE` / `READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` / `READ_MEDIA_IMAGES`（minSdk 33 下均无用或零运行时请求）；隐私政策同步消除「前台服务通知」「release 仅 WARN+」不实声明
+- **发布后观测（P6-4）**：新增 `docs/planning/release-metrics.md`（零埋点，从 TransferHistory + 日志聚合对齐 PRD 成功指标）

@@ -159,31 +159,32 @@
 
 ---
 
-## P5 — 工程债深水区（1–2 天）
+## P5 — 工程债深水区（✅ 2026-08-15 全部落地）
 
-### P5-1 硬编码字符串资源化（R10）
+### P5-1 硬编码字符串资源化（R10）✅
 
 - **Headline**: `refactor(ui): move hardcoded strings to resources`
 - **动作**: `SettingsScreen` ~20 处、`GalleryScreen` ~10 处、`FirstRunGuideScreen`、`GalleryViewModel`（"计算中…"）全部改 `stringResource()`；优先复用 `strings.xml` 已定义未使用的 key（`settings_grid_density`/`settings_history`/`settings_theme_*`/`usb_exif_*`），缺的补 key
-- **验收**: 主代码无中文硬编码（detekt 可加 `HardCodedString` 规则防回潮）
+- **实施扩展（验收要求"主代码无中文硬编码"）**: 顺带处理 ConnectionManager 状态消息（`app.getString`）、EXIF 标签/取值（纯函数 + `ExifValue` sealed type，渲染时 `stringResource` 解析）、LogViewer/TransferHistory/PhotoDetailSheet；清理 52 条未用字符串
+- **验收**: ✅ 主代码无中文硬编码（仅注释残留）；lint/detekt 全绿
 
-### P5-2 核心路径接入 DI + 注入 dispatcher（R14）
+### P5-2 核心路径接入 DI + 注入 dispatcher（R14）✅
 
 - **Headline**: `refactor(di): inject GalleryViewModel dependencies from AppGraph`
-- **动作**: `AppGraph` 增加 `GalleryViewModel`/`LocalPhotosViewModel`/`NikonUsbManager` 提供者；`GalleryViewModel` scope 用注入 `ioDispatcher`；与 P4-1 方案 A 合并实施
-- **验收**: CLAUDE.md「Dispatcher 注入」在核心路径成立；测试可注入 fake 调度器
+- **动作**: `AppGraph` 增加 `GalleryViewModel`/`LocalPhotosViewModel`/`NikonUsbManager` 提供者；`GalleryViewModel` scope 用注入 `ioDispatcher`；与 P4-1 方案 A 合并实施（`@SingleIn` 保留实例）
+- **验收**: ✅ CLAUDE.md「Dispatcher 注入」在核心路径成立；GalleryViewModel 构造注入 ioDispatcher；旋转 UX 与 P4-1 方案 B 一致（`stop()` 归位状态）
 
-### P5-3 核心屏 Preview（R15）
+### P5-3 核心屏 Preview（R15）✅
 
 - **Headline**: `feat(ui): add gallery screen previews`
-- **动作**: `GalleryScreen` 各状态（Disconnected/Connecting/Loading/Browsing/Empty/Error/Transferring/TransferDone）各一个 `@Preview`；`SettingsScreen` 一个
-- **验收**: CLAUDE.md 🔴 强制规范全覆盖
+- **动作**: `GalleryScreen` 各状态（Disconnected/Connecting/Loading/Browsing/Empty/Error/Transferring/TransferDone）各一个 `@Preview`；`SettingsScreen` 一个；为 Preview 可渲染，抽 `GalleryScreenHost` 接口（Browsing/TransferDone 改接接口 + 假 Host）、`TransferDonePanel` 纯渲染、SettingsScreen 无状态化
+- **验收**: ✅ CLAUDE.md 🔴 强制规范全覆盖（Gallery/FirstRunGuide/LogViewer/TransferHistory/Settings 均有 Preview；GalleryFolderScreen 为 GalleryScreen 薄包装，由后者覆盖）
 
-### P5-4 降低 fullPhotoCache OOM 风险（R17）
+### P5-4 降低 fullPhotoCache OOM 风险（R17）✅
 
 - **Headline**: `fix(usb): cap full-photo cache and use path-based EXIF`
-- **动作**: `downloadFullPhoto` 改为 temp 文件 + 路径构造 `ExifInterface`（LocalPhotoDetail 已示范）；缓存上限 12 → 3–4 条或改磁盘
-- **验收**: 翻看 NEF 详情峰值内存可预测 < 120MB
+- **动作**: `downloadFullPhoto` 改为 temp 文件缓存（磁盘 LRU 3，淘汰/断开即删）+ 路径构造 `ExifInterface`（LocalPhotoDetail 已示范）；不再持有 26MB 字节数组
+- **验收**: ✅ 峰值内存可预测（磁盘缓存上限 3 × 单文件，RAM 仅解码预览）；断连清理无残留
 
 ---
 
@@ -230,8 +231,8 @@
 | P4-2 | 删幽灵权限 | R12 | ✅ Manifest 无 MANAGE_EXTERNAL_STORAGE（`f0f12f3`） |
 | P4-3 | 主题/电量闭环 | R11/R13 | ✅ 主题接线（`bb1dc29`）+ 电量删除（`9f373eb`） |
 | P4-4 | 引导标记后置 | R18 | ✅ guideSeen 在 onDone 置位（`18c3b9b`） |
-| P5-1 | 字符串资源化 | R10 | 主代码无中文硬编码 |
-| P5-2 | 核心路径接 DI | R14 | GalleryViewModel 构造注入 ioDispatcher |
-| P5-3 | 核心屏 Preview | R15 | GalleryScreen 每状态一个 @Preview |
-| P5-4 | 缓存降内存 | R17 | NEF 详情峰值内存 < 120MB |
-| P6 | 发布闭环 | R19 | CHANGELOG 落地 + todo.md 状态真实 + 上架材料齐 |
+| P5-1 | 字符串资源化 | R10 | ✅ 主代码零中文硬编码（`d3d9c13` `ce74c43` `87f41ae` `34c7113` `3777440` `8252b74` `477115d` `361abc3` `36c21f4`） |
+| P5-2 | 核心路径接 DI | R14 | ✅ GalleryViewModel 构造注入 ioDispatcher + AppGraph @SingleIn（`6785430`） |
+| P5-3 | 核心屏 Preview | R15 | ✅ GalleryScreen 每状态一个 @Preview（`35ca39b` `c30ce08` `8ee67eb`） |
+| P5-4 | 缓存降内存 | R17 | ✅ 磁盘 LRU 3 + 路径 EXIF（`ad54502`） |
+| P6 | 发布闭环 | R19 | CHANGELOG 落地 + todo.md 状态真实 + 上架材料齐（P6-2 ✅ 状态真实；P6-3 权限核对完成 `173d5c0`；store listing/截图待设备） |

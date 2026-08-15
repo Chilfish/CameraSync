@@ -4,7 +4,7 @@
 
 ---
 
-## 当前状态: ⚠️ 发布前（P5/P6 收尾中）
+## 当前状态: ⚠️ 发布前（P6 收尾中）
 
 **撤回"生产就绪 / 0 个已知问题"表述（2026-08-15 第二期评审 R19）**。事实状态：
 
@@ -12,6 +12,7 @@
 - ✅ `testDebugUnitTest` **43 tests 全绿**（P2-2，2026-08-15）
 - ✅ detekt baseline **0 条**（P2-3，2026-08-15）
 - ✅ R8 旋转双开 MTP、R12 幽灵权限、R11 主题闭环、R13 电量删除（P4-1/2/3/4，2026-08-15）
+- ✅ **P5 工程债深水全部落地**（R10 字符串资源化 / R14 核心路径接 DI / R15 核心屏 Preview / R17 缓存降内存，2026-08-15，见 [action-plan](action-plan.md)）
 - 完整已知问题清单见下方「已知问题」表 + [第二期评审](../review/2026-08-15-design-review-2.md)
 
 ### 已完成功能总览
@@ -143,7 +144,7 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 ## 已知问题
 
-> 2026-08-15 更新：R8/R12/R11/R13/R18 已闭环（P4，见 [action-plan](action-plan.md)）；剩余 P5（字符串资源化/DI/Preview/缓存）与 P6（发布闭环）按序推进。
+> 2026-08-15 更新：R8/R12/R11/R13/R18 已闭环（P4）；**R10/R15/R14/R17 已闭环（P5）**；剩余 P6（发布闭环：CHANGELOG 纪律、上架材料、发布后观测）按序推进。
 
 | 严重度 | 问题 | 状态 |
 |---|---|---|
@@ -158,7 +159,8 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 | P0 | `MANAGE_EXTERNAL_STORAGE` 幽灵权限（R12） | ✅ 已删（`f0f12f3`，action-plan P4-2） |
 | P1 | 主题"宣称已实现"实际不可用（R11） | ✅ 已接线（`bb1dc29`，action-plan P4-3，设置页三选一） |
 | P1 | 电量"宣称已实现"实际恒 null（R13） | ✅ 已删除（`9f373eb`，action-plan P4-3，YAGNI） |
-| P2 | 硬编码字符串、核心屏零 Preview、核心路径未接 DI（R10/R15/R14） | 待修（action-plan P5） |
+| P2 | 硬编码字符串、核心屏零 Preview、核心路径未接 DI（R10/R15/R14） | ✅ 已修复（P5-1/2/3，2026-08-15：资源化 + Preview 全覆盖 + AppGraph 注入） |
+| P2 | fullPhotoCache 300MB OOM 风险（R17） | ✅ 已修复（P5-4，2026-08-15：磁盘 LRU 3 + 路径 EXIF） |
 
 > 应用功能层面历史 bug 均已修复（最后修复 2026-08-02 PhotoCell EXIF 竖构图）。2026-08-09 Apple 视角评审（[review](../review/2026-08-09-design-review.md)）发现的 4 项正确性缺陷 R1–R4 已全部修复（action-plan P0）；R7（自动同步未接线）已按 YAGNI 移除死代码（action-plan P1-4）；R5 三个核心路径项（P1-1/2/3）已全部落地（action-plan P1）。
 

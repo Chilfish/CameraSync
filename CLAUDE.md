@@ -90,7 +90,7 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 
 ## Current State
 
-**⚠️ 发布前（P5/P6 收尾中）**：`testDebugUnitTest` 43 全绿、detekt baseline 已归零（P2-2/P2-3/P4 已落地）。状态以 [`docs/planning/todo.md`](docs/planning/todo.md)「已知问题」表为准，**不使用"0 known issues"表述**（2026-08-15 第二期评审 R19，见 [`docs/review/2026-08-15-design-review-2.md`](docs/review/2026-08-15-design-review-2.md)）。
+**⚠️ 发布前（P6 收尾中）**：`testDebugUnitTest` 43 全绿、detekt baseline 已归零（P2-2/P2-3/P4/P5 已落地——R10 字符串资源化、R14 核心路径接 DI、R15 核心屏 Preview、R17 缓存降内存，2026-08-15）。状态以 [`docs/planning/todo.md`](docs/planning/todo.md)「已知问题」表为准，**不使用"0 known issues"表述**（2026-08-15 第二期评审 R19，见 [`docs/review/2026-08-15-design-review-2.md`](docs/review/2026-08-15-design-review-2.md)）。
 
 - USB/MTP 照片同步是**唯一**功能路径；BLE GPS 子系统已于 2026-08-02 移除（commit `a385378`，Ricoh/Sony 文档归档于 `docs/ricoh/`、`docs/sony/` 供历史查阅）
 - 活跃文档：`docs/README.md`（索引）、`docs/development-log/`（按天开发日志）、`docs/planning/`（规划 + ADR）、`docs/engineering/`（工程规范）、`docs/requirements/`（需求）
