@@ -470,7 +470,7 @@ private fun LoadingContent(state: GalleryState.Loading) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "已扫描 ${state.progress} / ${state.total} 张",
+                    stringResource(R.string.usb_loading_scanned, state.progress, state.total),
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1757,7 +1757,7 @@ private fun CameraTabContent(
                     ) {
                         Icon(
                             painterResource(R.drawable.ic_close_24dp),
-                            contentDescription = "关闭",
+                            contentDescription = stringResource(R.string.content_desc_close),
                             modifier = Modifier.size(16.dp),
                         )
                     }
@@ -1827,7 +1827,7 @@ private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    "没有已导出的照片",
+                    stringResource(R.string.local_empty_title),
                     fontSize = 15.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1836,7 +1836,7 @@ private fun LocalTabContent(localVm: LocalPhotosViewModel, gridColumns: Int) {
             // Folder-level empty state
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    "此目录下没有照片",
+                    stringResource(R.string.local_empty_folder_title),
                     fontSize = 15.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1930,7 +1930,7 @@ private fun LocalFolderCell(folder: LocalFolder, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                "${folder.photoCount} 张",
+                stringResource(R.string.label_photo_count, folder.photoCount),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

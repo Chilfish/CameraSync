@@ -9,6 +9,7 @@
     <string name="action_retry">Retry</string>
     <string name="content_desc_back">Back</string>
     <string name="content_desc_refresh">Refresh</string>
+    <string name="content_desc_close">关闭</string>
 
     <!-- First-run guide -->
     <string name="guide_topbar_title">使用说明</string>
@@ -208,6 +209,7 @@
     <string name="general_back">返回</string>
     <string name="label_logs">日志</string>
     <string name="label_photo_count">%1$d 张</string>
+    <string name="usb_loading_scanned">已扫描 %1$d / %2$d 张</string>
     <string name="usb_preview_title">确认传输</string>
     <string name="usb_action_start_transfer">开始传输</string>
     <string name="usb_label_preview">预览</string>
@@ -220,4 +222,6 @@
     <string name="usb_share_chooser_title">分享照片</string>
     <string name="usb_preview_summary">%1$d 个文件 (%2$d 组照片)</string>
     <string name="usb_preview_total_size">总大小: %s</string>
+    <string name="local_empty_title">没有已导出的照片</string>
+    <string name="local_empty_folder_title">此目录下没有照片</string>
 </resources>
