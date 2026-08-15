@@ -71,6 +71,7 @@ BLE GPS 同步子系统已于 2026-08-02 移除（commit `a385378`）。相关�
 | 文档 | 说明 |
 |---|---|
 | [隐私政策](legal/privacy-policy.md) | 本地优先：照片/EXIF 仅本机、零网络上报、权限说明、卸载即删 |
+| [Play 上架材料](legal/store-listing.md) | Play Store listing 文案（短/长描述、Data Safety、素材与上架清单，P6-3） |
 
 ## 项目记录
 
