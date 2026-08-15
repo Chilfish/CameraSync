@@ -40,24 +40,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import dev.sebastiano.camerasync.R
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
  * Bottom sheet: preview image from MTP thumbnail (instant), EXIF from full RAW file (loaded async).
  *
- * On open, downloads the full NEF/JPEG via [viewModel] to extract complete EXIF metadata. The
- * preview image uses the cached MTP thumbnail for instant display — no waiting. EXIF fields appear
- * with a loading spinner until the full file is downloaded.
+ * On open, downloads the full NEF/JPEG via [onDownloadFullPhoto] to extract complete EXIF metadata.
+ * The preview image uses the cached MTP thumbnail for instant display — no waiting. EXIF fields
+ * appear with a loading spinner until the full file is downloaded.
  *
- * [viewModel] — used to download the full photo file for EXIF extraction. [photoInfo] — basic photo
- * metadata (name, size, format, handle for full download). [thumbnailBytes] — cached MTP thumbnail
- * for instant preview (may be null for unsupported formats).
+ * [onDownloadFullPhoto] — downloads the full photo file to a temp file for EXIF extraction.
+ * [photoInfo] — basic photo metadata (name, size, format, handle for full download).
+ * [thumbnailBytes] — cached MTP thumbnail for instant preview (may be null for unsupported
+ * formats).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoDetailSheet(
-    viewModel: GalleryViewModel,
+    onDownloadFullPhoto: suspend (Int) -> File?,
     photoInfo: NikonUsbManager.PhotoInfo,
     thumbnailBytes: ByteArray?, // instant MTP thumbnail for display while loading
     orientationFallback: Int? = null, // from orientationCache for EXIF rotation
@@ -91,7 +93,7 @@ fun PhotoDetailSheet(
     LaunchedEffect(photoInfo.handle) {
         exifLoading = true
         downloadError = false
-        val file = withContext(Dispatchers.IO) { viewModel.downloadFullPhoto(photoInfo.handle) }
+        val file = withContext(Dispatchers.IO) { onDownloadFullPhoto(photoInfo.handle) }
 
         if (file == null) {
             downloadError = true

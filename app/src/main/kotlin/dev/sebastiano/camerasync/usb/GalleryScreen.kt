@@ -96,6 +96,7 @@ import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import dev.sebastiano.camerasync.R
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -489,10 +490,44 @@ private fun LoadingContent(state: GalleryState.Loading) {
 
 // ── Browsing ───────────────────────────────────────────────────────────────
 
+/**
+ * Narrow contract the browsing UI needs from its host (implemented by [GalleryViewModel]).
+ *
+ * Kept separate from the concrete ViewModel so the gallery states can be rendered in `@Preview`
+ * with a fake host — a real ViewModel can't be constructed outside an app context (R15, P5-3).
+ */
+internal interface GalleryScreenHost {
+    val filterMode: PhotoFilter
+    val groupingMode: UsbSyncPreferences.PhotoGrouping
+    val gridColumns: Int
+    val selectedCount: Int
+    val bitmapCache: MutableMap<Int, Bitmap>
+
+    fun getNewPhotoCount(): Int
+
+    fun getFilteredGroups(): List<GalleryEntry.PhotoGroup>
+
+    fun isGroupSelected(group: GalleryEntry.PhotoGroup): Boolean
+
+    fun isGroupImported(group: GalleryEntry.PhotoGroup): Boolean
+
+    fun toggleSelection(group: GalleryEntry.PhotoGroup)
+
+    fun setFilter(mode: PhotoFilter)
+
+    fun refresh()
+
+    fun getOrientation(handle: Int): Int?
+
+    fun getThumbnail(handle: Int): ByteArray?
+
+    suspend fun downloadFullPhoto(handle: Int): File?
+}
+
 @Composable
 private fun BrowsingContent(
     state: GalleryState.Browsing,
-    vm: GalleryViewModel,
+    host: GalleryScreenHost,
     isRoot: Boolean,
     onFolderClick: (GalleryEntry.Folder) -> Unit = {},
     onTransferAllNew: () -> Unit = {},
@@ -510,20 +545,20 @@ private fun BrowsingContent(
     val haptic = LocalHapticFeedback.current
     val rawCount = photos.count { it.hasRaw }
     val jpgCount = photos.count { it.jpg != null }
-    val newCount = vm.getNewPhotoCount()
-    val filteredPhotos = vm.getFilteredGroups()
-    val isFlatMode = vm.groupingMode != UsbSyncPreferences.PhotoGrouping.BY_FOLDER
+    val newCount = host.getNewPhotoCount()
+    val filteredPhotos = host.getFilteredGroups()
+    val isFlatMode = host.groupingMode != UsbSyncPreferences.PhotoGrouping.BY_FOLDER
 
     var detailGroup by remember { mutableStateOf<GalleryEntry.PhotoGroup?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         StorageStatusBar(state.storages)
         FilterChipsRow(
-            currentFilter = vm.filterMode,
+            currentFilter = host.filterMode,
             newCount = newCount,
             rawCount = rawCount,
             jpgCount = jpgCount,
-            onFilterChange = vm::setFilter,
+            onFilterChange = host::setFilter,
         )
 
         // Primary CTA: transfer all new photos in one tap (P1-2). Root view only — the folder view
@@ -539,11 +574,11 @@ private fun BrowsingContent(
 
         PullToRefreshBox(
             isRefreshing = false,
-            onRefresh = { vm.refresh() },
+            onRefresh = { host.refresh() },
             modifier = Modifier.weight(1f),
         ) {
             LazyVerticalStaggeredGrid(
-                columns = StaggeredGridCells.Fixed(vm.gridColumns),
+                columns = StaggeredGridCells.Fixed(host.gridColumns),
                 contentPadding = PaddingValues(bottom = 80.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalItemSpacing = 2.dp,
@@ -609,19 +644,19 @@ private fun BrowsingContent(
                         items(datePhotos, key = { it.baseName }) { group ->
                             PhotoCell(
                                 group = group,
-                                isSelected = vm.isGroupSelected(group),
-                                isImported = vm.isGroupImported(group),
+                                isSelected = host.isGroupSelected(group),
+                                isImported = host.isGroupImported(group),
                                 onToggle = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    vm.toggleSelection(group)
+                                    host.toggleSelection(group)
                                 },
-                                getThumbnail = vm::getThumbnail,
-                                getOrientation = vm::getOrientation,
-                                bitmapCache = vm.bitmapCache,
+                                getThumbnail = host::getThumbnail,
+                                getOrientation = host::getOrientation,
+                                bitmapCache = host.bitmapCache,
                                 onPhotoClick = {
-                                    if (vm.selectedCount > 0) {
+                                    if (host.selectedCount > 0) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        vm.toggleSelection(group)
+                                        host.toggleSelection(group)
                                     } else {
                                         detailGroup = group
                                     }
@@ -646,19 +681,19 @@ private fun BrowsingContent(
                     items(filteredPhotos, key = { it.baseName }) { group ->
                         PhotoCell(
                             group = group,
-                            isSelected = vm.isGroupSelected(group),
-                            isImported = vm.isGroupImported(group),
+                            isSelected = host.isGroupSelected(group),
+                            isImported = host.isGroupImported(group),
                             onToggle = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                vm.toggleSelection(group)
+                                host.toggleSelection(group)
                             },
-                            getThumbnail = vm::getThumbnail,
-                            getOrientation = vm::getOrientation,
-                            bitmapCache = vm.bitmapCache,
+                            getThumbnail = host::getThumbnail,
+                            getOrientation = host::getOrientation,
+                            bitmapCache = host.bitmapCache,
                             onPhotoClick = {
-                                if (vm.selectedCount > 0) {
+                                if (host.selectedCount > 0) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    vm.toggleSelection(group)
+                                    host.toggleSelection(group)
                                 } else {
                                     detailGroup = group
                                 }
@@ -673,10 +708,10 @@ private fun BrowsingContent(
     detailGroup?.let { group ->
         val photo = group.jpg ?: group.raw ?: return@let
         val handle = group.previewHandle ?: return@let
-        val thumbBytes = vm.getThumbnail(handle)
-        val orientation = vm.getOrientation(handle)
+        val thumbBytes = host.getThumbnail(handle)
+        val orientation = host.getOrientation(handle)
         PhotoDetailSheet(
-            viewModel = vm,
+            onDownloadFullPhoto = host::downloadFullPhoto,
             photoInfo = photo,
             thumbnailBytes = thumbBytes,
             orientationFallback = orientation,
@@ -1282,12 +1317,14 @@ private fun TransferringContent(s: GalleryState.Transferring) {
 @Composable
 private fun TransferDoneContent(
     s: GalleryState.TransferDone,
+    failedHandles: List<Int>,
+    lastTransferredHandles: List<Int>,
     onDismiss: () -> Unit,
-    viewModel: GalleryViewModel,
+    onRetryFailed: () -> Unit,
+    onDeleteTransferred: suspend (List<Int>) -> Int,
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    val shareChooserTitle = stringResource(R.string.usb_share_chooser_title)
     val deleteSuccessTemplate = stringResource(R.string.usb_delete_success)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -1307,132 +1344,14 @@ private fun TransferDoneContent(
             if (showSummary) {
                 TransferSummaryContent(savedUris = s.savedUris, onClose = { showSummary = false })
             } else {
-                Column(
-                    modifier =
-                        Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text("✨", fontSize = 40.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        stringResource(R.string.usb_transfer_complete_title),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.usb_transfer_complete_count, s.synced),
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(24.dp))
-
-                    if (s.savedUris.isNotEmpty()) {
-                        OutlinedButton(
-                            onClick = { showSummary = true },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(
-                                painterResource(android.R.drawable.ic_menu_agenda),
-                                null,
-                                Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.usb_action_view_summary))
-                        }
-                        Spacer(Modifier.height(8.dp))
-
-                        OutlinedButton(
-                            onClick = {
-                                val intent =
-                                    Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(s.savedUris.first(), "image/*")
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(
-                                painterResource(android.R.drawable.ic_menu_gallery),
-                                null,
-                                Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.usb_action_view_in_gallery))
-                        }
-                        Spacer(Modifier.height(8.dp))
-
-                        OutlinedButton(
-                            onClick = {
-                                val intent =
-                                    Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                                        type = "image/*"
-                                        putParcelableArrayListExtra(
-                                            Intent.EXTRA_STREAM,
-                                            ArrayList(s.savedUris),
-                                        )
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                context.startActivity(
-                                    Intent.createChooser(intent, shareChooserTitle)
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(
-                                painterResource(android.R.drawable.ic_menu_share),
-                                null,
-                                Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.usb_action_share))
-                        }
-                        Spacer(Modifier.height(8.dp))
-
-                        OutlinedButton(
-                            onClick = { showDeleteConfirm = true },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(
-                                painterResource(android.R.drawable.ic_menu_delete),
-                                null,
-                                Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.usb_action_delete_from_camera))
-                        }
-                    }
-
-                    if (viewModel.failedHandles.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = {
-                                onDismiss()
-                                viewModel.retryFailedTransfers()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(
-                                painterResource(android.R.drawable.ic_menu_revert),
-                                null,
-                                Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                stringResource(
-                                    R.string.usb_retry_failed,
-                                    viewModel.failedHandles.size,
-                                )
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-                    TextButton(onClick = onDismiss) {
-                        Text(stringResource(R.string.usb_action_continue_browsing))
-                    }
-                }
+                TransferDonePanel(
+                    s = s,
+                    failedHandles = failedHandles,
+                    onContinue = onDismiss,
+                    onRetryFailed = onRetryFailed,
+                    onViewSummary = { showSummary = true },
+                    onRequestDelete = { showDeleteConfirm = true },
+                )
             }
         }
     }
@@ -1453,8 +1372,7 @@ private fun TransferDoneContent(
                     onClick = {
                         showDeleteConfirm = false
                         scope.launch {
-                            val deleted =
-                                viewModel.deleteTransferredPhotos(viewModel.lastTransferredHandles)
+                            val deleted = onDeleteTransferred(lastTransferredHandles)
                             withContext(Dispatchers.Main) {
                                 Toast.makeText(
                                         context,
@@ -1479,6 +1397,111 @@ private fun TransferDoneContent(
                 }
             },
         )
+    }
+}
+
+/**
+ * The transfer-complete panel body (pure rendering — no sheet/dialog plumbing), kept separate so
+ * the TransferDone state can be rendered in `@Preview` (R15, P5-3).
+ */
+@Composable
+private fun TransferDonePanel(
+    s: GalleryState.TransferDone,
+    failedHandles: List<Int>,
+    onContinue: () -> Unit,
+    onRetryFailed: () -> Unit,
+    onViewSummary: () -> Unit,
+    onRequestDelete: () -> Unit,
+) {
+    val context = LocalContext.current
+    val shareChooserTitle = stringResource(R.string.usb_share_chooser_title)
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("✨", fontSize = 40.sp)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            stringResource(R.string.usb_transfer_complete_title),
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.usb_transfer_complete_count, s.synced),
+            fontSize = 15.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(24.dp))
+
+        if (s.savedUris.isNotEmpty()) {
+            OutlinedButton(onClick = onViewSummary, modifier = Modifier.fillMaxWidth()) {
+                Icon(painterResource(android.R.drawable.ic_menu_agenda), null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.usb_action_view_summary))
+            }
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = {
+                    val intent =
+                        Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(s.savedUris.first(), "image/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    painterResource(android.R.drawable.ic_menu_gallery),
+                    null,
+                    Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.usb_action_view_in_gallery))
+            }
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = {
+                    val intent =
+                        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                            type = "image/*"
+                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(s.savedUris))
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                    context.startActivity(Intent.createChooser(intent, shareChooserTitle))
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(painterResource(android.R.drawable.ic_menu_share), null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.usb_action_share))
+            }
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(onClick = onRequestDelete, modifier = Modifier.fillMaxWidth()) {
+                Icon(painterResource(android.R.drawable.ic_menu_delete), null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.usb_action_delete_from_camera))
+            }
+        }
+
+        if (failedHandles.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onRetryFailed, modifier = Modifier.fillMaxWidth()) {
+                Icon(painterResource(android.R.drawable.ic_menu_revert), null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.usb_retry_failed, failedHandles.size))
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        TextButton(onClick = onContinue) {
+            Text(stringResource(R.string.usb_action_continue_browsing))
+        }
     }
 }
 
@@ -1795,7 +1818,14 @@ private fun CameraTabContent(
             is GalleryState.Error -> ErrorContent(s.message, viewModel::start)
             is GalleryState.Transferring -> TransferringContent(s)
             is GalleryState.TransferDone ->
-                TransferDoneContent(s, viewModel::dismissTransferDone, viewModel)
+                TransferDoneContent(
+                    s = s,
+                    failedHandles = viewModel.failedHandles,
+                    lastTransferredHandles = viewModel.lastTransferredHandles,
+                    onDismiss = viewModel::dismissTransferDone,
+                    onRetryFailed = viewModel::retryFailedTransfers,
+                    onDeleteTransferred = viewModel::deleteTransferredPhotos,
+                )
         }
     }
 }

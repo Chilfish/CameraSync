@@ -95,9 +95,10 @@ enum class PhotoFilter {
  * Facade over the four focused modules extracted in P2-1: [GalleryStateMachine] (state +
  * selection/filter/sort), [ThumbnailProvider] (caches + EXIF), [TransferEngine] (transfer
  * orchestration) and [ConnectionManager] (USB lifecycle + browsing). Keeps the exact public API the
- * screens consume.
+ * screens consume; implements [GalleryScreenHost] so the gallery states can render with a fake host
+ * in `@Preview` (P5-3).
  */
-class GalleryViewModel(private val app: Application) {
+class GalleryViewModel(private val app: Application) : GalleryScreenHost {
     private val usbManager = app.getSystemService(Context.USB_SERVICE) as UsbManager
     private val nikon = NikonUsbManager(usbManager)
     private val photoSyncManager = PhotoSyncManager(app)
@@ -145,7 +146,7 @@ class GalleryViewModel(private val app: Application) {
 
     // SnapshotStateList — any composable reading this list automatically
     // recomposes when the list is modified (no manual trigger needed).
-    val selectedCount: Int
+    override val selectedCount: Int
         get() = stateMachine.selectedCount
 
     /** Handles that were successfully transferred in the last [startTransfer] call. */
@@ -163,7 +164,7 @@ class GalleryViewModel(private val app: Application) {
      * recomposes when columns change. Initialized from [prefs] so the last chosen value survives
      * app restarts.
      */
-    var gridColumns by mutableStateOf(prefs.getGridColumns())
+    override var gridColumns by mutableStateOf(prefs.getGridColumns())
 
     /** Set to true by [requestReload] to signal the UI to reload the gallery. */
     var needsReload: Boolean
@@ -186,7 +187,7 @@ class GalleryViewModel(private val app: Application) {
     }
 
     /** Current photo grouping mode. */
-    val groupingMode: UsbSyncPreferences.PhotoGrouping
+    override val groupingMode: UsbSyncPreferences.PhotoGrouping
         get() = stateMachine.groupingMode
 
     /** Current photo sorting mode. */
@@ -224,7 +225,7 @@ class GalleryViewModel(private val app: Application) {
     }
 
     /** Pull-to-refresh: reload current level without jumping to root. */
-    fun refresh() {
+    override fun refresh() {
         connection.refresh()
     }
 
@@ -234,27 +235,28 @@ class GalleryViewModel(private val app: Application) {
 
     // ── Thumbnails & full-photo download ───────────────────────────────────
 
-    fun getOrientation(handle: Int): Int? = thumbnails.getOrientation(handle)
+    override fun getOrientation(handle: Int): Int? = thumbnails.getOrientation(handle)
 
     /** Decoded-bitmap cache exposed to the grid so recycled cells skip re-decoding. */
-    val bitmapCache: MutableMap<Int, android.graphics.Bitmap>
+    override val bitmapCache: MutableMap<Int, android.graphics.Bitmap>
         get() = thumbnails.bitmapCache
 
-    fun getThumbnail(handle: Int): ByteArray? = thumbnails.getThumbnail(handle)
+    override fun getThumbnail(handle: Int): ByteArray? = thumbnails.getThumbnail(handle)
 
     /**
      * Downloads the full photo file (NEF/JPEG/etc) to a temp file for EXIF extraction. See
      * [ThumbnailProvider.downloadFullPhoto].
      */
-    suspend fun downloadFullPhoto(handle: Int): File? = thumbnails.downloadFullPhoto(handle)
+    override suspend fun downloadFullPhoto(handle: Int): File? =
+        thumbnails.downloadFullPhoto(handle)
 
     // ── Selection & filtering (delegated to GalleryStateMachine) ────────────
 
     /** Returns true if any photo in the group has already been imported. */
-    fun isGroupImported(group: GalleryEntry.PhotoGroup): Boolean =
+    override fun isGroupImported(group: GalleryEntry.PhotoGroup): Boolean =
         stateMachine.isGroupImported(group)
 
-    fun toggleSelection(group: GalleryEntry.PhotoGroup) {
+    override fun toggleSelection(group: GalleryEntry.PhotoGroup) {
         stateMachine.toggleSelection(group, prefs.downloadFormat)
     }
 
@@ -275,22 +277,23 @@ class GalleryViewModel(private val app: Application) {
 
     fun isSelected(h: Int) = stateMachine.isSelected(h)
 
-    fun isGroupSelected(group: GalleryEntry.PhotoGroup): Boolean =
+    override fun isGroupSelected(group: GalleryEntry.PhotoGroup): Boolean =
         stateMachine.isGroupSelected(group)
 
     // ── Filtering ──────────────────────────────────────────────────────────
 
     // Default view is the new-photos filter: connecting lands on what's ready to transfer (P1-2).
-    val filterMode: PhotoFilter
+    override val filterMode: PhotoFilter
         get() = stateMachine.filterMode
 
-    fun setFilter(mode: PhotoFilter) {
+    override fun setFilter(mode: PhotoFilter) {
         stateMachine.setFilter(mode)
     }
 
-    fun getFilteredGroups(): List<GalleryEntry.PhotoGroup> = stateMachine.getFilteredGroups()
+    override fun getFilteredGroups(): List<GalleryEntry.PhotoGroup> =
+        stateMachine.getFilteredGroups()
 
-    fun getNewPhotoCount(): Int = stateMachine.getNewPhotoCount()
+    override fun getNewPhotoCount(): Int = stateMachine.getNewPhotoCount()
 
     // ── Grouping & format ──────────────────────────────────────────────────
 
