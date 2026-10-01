@@ -60,6 +60,10 @@ class ConnectionManager(
     var errorBanner by mutableStateOf<String?>(null)
         private set
 
+    /** True while a pull-to-refresh reload is in flight (R31). */
+    var isRefreshing by mutableStateOf(false)
+        private set
+
     /** Set to true by [requestReload] to signal the UI to reload the gallery. */
     var needsReload by mutableStateOf(false)
 
@@ -472,11 +476,17 @@ class ConnectionManager(
         }
     }
 
-    /** Pull-to-refresh: reload current level without jumping to root. */
+    /** Pull-to-refresh: reload current level without jumping to root (R31). */
     fun refresh() {
+        if (isRefreshing) return
+        isRefreshing = true
         scope().launch {
-            val folder = currentFolder
-            if (folder != null) loadFolder(folder.first, folder.second) else loadRoot()
+            try {
+                val folder = currentFolder
+                if (folder != null) loadFolder(folder.first, folder.second) else loadRoot()
+            } finally {
+                isRefreshing = false
+            }
         }
     }
 

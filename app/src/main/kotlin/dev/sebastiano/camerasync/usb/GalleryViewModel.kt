@@ -199,6 +199,10 @@ class GalleryViewModel(
         connection.clearErrorBanner()
     }
 
+    /** True while a pull-to-refresh reload is in flight (R31). */
+    override val isRefreshing: Boolean
+        get() = connection.isRefreshing
+
     /** Current photo grouping mode. */
     override val groupingMode: UsbSyncPreferences.PhotoGrouping
         get() = stateMachine.groupingMode

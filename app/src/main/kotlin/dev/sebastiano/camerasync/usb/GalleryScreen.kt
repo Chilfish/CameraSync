@@ -513,6 +513,7 @@ internal interface GalleryScreenHost {
     val groupingMode: UsbSyncPreferences.PhotoGrouping
     val gridColumns: Int
     val selectedCount: Int
+    val isRefreshing: Boolean
     val bitmapCache: MutableMap<Int, Bitmap>
 
     fun getNewPhotoCount(): Int
@@ -658,7 +659,7 @@ private fun BrowsingContent(
         }
 
         PullToRefreshBox(
-            isRefreshing = false,
+            isRefreshing = host.isRefreshing,
             onRefresh = { host.refresh() },
             modifier = Modifier.weight(1f),
         ) {
@@ -2362,6 +2363,7 @@ private class PreviewGalleryHost(private val photos: List<GalleryEntry.PhotoGrou
         UsbSyncPreferences.PhotoGrouping.BY_FOLDER
     override val gridColumns: Int = 3
     override val selectedCount: Int = 0
+    override val isRefreshing: Boolean = false
     override val bitmapCache: MutableMap<Int, Bitmap> = mutableMapOf()
 
     override fun getNewPhotoCount(): Int = photos.size
