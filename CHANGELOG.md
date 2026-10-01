@@ -5,10 +5,12 @@ All notable changes to CameraSync will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/).
 
-> 首个正式版本（对外 v1.0.0，内部阶段标签 v2.3）尚未发布，当前全部变更记录在 `[Unreleased]`。
+> **v1.0.0 已于 2026-10-01 通过 GitHub Release 发行**（内部阶段标签 v2.3）。此后变更记于新的 `[Unreleased]` 段。
 > 版本单源在 `gradle.properties`，发版走 `scripts/release.sh`（见 `docs/engineering/release-checklist.md`）。
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-10-01
 
 ### 发布闭环与发行渠道（2026-10-01）
 

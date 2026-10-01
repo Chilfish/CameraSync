@@ -4,7 +4,7 @@
 
 ---
 
-## 当前状态: 🟢 待首次发行（真机回归通过，仅 GitHub Release）
+## 当前状态: 🟢 已发行 v1.0.0（2026-10-01，GitHub Release）
 
 **第三期评审（2026-10-01）发现的丢片级缺陷已由 P7 全部修复；真机回归（Nikon Z30，含双卡 / 大库）于 2026-10-01 通过（用户确认）；签名 keystore + Secrets 已就绪。发行渠道为仅 GitHub Release（不上架 Google Play）。事实状态：
 
@@ -82,7 +82,7 @@
 
 > **活跃行动计划** → [`action-plan.md`](action-plan.md)。
 > 2026-10-01 调整：**已完成阶段 P0–P5 归档**至 [`../archive/ACTION_PLAN_P0-P5.md`](../archive/ACTION_PLAN_P0-P5.md)（历史记录，不主动读取）；**P7 大照片库正确性与性能已全部闭环（R20–R35 + R36/R40）**。
-> 剩余待办：**首发 `v1.0.0`**——`bash scripts/release.sh 1.0.0` 推 tag 触发 `release.yml` 自动建 GitHub Release。P3（真机回归）✅、P6-3（Play 上架）❌ 不做。
+> **✅ v1.0.0 已于 2026-10-01 发布**（GitHub Release，签名校验通过）。后续变更记入新的 `[Unreleased]`，发版重复 `scripts/release.sh`。P3 ✅、P6-3 ❌ 不做。
 > 新任务一律在 action-plan.md 追踪（docs-first，完成一项勾一项）。
 
 ---
