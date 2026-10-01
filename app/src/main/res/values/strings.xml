@@ -108,6 +108,7 @@
     <string name="usb_exif_flash_not_fired">未闪光</string>
     <string name="usb_exif_read_error">读取失败 — 请确认相机仍处于连接状态</string>
     <string name="usb_exif_reading_full">正在读取 RAW 文件…</string>
+    <string name="usb_action_view_full">查看原图</string>
     <string name="usb_exif_artist">拍摄者</string>
     <string name="usb_exif_copyright">版权</string>
     <string name="usb_exif_software">软件</string>

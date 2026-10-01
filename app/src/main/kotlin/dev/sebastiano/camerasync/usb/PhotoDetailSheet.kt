@@ -40,16 +40,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import dev.sebastiano.camerasync.R
+import java.io.ByteArrayInputStream
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Bottom sheet: preview image from MTP thumbnail (instant), EXIF from full RAW file (loaded async).
+ * Bottom sheet: instant preview + EXIF from the MTP thumbnail, with full resolution on demand.
  *
- * On open, downloads the full NEF/JPEG via [onDownloadFullPhoto] to extract complete EXIF metadata.
- * The preview image uses the cached MTP thumbnail for instant display — no waiting. EXIF fields
- * appear with a loading spinner until the full file is downloaded.
+ * On open it decodes the already-cached MTP thumbnail and extracts EXIF from it — no USB download.
+ * "查看原图" downloads the full NEF/JPEG via [onDownloadFullPhoto] for a high-resolution preview and
+ * any EXIF fields the thumbnail lacks (R33).
  *
  * [onDownloadFullPhoto] — downloads the full photo file to a temp file for EXIF extraction.
  * [photoInfo] — basic photo metadata (name, size, format, handle for full download).
@@ -84,20 +85,37 @@ fun PhotoDetailSheet(
             }
         }
 
-    // Async: download full NEF/JPEG for complete EXIF
-    var fullImage by remember { mutableStateOf<ImageBitmap?>(null) }
+    // Instant: EXIF from the MTP thumbnail we already hold — no 26 MB download (R33).
     var exifFields by remember { mutableStateOf<List<Pair<Int, ExifValue?>>>(emptyList()) }
-    var exifLoading by remember { mutableStateOf(true) }
-    var downloadError by remember { mutableStateOf(false) }
+    var exifLoaded by remember { mutableStateOf(false) }
 
-    LaunchedEffect(photoInfo.handle) {
-        exifLoading = true
+    LaunchedEffect(thumbnailBytes) {
+        exifFields =
+            withContext(Dispatchers.IO) {
+                val bytes = thumbnailBytes
+                if (bytes == null) emptyList<Pair<Int, ExifValue?>>()
+                else
+                    extractExifFromInterface(
+                        runCatching { ExifInterface(ByteArrayInputStream(bytes)) }.getOrNull()
+                    )
+            }
+        exifLoaded = true
+    }
+
+    // Full-resolution preview + complete EXIF are loaded only on demand (R33).
+    var fullImage by remember { mutableStateOf<ImageBitmap?>(null) }
+    var fullLoading by remember { mutableStateOf(false) }
+    var downloadError by remember { mutableStateOf(false) }
+    var requestFull by remember { mutableStateOf(false) }
+
+    LaunchedEffect(requestFull) {
+        if (!requestFull) return@LaunchedEffect
+        fullLoading = true
         downloadError = false
         val file = withContext(Dispatchers.IO) { onDownloadFullPhoto(photoInfo.handle) }
-
         if (file == null) {
             downloadError = true
-            exifLoading = false
+            fullLoading = false
             return@LaunchedEffect
         }
 
@@ -108,10 +126,8 @@ fun PhotoDetailSheet(
             }
         exifFields = extractExifFromInterface(exif)
 
-        // Try to decode a high-quality preview from the full file, rotating by EXIF.
-        // For NEF, ExifInterface on the full file may not find orientation in the TIFF
-        // structure, so pass the cached orientation from the JPEG counterpart as fallback.
-        val cachedOri = orientationFallback
+        // Decode a high-quality preview, rotating by EXIF. For NEF, ExifInterface on the full file
+        // may not find orientation in the TIFF structure, so fall back to the JPEG counterpart's.
         val decoded =
             withContext(Dispatchers.IO) {
                 val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
@@ -121,7 +137,7 @@ fun PhotoDetailSheet(
             exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
         val effectiveOrientation =
             if (orientation != null && orientation != ExifInterface.ORIENTATION_NORMAL) orientation
-            else cachedOri
+            else orientationFallback
         fullImage =
             decoded
                 ?.let { source ->
@@ -134,7 +150,7 @@ fun PhotoDetailSheet(
                     }
                 }
                 ?.asImageBitmap()
-        exifLoading = false
+        fullLoading = false
     }
 
     LaunchedEffect(Unit) { sheetState.show() }
@@ -191,14 +207,7 @@ fun PhotoDetailSheet(
                 )
                 Spacer(Modifier.height(8.dp))
 
-                if (downloadError) {
-                    Text(
-                        stringResource(R.string.usb_exif_read_error),
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(vertical = 16.dp),
-                    )
-                } else if (exifLoading) {
+                if (!exifLoaded && exifFields.isEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                         horizontalArrangement = Arrangement.Center,
@@ -206,12 +215,6 @@ fun PhotoDetailSheet(
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp,
-                        )
-                        Spacer(Modifier.padding(8.dp))
-                        Text(
-                            stringResource(R.string.usb_exif_reading_full),
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 } else if (exifFields.isNotEmpty()) {
@@ -234,6 +237,40 @@ fun PhotoDetailSheet(
                                 }
                             }
                         }
+                    }
+                }
+
+                // Full-resolution image + complete EXIF is an explicit action (R33).
+                Spacer(Modifier.height(8.dp))
+                if (fullLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(Modifier.padding(8.dp))
+                        Text(
+                            stringResource(R.string.usb_exif_reading_full),
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else if (downloadError) {
+                    Text(
+                        stringResource(R.string.usb_exif_read_error),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                } else if (fullImage == null) {
+                    TextButton(
+                        onClick = { requestFull = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.usb_action_view_full))
                     }
                 }
 
