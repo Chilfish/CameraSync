@@ -19,6 +19,8 @@
 
 发行渠道为 **GitHub Release**（不上架 Google Play）。发版前需备好签名密钥：
 
+> **本机现状（2026-10-01）**：签名材料已就绪——keystore 与凭据备份在 **`%USERPROFILE%\.camerasync\`**（`release.jks` + `keystore.properties` + `CREDENTIALS.md`，**在仓库外，勿提交**），仓库 4 个 Secrets 亦已配置。若换机器，按本节重建即可。
+
 1. 生成 release keystore（**务必离线备份，丢失后无法对已安装版本升级**）：
 
    ```bash
