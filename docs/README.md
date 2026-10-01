@@ -27,7 +27,7 @@
 |---|---|
 | [Git Workflow](engineering/git-workflow.md) | 分支模型、commit 规范（Conventional Commits）、commit 纪律、PR 流程 / gh CLI / AI Code Review、Issue 管理、版本发布 |
 | [Code Style](engineering/code-style.md) | Kotlin/Compose 代码规范、命名约定、状态与协程、测试规范、detekt 规则 |
-| [Release Checklist](engineering/release-checklist.md) | 真机发布验证清单：版本纪律（单源 + release 脚本）、R8 冒烟、MTP 同步核心、稳定性 |
+| [Release Checklist](engineering/release-checklist.md) | 真机发布验证清单：**手动 APK 工作流取包**（`manual-apk.yml`）、版本纪律（单源 + release 脚本）、R8 冒烟、MTP 同步核心、稳定性 |
 | [adb Commands](engineering/adb-commands.md) | adb 常用命令速查、设备状态、Wi-Fi 调试（相机占用 USB 口时）、日志过滤 |
 
 ## 评审（review/）

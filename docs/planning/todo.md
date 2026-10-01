@@ -80,8 +80,8 @@
 ## 下一步行动计划
 
 > **活跃行动计划** → [`action-plan.md`](action-plan.md)。
-> 2026-10-01 调整：**已完成阶段 P0–P5 归档**至 [`../archive/ACTION_PLAN_P0-P5.md`](../archive/ACTION_PLAN_P0-P5.md)（历史记录，不主动读取）。
-> 待办：**P3** 运营收尾（设备/网络门控）→ **P6** 发布闭环（设备门控）→ **P7 大照片库正确性与性能**（第三期评审新增，**R21/R23 丢片级，发布阻断**）。
+> 2026-10-01 调整：**已完成阶段 P0–P5 归档**至 [`../archive/ACTION_PLAN_P0-P5.md`](../archive/ACTION_PLAN_P0-P5.md)（历史记录，不主动读取）；**P7 大照片库正确性与性能已全部闭环（R20–R35 + R36/R40）**。
+> 剩余待办：**P3-1/P3-3 / P6-3**——均为真机（Nikon Z30，含双卡 / 大库）与环境门控；取验证包走 [Manual APK 工作流](../engineering/release-checklist.md#获取验证包手动工作流推荐)。
 > 新任务一律在 action-plan.md 追踪（docs-first，完成一项勾一项）。
 
 ---
@@ -134,7 +134,7 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 ## 已知问题
 
-> 2026-10-01 更新：P0–P5 全部闭环并归档（[归档原文](../archive/ACTION_PLAN_P0-P5.md)）。**第三期评审（大库专项）新增 R20–R41**，行动项见 action-plan **P7**；其中 **R21/R23 为丢片级、发布阻断**。P3/P6 剩余项依赖真机与网络环境。
+> 2026-10-01 更新：P0–P5 全部闭环并归档（[归档原文](../archive/ACTION_PLAN_P0-P5.md)）。**第三期评审（大库专项）R20–R41 已全部处置**——其中 R21/R23 两项丢片级缺陷已修复（`4585770` `366d36f`），发布阻断解除（action-plan **P7**）。剩余 P3-1/P3-3 / P6-3 依赖真机与环境。
 
 | 严重度 | 问题 | 状态 |
 |---|---|---|
@@ -166,7 +166,7 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 ## 最近提交 (2026-10-01)
 
-> `master` 领先 `origin/master` **61 个 commit**（P2/P4/P5/P6 + 本期第三期评审文档与 P7 全部修复，均未推送；P3-2 待网络环境）。
+> `master` 与 `origin/master` **同步（已推送，领先 0）**：P2/P4/P5/P6 + 第三期评审文档 + P7 全部修复均已推送（P3-2 ✅）。
 
 ```
 a8c48f1 chore: use mutableIntStateOf and suppress Recycle false positive (R40/R36)

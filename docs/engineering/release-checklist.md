@@ -3,6 +3,18 @@
 > 目标：验证 release 包（R8 minify + shrink + 签名）在真机上满足发布标准。
 > 执行环境：64 位 Android 真机 + `app/build/outputs/apk/release/app-release.apk`。
 
+## 获取验证包（手动工作流，推荐）
+
+真机验证无需本地构建——用 GitHub Actions 手动打包（`.github/workflows/manual-apk.yml`）：
+
+1. Actions → **Manual APK** → Run workflow
+2. `build_type` 选 `debug`（快速安装）或 `release`（验证 R8 混淆 + 签名）
+3. 需要时勾选 `run_gate`（先跑 ktfmtCheck + detekt + lint + 单测）
+4. 运行完成后下载 artifact：`camerasync-<version>-<type>-<sha>.apk` + `SHA256SUMS.txt`
+5. `adb install -r <apk>`，或拷贝到手机直接安装
+
+> release 类型需要仓库 Secrets：`RELEASE_KEYSTORE_BASE64` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD` / `RELEASE_STORE_PASSWORD`（与 `release.yml` 同一套）。缺 Secrets 时产物为未签名 APK，仅供功能验证、不可发布。
+
 ## 版本纪律（P0）
 
 - 版本**单源**在 `gradle.properties`（`VERSION_NAME` / `VERSION_CODE`），`app/build.gradle.kts` 读取，禁止手改 build 文件

@@ -99,6 +99,20 @@ git commit -m "docs: update development log for settings work"
 3. 所有 CI 检查通过
 4. Create a Merge Commit 合并到 `master`
 
+## CI（GitHub Actions）
+
+`.github/workflows/` 三个工作流，职责刻意分开（对标 Float：门禁、发布、手动验证各司其职）：
+
+| 工作流 | 触发 | 作用 |
+|---|---|---|
+| `ci.yml` | push / PR → `master` | 质量门禁：ktfmtCheck + detekt + lint + testDebugUnitTest + assembleDebug |
+| `release.yml` | release published | 解码签名字段（`RELEASE_*` Secrets）→ `assembleRelease` → 上传 GitHub Release |
+| `manual-apk.yml` | 手动 `workflow_dispatch` | 只打包 + 上传 artifact（可选 `run_gate`），供**真机验证**；`build_type` 选 debug/release |
+
+- `manual-apk.yml` **不绑定 push/tag**，避免空跑消耗 Actions 额度；默认不跑 gate（只打包）
+- release 类型复用 `release.yml` 的同一套 Secrets（keystore + 密码），顺带验证 R8 混淆产物
+- 取包：Actions → Manual APK → Run workflow → 下载 artifact（附 `SHA256SUMS.txt` 便于核对）
+
 ## AI 协作开发
 
 本项目由 AI 主导开发，使用 `gh` CLI 进行 GitHub 全流程管理。

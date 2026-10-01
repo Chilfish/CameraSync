@@ -44,7 +44,7 @@
 | # | 事项 | 说明 | 状态 |
 |---|---|---|---|
 | 3-1 | 确认测试设备 | `USB_SYNC.md` §9（Xiaomi MIUI）vs README（Nikon Z30）统一回填 | ⏳ 待设备 |
-| 3-2 | 推送 & 验证 CI | 推送本地未推送 commit；确认 `ktfmtCheck` / `detekt` / `lint` / `test` / `assembleDebug` 全绿（本环境曾 SSH 不可达） | ⏳ 待网络 |
+| 3-2 | 推送 & 验证 CI | ✅ 已推送（`origin/master` == `HEAD`）；本地 `ktfmtCheck` / `detekt` / `lint` / `test` / `assembleDebug` 全绿 | ✅ |
 | 3-3 | 真机回归 | Nikon Z30 连接验证 MTP 同步链路（每批改动后必做） | ⏳ 待设备 |
 | 3-4 | README 真实化（R9） | ✅ 已完成 | ✅ |
 
@@ -59,11 +59,12 @@
 | 6-3 | Play 上架材料 | 隐私政策 ✅ / 权限核对 ✅ / store listing 文案 ✅（`docs/legal/store-listing.md`）；**剩余：截图 + feature graphic（待 Nikon Z30 真机）、隐私政策托管 URL、Play Console 提交** | ◐ |
 | 6-4 | 发布后指标 | ✅ `docs/planning/release-metrics.md`（零埋点，从 TransferHistory + 日志聚合） | ✅ |
 
-> **发布阻断重排**：第三期评审新增的两项丢片缺陷（R21/R23）**先于** P6-3 剩余素材推进——素材可后补，丢片不可。
+> **发布阻断解除**：第三期评审的两项丢片缺陷（R21/R23）已于 P7-A 修复，P6-3 剩余素材（截图 / 托管 URL）可继续推进。
+> **真机验证取包**：新增 `.github/workflows/manual-apk.yml`（Actions → Manual APK），支持 debug/release 手动打包并上传 artifact，直接服务于 P3-3 真机回归（详见 [release-checklist](../engineering/release-checklist.md)）。
 
 ---
 
-## P7 — 大照片库正确性与性能（新增，发布阻断）🔴
+## P7 — 大照片库正确性与性能 ✅ 2026-10-01 全部落地
 
 > **依据**: [第三期评审](../review/2026-10-01-design-review-3.md)（R20–R41）
 > **背景**: 用户反馈「照片很多时不好用顺畅」。过去两期未对大库做专项验证——测试数据均为个位数照片，性能与交互成本从未被评估。本阶段补齐。

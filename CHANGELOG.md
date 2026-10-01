@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 - 版本单源迁至 `gradle.properties`（`VERSION_NAME` / `VERSION_CODE`）+ 新增 `scripts/release.sh`（门禁 → commit → tag → push）；新增 `docs/engineering/release-checklist.md`、`adb-commands.md`
 - 文档漂移修复：README「Background Sync」条目删除（自动同步已移除）、code-style「postmortem 003」悬空引用改指本仓「设计/建模」节、删除 BLE 残留 workflow
 
+### CI（2026-10-01）
+
+- 新增 `.github/workflows/manual-apk.yml`：手动触发（`workflow_dispatch`）的打包工作流，供真机验证取包——输入 `build_type`（debug/release）+ `run_gate`；release 复用 `release.yml` 的签名 Secrets 并顺带验证 R8；产物按版本 + 短 SHA 命名并附 `SHA256SUMS.txt`，上传 artifact（14 天）
+- 文档同步：`CLAUDE.md` 新增「CI（GitHub Actions）」节；`git-workflow.md` 补 CI 工作流说明；`release-checklist.md` 补「获取验证包（手动工作流）」；`docs/README.md` 更新索引
+
 ### 文档与评审（2026-10-01）
 
 - 新增第三期设计评审（大库场景专项，R20–R41）：`docs/review/2026-10-01-design-review-3.md`——含 2 项丢片级缺陷（RAW+JPEG 未成对传输、同名跨存储照片被合并）与 7 项大库性能发现

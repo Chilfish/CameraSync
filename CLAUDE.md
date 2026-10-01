@@ -100,6 +100,18 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 
 Pre-push hook 在 `.githooks/pre-push` → `detekt + ktfmtCheck + lint + test + assembleDebug`。启用：`git config core.hooksPath .githooks`。手动运行：`bash .githooks/pre-push`。
 
+## CI（GitHub Actions）
+
+`.github/workflows/` 三个工作流，职责刻意分开：
+
+| 工作流 | 触发 | 作用 |
+|---|---|---|
+| `ci.yml` | push / PR → `master` | 质量门禁：ktfmtCheck + detekt + lint + test + assembleDebug |
+| `release.yml` | release published | 签名 release APK 并上传到 GitHub Release |
+| `manual-apk.yml` | 手动 `workflow_dispatch` | **只打包 + 上传 artifact**（可选 `run_gate`），用于真机验证；debug 可直接安装，release 走签名 Secrets 顺带验证 R8 |
+
+> 真机验证取包：Actions → **Manual APK** → Run workflow → 选 `build_type` → 下载 artifact（含 `SHA256SUMS.txt`）安装。详见 [`docs/engineering/release-checklist.md`](docs/engineering/release-checklist.md)。
+
 ## GitHub CLI Flow
 
 ```bash
