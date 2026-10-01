@@ -1,6 +1,7 @@
 package dev.sebastiano.camerasync.usb
 
 import dev.sebastiano.camerasync.InMemorySharedPreferences
+import dev.sebastiano.camerasync.camera.PhotoInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -28,7 +29,7 @@ class GalleryStateMachineTest {
         storageId: Int = 0,
         parentHandle: Int = 0,
     ) =
-        NikonUsbManager.PhotoInfo(
+        PhotoInfo(
             handle = handle,
             storageId = storageId,
             name = name,
@@ -38,11 +39,8 @@ class GalleryStateMachineTest {
             parentHandle = parentHandle,
         )
 
-    private fun group(
-        base: String,
-        raw: NikonUsbManager.PhotoInfo? = null,
-        jpg: NikonUsbManager.PhotoInfo? = null,
-    ) = GalleryEntry.PhotoGroup(baseName = base, raw = raw, jpg = jpg)
+    private fun group(base: String, raw: PhotoInfo? = null, jpg: PhotoInfo? = null) =
+        GalleryEntry.PhotoGroup(baseName = base, raw = raw, jpg = jpg)
 
     // ── State transitions ────────────────────────────────────────────────────
 

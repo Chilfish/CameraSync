@@ -9,7 +9,7 @@ import dev.sebastiano.camerasync.logging.LogViewerViewModel
 import dev.sebastiano.camerasync.logging.LogcatLogRepository
 import dev.sebastiano.camerasync.usb.GalleryViewModel
 import dev.sebastiano.camerasync.usb.LocalPhotosViewModel
-import dev.sebastiano.camerasync.usb.NikonUsbManager
+import dev.sebastiano.camerasync.usb.UsbCameraSource
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
@@ -49,16 +49,19 @@ interface AppGraph {
 
     @Provides
     @SingleIn(AppGraph::class)
-    fun provideNikonUsbManager(context: Context): NikonUsbManager =
-        NikonUsbManager(context.getSystemService(Context.USB_SERVICE) as UsbManager)
+    fun provideUsbCameraSource(context: Context): UsbCameraSource =
+        UsbCameraSource(
+            context.getSystemService(Context.USB_SERVICE) as UsbManager,
+            context.cacheDir,
+        )
 
     @Provides
     @SingleIn(AppGraph::class)
     fun provideGalleryViewModel(
         application: Application,
-        nikon: NikonUsbManager,
+        usbSource: UsbCameraSource,
         ioDispatcher: CoroutineDispatcher,
-    ): GalleryViewModel = GalleryViewModel(application, nikon, ioDispatcher)
+    ): GalleryViewModel = GalleryViewModel(application, usbSource, ioDispatcher)
 
     @Provides
     @SingleIn(AppGraph::class)

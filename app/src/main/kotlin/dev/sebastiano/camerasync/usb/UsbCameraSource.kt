@@ -8,6 +8,11 @@ import android.mtp.MtpDevice
 import android.mtp.MtpDeviceInfo
 import android.mtp.MtpObjectInfo
 import com.juul.khronicle.Log
+import dev.sebastiano.camerasync.camera.CameraInfo
+import dev.sebastiano.camerasync.camera.CameraSource
+import dev.sebastiano.camerasync.camera.FolderInfo
+import dev.sebastiano.camerasync.camera.PhotoInfo
+import dev.sebastiano.camerasync.camera.StorageInfo
 import java.io.File
 import java.io.FileInputStream
 import java.io.OutputStream
@@ -15,83 +20,67 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private const val TAG = "NikonUsbManager"
+private const val TAG = "UsbCameraSource"
 
 // getObjectHandles format parameter: 0 = all formats
 private const val ALL_FORMATS = 0
 
-class NikonUsbManager(private val usbManager: UsbManager) {
+/**
+ * [CameraSource] implementation over USB using Android's built-in `android.mtp.MtpDevice` API.
+ *
+ * Owns the USB/MTP session ([open] / [close]) plus enumeration, thumbnail and download operations.
+ * Everything above the transport (browsing, transfer, UI) depends only on [CameraSource] (ADR-011).
+ */
+class UsbCameraSource(private val usbManager: UsbManager, private val cacheDir: File) :
+    CameraSource {
 
-    data class CameraInfo(
-        val manufacturer: String,
-        val model: String,
-        val serialNumber: String?,
-        val deviceVersion: String?,
-        val supportedOps: List<String>,
-        val supportedEvents: List<String>,
-        val vendorExtension: String?,
-    )
+    override var cameraInfo: CameraInfo? = null
+        private set
 
-    data class StorageInfo(
-        val id: Int,
-        val description: String,
-        val maxCapacity: Long,
-        val freeSpace: Long,
-    )
-
-    data class PhotoInfo(
-        val handle: Int,
-        /** Storage this photo lives on — part of the dedup key. */
-        val storageId: Int,
-        val name: String,
-        val size: Long,
-        val dateModified: Long,
-        val formatName: String,
-        /** Thumbnail pixel dimensions from MtpObjectInfo — may be 0 if unavailable. */
-        val thumbPixWidth: Int = 0,
-        val thumbPixHeight: Int = 0,
-        /** Full image pixel dimensions from MtpObjectInfo — may be 0 if unavailable. */
-        val imagePixWidth: Int = 0,
-        val imagePixHeight: Int = 0,
-        /**
-         * MTP handle of the folder directly containing this photo — part of the group key (R23).
-         */
-        val parentHandle: Int = 0,
-    )
+    override var storages: List<StorageInfo> = emptyList()
+        private set
 
     private var mtpDevice: MtpDevice? = null
     private var usbConnection: UsbDeviceConnection? = null
 
-    fun openMtpDevice(usbDevice: UsbDevice): MtpDevice? {
+    /**
+     * Opens the USB/MTP session and reads camera info + storages. Returns `false` (after releasing
+     * a partly opened connection) on failure.
+     */
+    fun open(usbDevice: UsbDevice): Boolean {
         val conn = usbManager.openDevice(usbDevice)
         if (conn == null) {
             Log.warn(tag = TAG) {
                 "UsbManager.openDevice() returned null — device=${usbDevice.deviceName}"
             }
-            return null
+            return false
         }
         usbConnection = conn
 
         val mtp = MtpDevice(usbDevice)
-        val ok = mtp.open(conn)
-        if (!ok) {
+        if (!mtp.open(conn)) {
             Log.warn(tag = TAG) {
                 "MtpDevice.open() returned false — device=${usbDevice.deviceName}"
             }
             // Release the USB connection — a failed open used to leak it (R34).
             runCatching { conn.close() }
             usbConnection = null
-            return null
+            return false
         }
         mtpDevice = mtp
         Log.info(tag = TAG) { "MtpDevice opened: ${usbDevice.deviceName}" }
-        return mtp
+
+        cameraInfo = readCameraInfo(mtp)
+        storages = readStorages(mtp)
+        Log.info(tag = TAG) { "CameraInfo: $cameraInfo" }
+        Log.info(tag = TAG) { "Found ${storages.size} storage(s)" }
+        return true
     }
 
     @Suppress(
         "TooGenericExceptionCaught"
-    ) // MTP close throws unchecked exceptions from native layer
-    fun closeMtpDevice() {
+    ) // MTP close throws unchecked exceptions from the native layer
+    override fun close() {
         try {
             mtpDevice?.close()
             usbConnection?.close()
@@ -102,10 +91,12 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         } finally {
             mtpDevice = null
             usbConnection = null
+            cameraInfo = null
+            storages = emptyList()
         }
     }
 
-    fun getCameraInfo(mtpDevice: MtpDevice): CameraInfo? {
+    private fun readCameraInfo(mtpDevice: MtpDevice): CameraInfo? {
         val info =
             mtpDevice.deviceInfo
                 ?: run {
@@ -135,7 +126,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         }
     }
 
-    fun getStorages(mtpDevice: MtpDevice): List<StorageInfo> {
+    private fun readStorages(mtpDevice: MtpDevice): List<StorageInfo> {
         val ids = mtpDevice.storageIds ?: intArrayOf()
         Log.info(tag = TAG) { "Storage IDs: ${ids.joinToString()}" }
         return ids.toList().mapNotNull { id ->
@@ -162,14 +153,14 @@ class NikonUsbManager(private val usbManager: UsbManager) {
      * `parentHandle`. `parentHandle=0` means root. To get everything we must recurse into folders
      * (format=0x3001).
      */
-    fun listPhotos(
-        mtpDevice: MtpDevice,
+    override fun listPhotos(
         storageId: Int,
-        accumulator: MutableList<PhotoInfo>? = null,
-        onProgress: ((scanned: Int) -> Unit)? = null,
-        onDiagnostic: (String) -> Unit = {},
+        accumulator: MutableList<PhotoInfo>?,
+        onProgress: ((scanned: Int) -> Unit)?,
+        onDiagnostic: (String) -> Unit,
     ): List<PhotoInfo> {
         val photos = accumulator ?: mutableListOf<PhotoInfo>()
+        val mtpDevice = mtpDevice ?: return photos
         val folderQueue = ArrayDeque<Int>()
         folderQueue.add(0) // root
 
@@ -233,13 +224,12 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         return photos
     }
 
-    data class FolderInfo(val handle: Int, val name: String, val dateCreated: Long)
-
     /**
      * Lists only folders (FORMAT_ASSOCIATION) directly under [parentHandle]. Use this for
      * folder-based navigation instead of recursive flattening.
      */
-    fun listFolders(mtpDevice: MtpDevice, storageId: Int, parentHandle: Int = 0): List<FolderInfo> {
+    override fun listFolders(storageId: Int, parentHandle: Int): List<FolderInfo> {
+        val mtpDevice = mtpDevice ?: return emptyList()
         val handles =
             mtpDevice.getObjectHandles(storageId, MtpConstants.FORMAT_ASSOCIATION, parentHandle)
                 ?: return emptyList()
@@ -257,11 +247,8 @@ class NikonUsbManager(private val usbManager: UsbManager) {
      * Lists only photo files (non-folders) directly under [parentHandle]. Does NOT recurse — this
      * is for folder-based browsing.
      */
-    fun listPhotosInFolder(
-        mtpDevice: MtpDevice,
-        storageId: Int,
-        parentHandle: Int = 0,
-    ): List<PhotoInfo> {
+    override fun listPhotosInFolder(storageId: Int, parentHandle: Int): List<PhotoInfo> {
+        val mtpDevice = mtpDevice ?: return emptyList()
         val handles =
             mtpDevice.getObjectHandles(storageId, ALL_FORMATS, parentHandle) ?: return emptyList()
 
@@ -288,46 +275,30 @@ class NikonUsbManager(private val usbManager: UsbManager) {
     }
 
     /**
-     * Deletes a photo from the camera via MTP. Returns true if deletion was successful. WARNING:
-     * Irreversible. Only call after successful transfer to phone.
+     * Fetches the camera-generated thumbnail for [handle]. `MtpDevice` may have been closed by the
+     * time the native call executes — gracefully return null rather than crashing.
      */
-    @Suppress("TooGenericExceptionCaught") // MTP throws unchecked exceptions from the native layer
-    fun deletePhoto(mtpDevice: MtpDevice, handle: Int): Boolean {
-        return try {
-            val ok = mtpDevice.deleteObject(handle)
-            if (ok) {
-                Log.info(tag = TAG) { "Deleted handle $handle from camera" }
-            } else {
-                Log.warn(tag = TAG) { "deleteObject($handle) returned false" }
-            }
-            ok
-        } catch (e: Exception) {
-            Log.error(tag = TAG, throwable = e) { "deleteObject($handle) failed" }
-            false
-        }
+    override fun getThumbnail(handle: Int): ByteArray? {
+        val mtpDevice = mtpDevice ?: return null
+        return runCatching { mtpDevice.getThumbnail(handle) }.getOrNull()
     }
 
     /**
-     * Downloads a photo from the MTP device to [outputStream], using [cacheDir] as a temporary
-     * staging area.
+     * Downloads a photo to [outputStream], using [cacheDir] as a temporary staging area.
      *
      * @return the number of bytes transferred, or `null` if the transfer failed.
      */
     @Suppress("TooGenericExceptionCaught") // MTP I/O throws unchecked exceptions from native layer
-    suspend fun downloadPhoto(
-        mtpDevice: MtpDevice,
-        photoInfo: PhotoInfo,
-        outputStream: OutputStream,
-        cacheDir: File,
-    ): Long? =
+    override suspend fun download(photo: PhotoInfo, outputStream: OutputStream): Long? =
         withContext(Dispatchers.IO) {
-            val tempFile = File(cacheDir, "mtp_${photoInfo.handle}")
+            val mtpDevice = mtpDevice ?: return@withContext null
+            val tempFile = File(cacheDir, "mtp_${photo.handle}")
             try {
                 tempFile.parentFile?.mkdirs()
 
-                val ok = mtpDevice.importFile(photoInfo.handle, tempFile.absolutePath)
+                val ok = mtpDevice.importFile(photo.handle, tempFile.absolutePath)
                 if (!ok) {
-                    Log.error(tag = TAG) { "importFile(${photoInfo.handle}) → false" }
+                    Log.error(tag = TAG) { "importFile(${photo.handle}) → false" }
                     return@withContext null
                 }
 
@@ -342,13 +313,13 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                     }
                 }
 
-                Log.info(tag = TAG) { "Downloaded ${photoInfo.name}: $total bytes" }
+                Log.info(tag = TAG) { "Downloaded ${photo.name}: $total bytes" }
                 total
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.error(tag = TAG, throwable = e) {
-                    "Download ${photoInfo.name} failed: ${e.message}"
+                    "Download ${photo.name} failed: ${e.message}"
                 }
                 null
             } finally {
@@ -356,6 +327,41 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                 tempFile.delete()
             }
         }
+
+    /** Reads the full object for [handle] into [destFile] (e.g. for EXIF extraction). */
+    override suspend fun downloadToFile(handle: Int, destFile: File): Boolean =
+        withContext(Dispatchers.IO) {
+            val mtpDevice = mtpDevice ?: return@withContext false
+            runCatching {
+                    destFile.parentFile?.mkdirs()
+                    mtpDevice.importFile(handle, destFile.absolutePath)
+                }
+                .getOrElse { e ->
+                    Log.error(tag = TAG, throwable = e) { "downloadToFile($handle) failed" }
+                    false
+                }
+        }
+
+    /**
+     * Deletes a photo from the camera. Returns true if deletion was successful. WARNING:
+     * Irreversible. Only call after successful transfer to phone.
+     */
+    @Suppress("TooGenericExceptionCaught") // MTP throws unchecked exceptions from the native layer
+    override fun delete(handle: Int): Boolean {
+        val mtpDevice = mtpDevice ?: return false
+        return try {
+            val ok = mtpDevice.deleteObject(handle)
+            if (ok) {
+                Log.info(tag = TAG) { "Deleted handle $handle from camera" }
+            } else {
+                Log.warn(tag = TAG) { "deleteObject($handle) returned false" }
+            }
+            ok
+        } catch (e: Exception) {
+            Log.error(tag = TAG, throwable = e) { "deleteObject($handle) failed" }
+            false
+        }
+    }
 }
 
 /**

@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import dev.sebastiano.camerasync.R
+import dev.sebastiano.camerasync.camera.PhotoInfo
 import java.io.ByteArrayInputStream
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +62,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun PhotoDetailSheet(
     onDownloadFullPhoto: suspend (Int) -> File?,
-    photoInfo: NikonUsbManager.PhotoInfo,
+    photoInfo: PhotoInfo,
     thumbnailBytes: ByteArray?, // instant MTP thumbnail for display while loading
     orientationFallback: Int? = null, // from orientationCache for EXIF rotation
     onDismiss: () -> Unit,

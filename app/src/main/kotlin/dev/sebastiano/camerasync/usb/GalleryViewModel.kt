@@ -7,6 +7,10 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import dev.sebastiano.camerasync.camera.CameraInfo
+import dev.sebastiano.camerasync.camera.FolderInfo
+import dev.sebastiano.camerasync.camera.PhotoInfo
+import dev.sebastiano.camerasync.camera.StorageInfo
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -25,8 +29,8 @@ sealed interface GalleryState {
         GalleryState
 
     data class Browsing(
-        val cameraInfo: NikonUsbManager.CameraInfo?,
-        val storages: List<NikonUsbManager.StorageInfo>,
+        val cameraInfo: CameraInfo?,
+        val storages: List<StorageInfo>,
         val entries: List<GalleryEntry>,
         /** Photos enumerated so far while the card is still being scanned; null once complete. */
         val scanProgress: Int? = null,
@@ -64,14 +68,14 @@ data class TransferProgress(
 }
 
 sealed interface GalleryEntry {
-    data class Folder(val info: NikonUsbManager.FolderInfo, val storageId: Int) : GalleryEntry
+    data class Folder(val info: FolderInfo, val storageId: Int) : GalleryEntry
 
     data class DateSection(val date: String, val count: Int) : GalleryEntry
 
     data class PhotoGroup(
         val baseName: String,
-        val raw: NikonUsbManager.PhotoInfo?,
-        val jpg: NikonUsbManager.PhotoInfo?,
+        val raw: PhotoInfo?,
+        val jpg: PhotoInfo?,
         /**
          * Stable unique key across storages and folders — use for Lazy `items()` keys. Two photos
          * sharing a base name but living on different storage/folders are distinct groups (R23).
@@ -105,10 +109,14 @@ enum class PhotoFilter {
  * orchestration) and [ConnectionManager] (USB lifecycle + browsing). Keeps the exact public API the
  * screens consume; implements [GalleryScreenHost] so the gallery states can render with a fake host
  * in `@Preview` (P5-3).
+ *
+ * The camera itself is reached only through a
+ * [CameraSource][dev.sebastiano.camerasync.camera.CameraSource] (ADR-011); USB is the current
+ * transport, WiFi/PTP-IP can be added without changing this facade.
  */
 class GalleryViewModel(
     private val app: Application,
-    private val nikon: NikonUsbManager,
+    private val usbSource: UsbCameraSource,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : GalleryScreenHost {
     private val usbManager = app.getSystemService(Context.USB_SERVICE) as UsbManager
@@ -123,19 +131,19 @@ class GalleryViewModel(
         GalleryStateMachine(photoSyncManager, prefs.photoGrouping, prefs.photoSorting)
 
     // Collaborators receive the scope as an accessor, not a captured value: stop() replaces the
-    // scope on rotation and they must launch on the fresh one (R20).
+    // scope on rotation and they must launch on the fresh one (R20). The camera is likewise read
+    // through an accessor so it follows connect/disconnect.
     private val thumbnails =
-        ThumbnailProvider({ scope }, app, { connection.mtp }, { stateMachine.currentPhotos })
+        ThumbnailProvider({ scope }, app, { connection.source }, { stateMachine.currentPhotos })
 
     private val transferEngine =
         TransferEngine(
             { scope },
             app,
-            nikon,
+            { connection.source },
             photoSyncManager,
             stateMachine,
             prefs,
-            { connection.mtp },
             { connection.cameraInfo },
             { connection.cancelActiveLoad() },
         )
@@ -144,7 +152,7 @@ class GalleryViewModel(
         ConnectionManager(
             app,
             usbManager,
-            nikon,
+            usbSource,
             { scope },
             prefs,
             stateMachine,
@@ -350,10 +358,8 @@ class GalleryViewModel(
         transferEngine.deleteTransferredPhotos(handles)
 
     companion object {
-        fun groupByBaseFilename(
-            photos: List<NikonUsbManager.PhotoInfo>
-        ): List<GalleryEntry.PhotoGroup> {
-            val map = linkedMapOf<String, MutableList<NikonUsbManager.PhotoInfo>>()
+        fun groupByBaseFilename(photos: List<PhotoInfo>): List<GalleryEntry.PhotoGroup> {
+            val map = linkedMapOf<String, MutableList<PhotoInfo>>()
             for (p in photos) {
                 // Key includes storage + folder so same-named photos on a second card / in another
                 // folder stay distinct instead of merging (and losing) one of them (R23).

@@ -65,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import dev.sebastiano.camerasync.R
+import dev.sebastiano.camerasync.camera.CameraInfo
+import dev.sebastiano.camerasync.camera.StorageInfo
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -361,10 +363,7 @@ internal fun buildIndexToHandle(
 // ── Device Info Card ───────────────────────────────────────────────────────
 
 @Composable
-internal fun DeviceInfoCard(
-    info: NikonUsbManager.CameraInfo,
-    storages: List<NikonUsbManager.StorageInfo>,
-) {
+internal fun DeviceInfoCard(info: CameraInfo, storages: List<StorageInfo>) {
     var expanded by remember { mutableStateOf(false) }
 
     Card(

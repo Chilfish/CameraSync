@@ -1,6 +1,7 @@
 package dev.sebastiano.camerasync.usb
 
 import dev.sebastiano.camerasync.InMemorySharedPreferences
+import dev.sebastiano.camerasync.camera.PhotoInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -18,7 +19,7 @@ class PhotoSyncManagerTest {
         name: String = "DSC_0001.JPG",
         size: Long = 5_000_000L,
     ) =
-        NikonUsbManager.PhotoInfo(
+        PhotoInfo(
             handle = handle,
             storageId = storageId,
             name = name,

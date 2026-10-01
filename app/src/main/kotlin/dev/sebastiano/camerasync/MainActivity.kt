@@ -73,8 +73,9 @@ private fun RootComposable(
     CameraSyncTheme(themeMode = themeMode) {
 
         // Pair the USB lifecycle with the root composition: a configuration change (rotation)
-        // disposes the composition — closing the receiver and MtpDevice — before the new
-        // composition starts it again, so a second MtpDevice can never open on the same connection
+        // disposes the composition — closing the receiver and camera session — before the new
+        // composition starts it again, so a second MTP session can never open on the same
+        // connection
         // (R8, P4-1). The ViewModel itself is held by AppGraph (P5-2, 方案 A): the same instance
         // survives rotation and its stop() resets state, preserving the pre-DI fresh-instance UX.
         // Accepted tradeoff: brief reconnect on rotation (action-plan P4-1 option B).

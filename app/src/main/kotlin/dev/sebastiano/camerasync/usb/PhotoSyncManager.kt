@@ -3,6 +3,7 @@ package dev.sebastiano.camerasync.usb
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import dev.sebastiano.camerasync.camera.PhotoInfo
 
 /**
  * Tracks which MTP photos have already been imported so future syncs skip them.
@@ -29,13 +30,13 @@ class PhotoSyncManager(
     ) : this(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE))
 
     /** Returns true if this photo was imported in a previous session with the same identity. */
-    fun isAlreadyImported(photo: NikonUsbManager.PhotoInfo): Boolean {
+    fun isAlreadyImported(photo: PhotoInfo): Boolean {
         val stored = prefs.getString(key(photo), null) ?: return false
         return stored.substringBefore(SEQUENCE_SEPARATOR) == identity(photo)
     }
 
     /** Marks a photo as imported so future syncs skip it, evicting the oldest records if needed. */
-    fun markAsImported(photo: NikonUsbManager.PhotoInfo) {
+    fun markAsImported(photo: PhotoInfo) {
         prefs.edit { putString(key(photo), identity(photo) + SEQUENCE_SEPARATOR + nextSequence()) }
         pruneOldestIfNeeded()
     }
@@ -57,10 +58,9 @@ class PhotoSyncManager(
     val trackedCount: Int
         get() = prefs.all.keys.count { isPhotoKey(it) }
 
-    private fun key(photo: NikonUsbManager.PhotoInfo): String =
-        "s${photo.storageId}_h${photo.handle}"
+    private fun key(photo: PhotoInfo): String = "s${photo.storageId}_h${photo.handle}"
 
-    private fun identity(photo: NikonUsbManager.PhotoInfo): String = "${photo.name}:${photo.size}"
+    private fun identity(photo: PhotoInfo): String = "${photo.name}:${photo.size}"
 
     private fun isPhotoKey(key: String): Boolean = PHOTO_KEY.matches(key)
 

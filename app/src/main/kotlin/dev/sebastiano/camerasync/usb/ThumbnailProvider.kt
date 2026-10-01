@@ -1,9 +1,10 @@
 package dev.sebastiano.camerasync.usb
 
 import android.app.Application
-import android.mtp.MtpDevice
 import androidx.exifinterface.media.ExifInterface
 import com.juul.khronicle.Log
+import dev.sebastiano.camerasync.camera.CameraSource
+import dev.sebastiano.camerasync.camera.PhotoInfo
 import java.io.ByteArrayInputStream
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -28,13 +29,13 @@ private const val FULL_PHOTO_CACHE_MAX = 3
  * plus the orientation-detection and thumbnail-preload logic (P2-1 extraction from
  * [GalleryViewModel]).
  *
- * [mtp] and [currentPhotos] are read via accessors so the provider stays decoupled from the USB
- * lifecycle; the ViewModel wires them to its own state.
+ * [camera] and [currentPhotos] are read via accessors so the provider stays decoupled from the
+ * transport lifecycle (ADR-011); the ViewModel wires them to its own state.
  */
 class ThumbnailProvider(
     private val scope: () -> CoroutineScope,
     private val app: Application,
-    private val mtp: () -> MtpDevice?,
+    private val camera: () -> CameraSource?,
     private val currentPhotos: () -> List<GalleryEntry.PhotoGroup>,
 ) {
 
@@ -148,18 +149,13 @@ class ThumbnailProvider(
         thumbCache[handle]?.let {
             return it
         }
-        // Capture mtp in a local variable to avoid a race with closeMtp()
-        // (which sets the device to null on the main thread while this runs on IO).
-        val device = mtp() ?: return null
-        // MtpDevice may have been closed by the time the native call executes — gracefully
-        // return null rather than crashing.
-        return runCatching {
-                device.getThumbnail(handle)?.also { bytes ->
-                    thumbCache[handle] = bytes
-                    extractOrientation(handle, bytes)
-                }
-            }
-            .getOrNull()
+        // Capture the source in a local variable to avoid a race with close()
+        // (which clears it on the main thread while this runs on IO).
+        val source = camera() ?: return null
+        val bytes = source.getThumbnail(handle) ?: return null
+        thumbCache[handle] = bytes
+        extractOrientation(handle, bytes)
+        return bytes
     }
 
     private fun extractOrientation(handle: Int, thumbBytes: ByteArray) {
@@ -192,7 +188,7 @@ class ThumbnailProvider(
      * 5568×3712 for landscape and 3712×5568 for portrait.
      *
      * Call this after [GalleryViewModel.groupByBaseFilename] so each [GalleryEntry.PhotoGroup] has
-     * its [NikonUsbManager.PhotoInfo] with imagePix dimensions available.
+     * its [PhotoInfo] with imagePix dimensions available.
      */
     fun populateOrientationsFromDimensions() {
         for (group in currentPhotos()) {
@@ -240,13 +236,12 @@ class ThumbnailProvider(
         // Check cache first — avoids re-downloading 26MB NEF files.
         fullPhotoCache[handle]?.let { if (it.exists()) return it }
 
-        val m = mtp() ?: return null
+        val source = camera() ?: return null
         return withContext(Dispatchers.IO) {
             runCatching {
                     val tempFile = File(app.cacheDir, "detail_$handle")
                     tempFile.parentFile?.mkdirs()
-                    val ok = m.importFile(handle, tempFile.absolutePath)
-                    if (!ok) {
+                    if (!source.downloadToFile(handle, tempFile)) {
                         tempFile.delete()
                         return@runCatching null
                     }

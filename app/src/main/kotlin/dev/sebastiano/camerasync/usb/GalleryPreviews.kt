@@ -6,13 +6,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.net.toUri
 import dev.sebastiano.camerasync.R
+import dev.sebastiano.camerasync.camera.CameraInfo
+import dev.sebastiano.camerasync.camera.PhotoInfo
+import dev.sebastiano.camerasync.camera.StorageInfo
 import dev.sebastiano.camerasync.ui.theme.CameraSyncTheme
 
 internal fun previewCameraInfo() =
-    NikonUsbManager.CameraInfo("NIKON", "Z30", "S1234", "1.01", emptyList(), emptyList(), null)
+    CameraInfo("NIKON", "Z30", "S1234", "1.01", emptyList(), emptyList(), null)
 
 internal fun previewStorage() =
-    NikonUsbManager.StorageInfo(
+    StorageInfo(
         id = 1,
         description = "SD CARD",
         maxCapacity = 100_000_000_000L,
@@ -20,7 +23,7 @@ internal fun previewStorage() =
     )
 
 internal fun previewPhoto(handle: Int, name: String) =
-    NikonUsbManager.PhotoInfo(
+    PhotoInfo(
         handle = handle,
         storageId = 1,
         name = name,

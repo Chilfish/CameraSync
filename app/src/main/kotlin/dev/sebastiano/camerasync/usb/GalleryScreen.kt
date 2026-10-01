@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.sebastiano.camerasync.R
+import dev.sebastiano.camerasync.camera.StorageInfo
 import java.io.File
 
 // ── Root Gallery Screen ────────────────────────────────────────────────────
@@ -536,7 +537,7 @@ internal fun ErrorContent(message: String, onRetry: () -> Unit) {
 // ── Storage Status Bar ─────────────────────────────────────────────────────
 
 @Composable
-internal fun StorageStatusBar(storages: List<NikonUsbManager.StorageInfo>) {
+internal fun StorageStatusBar(storages: List<StorageInfo>) {
     if (storages.isEmpty()) return
     val totalBytes = storages.sumOf { it.maxCapacity }
     val freeBytes = storages.sumOf { it.freeSpace }

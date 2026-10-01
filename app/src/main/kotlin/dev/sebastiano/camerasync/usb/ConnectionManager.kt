@@ -8,12 +8,15 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
-import android.mtp.MtpDevice
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.juul.khronicle.Log
 import dev.sebastiano.camerasync.R
+import dev.sebastiano.camerasync.camera.CameraInfo
+import dev.sebastiano.camerasync.camera.CameraSource
+import dev.sebastiano.camerasync.camera.PhotoInfo
+import dev.sebastiano.camerasync.camera.StorageInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -31,13 +34,15 @@ private const val ACTION_USB_PERMISSION = "dev.sebastiano.camerasync.USB_PERMISS
  * folder enumeration, and the device/state that the UI reads (P2-1 extraction from
  * [GalleryViewModel]).
  *
- * Writes flow into [stateMachine] and [thumbnails] (both owned by the ViewModel); [transferEngine]
- * is referenced only to cancel an in-flight transfer when the device detaches.
+ * USB discovery/permission is inherently USB-specific, but every camera operation goes through the
+ * transport-agnostic [CameraSource] (ADR-011). Writes flow into [stateMachine] and [thumbnails]
+ * (both owned by the ViewModel); [transferEngine] is referenced only to cancel an in-flight
+ * transfer when the device detaches.
  */
 class ConnectionManager(
     private val app: Application,
     private val usbManager: UsbManager,
-    private val nikon: NikonUsbManager,
+    private val usbSource: UsbCameraSource,
     private val scope: () -> CoroutineScope,
     private val prefs: UsbSyncPreferences,
     private val stateMachine: GalleryStateMachine,
@@ -45,15 +50,16 @@ class ConnectionManager(
     private val transferEngine: TransferEngine,
 ) {
 
-    var mtp: MtpDevice? = null
+    /** The connected camera, or null while disconnected. */
+    var source: CameraSource? = null
         private set
 
     /** Device info (populated once on connect). */
-    var cameraInfo: NikonUsbManager.CameraInfo? = null
-        private set
+    val cameraInfo: CameraInfo?
+        get() = source?.cameraInfo
 
-    var storages = emptyList<NikonUsbManager.StorageInfo>()
-        private set
+    val storages: List<StorageInfo>
+        get() = source?.storages.orEmpty()
 
     /** Inline error banner message — shown above content instead of replacing the entire screen. */
     var errorBanner by mutableStateOf<String?>(null)
@@ -118,8 +124,8 @@ class ConnectionManager(
      * Stops the connection: cancels in-flight work, unregisters the receiver and closes MTP.
      *
      * Paired with [start] from the composable's `DisposableEffect` so a configuration change
-     * (rotation) closes the old instance's `MtpDevice` before the new instance opens it again —
-     * prevents two `MtpDevice`s open on the same physical connection (R8). State/selection/caches
+     * (rotation) closes the old instance's camera session before the new instance opens it again —
+     * prevents two MTP sessions open on the same physical connection (R8). State/selection/caches
      * are reset exactly like a detach ([closeMtpAndClear]) so a DI-held singleton behaves like a
      * fresh instance after recreation (P5-2, 方案 A).
      */
@@ -192,26 +198,14 @@ class ConnectionManager(
                             }
                     Log.info(tag = TAG) { "Found device: ${device.deviceName}" }
 
-                    val m =
-                        nikon.openMtpDevice(device)
-                            ?: run {
-                                Log.error(tag = TAG) { "MTP open failed for ${device.deviceName}" }
-                                stateMachine.setState(
-                                    GalleryState.Error(
-                                        app.getString(R.string.usb_error_connect_failed)
-                                    )
-                                )
-                                return@launch
-                            }
-                    mtp = m
-
-                    Log.info(tag = TAG) { "Getting camera info..." }
-                    cameraInfo = nikon.getCameraInfo(m)
-                    Log.info(tag = TAG) { "CameraInfo: ${cameraInfo}" }
-
-                    Log.info(tag = TAG) { "Getting storages..." }
-                    storages = nikon.getStorages(m)
-                    Log.info(tag = TAG) { "Found ${storages.size} storage(s)" }
+                    if (!usbSource.open(device)) {
+                        Log.error(tag = TAG) { "MTP open failed for ${device.deviceName}" }
+                        stateMachine.setState(
+                            GalleryState.Error(app.getString(R.string.usb_error_connect_failed))
+                        )
+                        return@launch
+                    }
+                    source = usbSource
 
                     stateMachine.deselectAll()
                     errorBanner = null
@@ -246,7 +240,7 @@ class ConnectionManager(
     @Suppress("TooGenericExceptionCaught")
     suspend fun loadRoot() {
         currentFolder = null
-        val m = mtp ?: return
+        val camera = source ?: return
 
         if (storages.isEmpty()) {
             stateMachine.setState(GalleryState.Empty)
@@ -260,11 +254,11 @@ class ConnectionManager(
 
         try {
             when (stateMachine.groupingMode) {
-                UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> loadRootByFolder(m)
+                UsbSyncPreferences.PhotoGrouping.BY_FOLDER -> loadRootByFolder(camera)
                 UsbSyncPreferences.PhotoGrouping.BY_DATE ->
-                    loadRootProgressive(m) { groups, _ -> buildDateSections(groups) }
+                    loadRootProgressive(camera) { groups, _ -> buildDateSections(groups) }
                 UsbSyncPreferences.PhotoGrouping.FLAT ->
-                    loadRootProgressive(m) { groups, _ -> groups }
+                    loadRootProgressive(camera) { groups, _ -> groups }
             }
         } catch (e: Exception) {
             Log.error(tag = TAG, throwable = e) { "loadRoot failed: ${e.message}" }
@@ -293,21 +287,20 @@ class ConnectionManager(
      *    discover accurate EXIF orientations (does not block the UI).
      */
     private suspend fun loadRootProgressive(
-        m: MtpDevice,
+        camera: CameraSource,
         buildEntries:
-            (
-                groups: List<GalleryEntry.PhotoGroup>, allPhotos: List<NikonUsbManager.PhotoInfo>,
-            ) -> List<GalleryEntry>,
+            (groups: List<GalleryEntry.PhotoGroup>, allPhotos: List<PhotoInfo>) -> List<
+                    GalleryEntry
+                >,
     ) {
-        val accumPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
+        val accumPhotos = mutableListOf<PhotoInfo>()
         var globalScanned = 0
         var lastPublished = 0
         var enteredBrowsing = false
 
         for (s in storages) {
             val prevSize = accumPhotos.size
-            nikon.listPhotos(
-                m,
+            camera.listPhotos(
                 s.id,
                 accumulator = accumPhotos,
                 onProgress = { scanned ->
@@ -378,13 +371,13 @@ class ConnectionManager(
     }
 
     /** Fast folder-first loading: show folder list immediately, load root-level photos after. */
-    private suspend fun loadRootByFolder(m: MtpDevice) {
+    private suspend fun loadRootByFolder(camera: CameraSource) {
         val entries = mutableListOf<GalleryEntry>()
-        val allRootPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
+        val allRootPhotos = mutableListOf<PhotoInfo>()
 
         // Phase 1: collect folders (cheap — just list folder names)
         for (s in storages) {
-            val folders = nikon.listFolders(m, s.id, 0)
+            val folders = camera.listFolders(s.id, 0)
             entries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
         }
         // Show folders immediately even before photos are enumerated
@@ -396,7 +389,7 @@ class ConnectionManager(
 
         // Phase 2: load root-level photos, updating the grid as they come in
         for (s in storages) {
-            nikon.listPhotosInFolder(m, s.id, 0).let { photos ->
+            camera.listPhotosInFolder(s.id, 0).let { photos ->
                 allRootPhotos.addAll(photos)
                 stateMachine.updateCurrentPhotos(
                     GalleryViewModel.groupByBaseFilename(allRootPhotos)
@@ -410,7 +403,7 @@ class ConnectionManager(
         thumbnails.populateOrientationsFromDimensions()
         val finalEntries = mutableListOf<GalleryEntry>()
         for (s in storages) {
-            val folders = nikon.listFolders(m, s.id, 0)
+            val folders = camera.listFolders(s.id, 0)
             finalEntries.addAll(folders.map { GalleryEntry.Folder(it, s.id) })
         }
         finalEntries.addAll(stateMachine.currentPhotos)
@@ -439,7 +432,7 @@ class ConnectionManager(
     @Suppress("TooGenericExceptionCaught")
     suspend fun loadFolder(storageId: Int, folderHandle: Int) {
         currentFolder = storageId to folderHandle
-        val m = mtp ?: return
+        val camera = source ?: return
         errorBanner = null
         stateMachine.setState(
             GalleryState.Loading(app.getString(R.string.usb_status_loading_folder))
@@ -447,12 +440,12 @@ class ConnectionManager(
 
         try {
             // Show sub-folders first (cheap)
-            val subFolders = nikon.listFolders(m, storageId, folderHandle)
+            val subFolders = camera.listFolders(storageId, folderHandle)
             stateMachine.setState(
                 GalleryState.Loading(app.getString(R.string.usb_status_loading_photos), 0, 0)
             )
 
-            val photos = nikon.listPhotosInFolder(m, storageId, folderHandle)
+            val photos = camera.listPhotosInFolder(storageId, folderHandle)
             stateMachine.updateCurrentPhotos(GalleryViewModel.groupByBaseFilename(photos))
             val entries = mutableListOf<GalleryEntry>()
             entries.addAll(subFolders.map { GalleryEntry.Folder(it, storageId) })
@@ -495,8 +488,8 @@ class ConnectionManager(
 
     /** Closes MTP and clears the full-photo download cache. Called on USB detach. */
     private fun closeMtp() {
-        nikon.closeMtpDevice()
-        mtp = null
+        usbSource.close()
+        source = null
         thumbnails.clearFullPhotoCache()
     }
 }

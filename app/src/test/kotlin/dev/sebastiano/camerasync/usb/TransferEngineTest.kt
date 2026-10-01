@@ -2,11 +2,10 @@ package dev.sebastiano.camerasync.usb
 
 import android.app.Application
 import android.content.ContentResolver
-import android.mtp.MtpDevice
 import android.net.Uri
 import dev.sebastiano.camerasync.InMemorySharedPreferences
-import io.mockk.coEvery
-import io.mockk.coVerify
+import dev.sebastiano.camerasync.camera.FakeCameraSource
+import dev.sebastiano.camerasync.camera.PhotoInfo
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -27,7 +26,8 @@ import org.junit.Test
 
 /**
  * Transfer engine tests (P2-2): happy path, MediaStore save failures, retry of failed handles and
- * camera deletion — orchestration extracted in P2-1, all collaborators are fakes/mocks.
+ * camera deletion — orchestration extracted in P2-1, MediaStore mocked and the camera backed by
+ * [FakeCameraSource].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TransferEngineTest {
@@ -37,16 +37,14 @@ class TransferEngineTest {
 
     private lateinit var app: Application
     private lateinit var contentResolver: ContentResolver
-    private lateinit var nikon: NikonUsbManager
-    private lateinit var mtpDevice: MtpDevice
+    private lateinit var cameraSource: FakeCameraSource
 
     @Before
     fun setUp() {
         app = mockk(relaxed = true)
         contentResolver = mockk(relaxed = true)
         every { app.contentResolver } returns contentResolver
-        nikon = mockk(relaxed = true)
-        mtpDevice = mockk(relaxed = true)
+        cameraSource = FakeCameraSource()
     }
 
     /** Engine whose coroutines run on the test scheduler (driven by advanceUntilIdle). */
@@ -54,11 +52,10 @@ class TransferEngineTest {
         TransferEngine(
             scope = scope,
             app = app,
-            nikon = nikon,
+            camera = { cameraSource },
             photoSyncManager = manager,
             stateMachine = machine,
             prefs = UsbSyncPreferences(app),
-            mtp = { mtpDevice },
             cameraInfo = { null },
             cancelPendingWork = {},
         )
@@ -68,7 +65,7 @@ class TransferEngineTest {
         name: String = "DSC_%04d.JPG".format(handle),
         size: Long = 5_000_000L,
     ) =
-        NikonUsbManager.PhotoInfo(
+        PhotoInfo(
             handle = handle,
             storageId = 0,
             name = name,
@@ -77,9 +74,9 @@ class TransferEngineTest {
             formatName = "JPEG",
         )
 
-    private fun group(p: NikonUsbManager.PhotoInfo) = GalleryEntry.PhotoGroup(p.name, null, p)
+    private fun group(p: PhotoInfo) = GalleryEntry.PhotoGroup(p.name, null, p)
 
-    private fun group(raw: NikonUsbManager.PhotoInfo, jpg: NikonUsbManager.PhotoInfo) =
+    private fun group(raw: PhotoInfo, jpg: PhotoInfo) =
         GalleryEntry.PhotoGroup(jpg.name.substringBeforeLast("."), raw, jpg)
 
     // ── Happy path ───────────────────────────────────────────────────────────
@@ -93,7 +90,6 @@ class TransferEngineTest {
         val uri = mockk<Uri>(relaxed = true)
         every { contentResolver.insert(any(), any()) } returns uri
         every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
-        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } returns p.size
 
         engine.startTransfer()
         advanceUntilIdle()
@@ -123,12 +119,11 @@ class TransferEngineTest {
             mockk<OutputStream>(relaxed = true)
         every { contentResolver.openOutputStream(secondUri) } returns
             mockk<OutputStream>(relaxed = true)
-        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } returns 5_000_000L
 
         engine.startTransfer()
         advanceUntilIdle()
 
-        coVerify(exactly = 2) { nikon.downloadPhoto(any(), any(), any(), any()) }
+        assertEquals(listOf(1, 2), cameraSource.downloadedHandles)
         assertEquals(listOf(1, 2), engine.lastTransferredHandles)
         val done = machine.state.value as GalleryState.TransferDone
         assertEquals(2, done.synced)
@@ -155,7 +150,7 @@ class TransferEngineTest {
         advanceUntilIdle()
 
         assertEquals(GalleryState.TransferDone(0), machine.state.value)
-        coVerify(exactly = 0) { nikon.downloadPhoto(any(), any(), any(), any()) }
+        assertTrue(cameraSource.downloadedHandles.isEmpty())
     }
 
     @Test
@@ -171,7 +166,6 @@ class TransferEngineTest {
         val uri = mockk<Uri>(relaxed = true)
         every { contentResolver.insert(any(), any()) } returns uri
         every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
-        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } returns p.size
 
         // Simulate stop()+start(): the scope provider now yields a fresh, active scope.
         scopeProvider = { this }
@@ -230,8 +224,7 @@ class TransferEngineTest {
         val uri = mockk<Uri>(relaxed = true)
         every { contentResolver.insert(any(), any()) } returns uri
         every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
-        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } throws
-            RuntimeException("MTP error")
+        cameraSource.downloadError = RuntimeException("MTP error")
 
         engine.startTransfer()
         advanceUntilIdle()
@@ -252,8 +245,7 @@ class TransferEngineTest {
         val uri = mockk<Uri>(relaxed = true)
         every { contentResolver.insert(any(), any()) } returns uri
         every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
-        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } throws
-            CancellationException("cancelled")
+        cameraSource.downloadError = CancellationException("cancelled")
 
         engine.startTransfer()
         advanceUntilIdle()
@@ -282,7 +274,6 @@ class TransferEngineTest {
         val uri = mockk<Uri>(relaxed = true)
         every { contentResolver.insert(any(), any()) } returns uri
         every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
-        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } returns 5_000_000L
 
         engine.retryFailedTransfers()
         advanceUntilIdle()
@@ -297,8 +288,8 @@ class TransferEngineTest {
     @Test
     fun `deletePhotos returns count of successfully deleted handles`() = runTest {
         val engine = createEngine { this }
-        every { nikon.deletePhoto(any(), 1) } returns true
-        every { nikon.deletePhoto(any(), 2) } returns false
+        cameraSource.deleteResult = { it == 1 }
         assertEquals(1, engine.deletePhotos(listOf(1, 2)))
+        assertEquals(listOf(1, 2), cameraSource.deletedHandles)
     }
 }

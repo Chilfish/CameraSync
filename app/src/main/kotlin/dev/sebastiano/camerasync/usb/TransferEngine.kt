@@ -2,10 +2,12 @@ package dev.sebastiano.camerasync.usb
 
 import android.app.Application
 import android.content.ContentValues
-import android.mtp.MtpDevice
 import android.net.Uri
 import android.provider.MediaStore
 import com.juul.khronicle.Log
+import dev.sebastiano.camerasync.camera.CameraInfo
+import dev.sebastiano.camerasync.camera.CameraSource
+import dev.sebastiano.camerasync.camera.PhotoInfo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,19 +24,18 @@ private const val TAG = "TransferEngine"
  * per-photo download loop, saving to MediaStore, and camera deletion (P2-1 extraction from
  * [GalleryViewModel]).
  *
- * [mtp] and [cameraInfo] are read via accessors so the engine stays decoupled from the USB
- * lifecycle. [cancelPendingWork] cancels any in-flight connect/load job before a transfer starts —
+ * [camera] and [cameraInfo] are read via accessors so the engine stays decoupled from the transport
+ * (ADR-011). [cancelPendingWork] cancels any in-flight connect/load job before a transfer starts —
  * preserves the pre-split "one active operation" guarantee.
  */
 class TransferEngine(
     private val scope: () -> CoroutineScope,
     private val app: Application,
-    private val nikon: NikonUsbManager,
+    private val camera: () -> CameraSource?,
     private val photoSyncManager: PhotoSyncManager,
     private val stateMachine: GalleryStateMachine,
     private val prefs: UsbSyncPreferences,
-    private val mtp: () -> MtpDevice?,
-    private val cameraInfo: () -> NikonUsbManager.CameraInfo?,
+    private val cameraInfo: () -> CameraInfo?,
     private val cancelPendingWork: () -> Unit,
 ) {
 
@@ -79,12 +80,12 @@ class TransferEngine(
     }
 
     /**
-     * Deletes the given photo handles from the camera via MTP. Returns the number of successfully
-     * deleted photos.
+     * Deletes the given photo handles from the camera. Returns the number of successfully deleted
+     * photos.
      */
     fun deletePhotos(handles: List<Int>): Int {
-        val m = mtp() ?: return 0
-        return handles.count { handle -> nikon.deletePhoto(m, handle) }
+        val source = camera() ?: return 0
+        return handles.count { handle -> source.delete(handle) }
     }
 
     /**
@@ -95,9 +96,7 @@ class TransferEngine(
         withContext(Dispatchers.IO) { deletePhotos(handles) }
 
     /** Builds the transfer list by filtering [stateMachine.currentPhotos] with [handleFilter]. */
-    private fun buildTransferList(
-        handleFilter: (Int) -> Boolean
-    ): List<Pair<NikonUsbManager.PhotoInfo, Int>> {
+    private fun buildTransferList(handleFilter: (Int) -> Boolean): List<Pair<PhotoInfo, Int>> {
         // Expand every selected handle of a group — a RAW+JPEG pair selected with ALL yields two
         // entries, so both files transfer (R21). Raw is listed first so ordering is raw → JPEG.
         return stateMachine.currentPhotos.flatMap { g ->
@@ -108,8 +107,8 @@ class TransferEngine(
     }
 
     /** Core transfer loop. Updates [stateMachine.state], selection, and [failedHandles]. */
-    private suspend fun performTransfer(toTransfer: List<Pair<NikonUsbManager.PhotoInfo, Int>>) {
-        val m = mtp() ?: return
+    private suspend fun performTransfer(toTransfer: List<Pair<PhotoInfo, Int>>) {
+        val source = camera() ?: return
         val totalBytes = toTransfer.sumOf { it.first.size }
         val startTime = System.currentTimeMillis()
         val savedUris = mutableListOf<Uri>()
@@ -132,7 +131,7 @@ class TransferEngine(
                     )
                 )
             )
-            val uri = saveToMediaStore(m, p.first)
+            val uri = saveToMediaStore(source, p.first)
             if (uri != null) {
                 ok++
                 stateMachine.deselect(p.second)
@@ -153,10 +152,7 @@ class TransferEngine(
     }
 
     @Suppress("TooGenericExceptionCaught") // MTP/MediaStore throw mixed unchecked exceptions
-    private suspend fun saveToMediaStore(
-        m: MtpDevice,
-        photo: NikonUsbManager.PhotoInfo,
-    ): android.net.Uri? {
+    private suspend fun saveToMediaStore(source: CameraSource, photo: PhotoInfo): android.net.Uri? {
         val path = "Pictures/CameraSync/${cameraInfo()?.model ?: "Nikon"}"
         val mime =
             when {
@@ -178,7 +174,7 @@ class TransferEngine(
         return try {
             val bytes =
                 app.contentResolver.openOutputStream(uri)?.use { out ->
-                    nikon.downloadPhoto(m, photo, out, app.cacheDir)
+                    source.download(photo, out)
                 } ?: 0L
             if (bytes <= 0L) {
                 app.contentResolver.delete(uri, null, null)
