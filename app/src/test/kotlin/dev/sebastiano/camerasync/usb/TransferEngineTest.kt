@@ -75,6 +75,9 @@ class TransferEngineTest {
 
     private fun group(p: NikonUsbManager.PhotoInfo) = GalleryEntry.PhotoGroup(p.name, null, p)
 
+    private fun group(raw: NikonUsbManager.PhotoInfo, jpg: NikonUsbManager.PhotoInfo) =
+        GalleryEntry.PhotoGroup(jpg.name.substringBeforeLast("."), raw, jpg)
+
     // ── Happy path ───────────────────────────────────────────────────────────
 
     @Test
@@ -99,6 +102,34 @@ class TransferEngineTest {
         assertTrue(engine.failedHandles.isEmpty())
         assertTrue(machine.selected.isEmpty())
         verify { contentResolver.update(uri, any(), any(), any()) }
+    }
+
+    @Test
+    fun `startTransfer downloads both files of a RAW+JPEG pair when ALL is selected`() = runTest {
+        val engine = createEngine(this)
+        val raw = photo(1, name = "DSC_0001.NEF")
+        val jpg = photo(2, name = "DSC_0001.JPG")
+        machine.updateCurrentPhotos(listOf(group(raw, jpg)))
+        machine.selectAll(UsbSyncPreferences.DownloadFormat.ALL)
+
+        val firstUri = mockk<Uri>(relaxed = true)
+        val secondUri = mockk<Uri>(relaxed = true)
+        every { contentResolver.insert(any(), any()) } returnsMany listOf(firstUri, secondUri)
+        every { contentResolver.openOutputStream(firstUri) } returns
+            mockk<OutputStream>(relaxed = true)
+        every { contentResolver.openOutputStream(secondUri) } returns
+            mockk<OutputStream>(relaxed = true)
+        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } returns 5_000_000L
+
+        engine.startTransfer()
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { nikon.downloadPhoto(any(), any(), any(), any()) }
+        assertEquals(listOf(1, 2), engine.lastTransferredHandles)
+        val done = machine.state.value as GalleryState.TransferDone
+        assertEquals(2, done.synced)
+        assertTrue(manager.isAlreadyImported(raw))
+        assertTrue(manager.isAlreadyImported(jpg))
     }
 
     @Test

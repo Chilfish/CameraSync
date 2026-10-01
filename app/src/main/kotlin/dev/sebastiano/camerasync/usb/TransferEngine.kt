@@ -97,17 +97,12 @@ class TransferEngine(
     private fun buildTransferList(
         handleFilter: (Int) -> Boolean
     ): List<Pair<NikonUsbManager.PhotoInfo, Int>> {
-        return stateMachine.currentPhotos.mapNotNull { g ->
-            val h =
-                if (g.raw != null && handleFilter(g.raw.handle)) g.raw.handle
-                else if (g.jpg != null && handleFilter(g.jpg.handle)) g.jpg.handle
-                else return@mapNotNull null
-            val photo =
-                listOfNotNull(g.raw, g.jpg).find { it.handle == h } ?: return@mapNotNull null
-            if (photoSyncManager.isAlreadyImported(photo)) {
-                return@mapNotNull null
-            }
-            photo to h
+        // Expand every selected handle of a group — a RAW+JPEG pair selected with ALL yields two
+        // entries, so both files transfer (R21). Raw is listed first so ordering is raw → JPEG.
+        return stateMachine.currentPhotos.flatMap { g ->
+            listOfNotNull(g.raw, g.jpg)
+                .filter { handleFilter(it.handle) && !photoSyncManager.isAlreadyImported(it) }
+                .map { it to it.handle }
         }
     }
 
