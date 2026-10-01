@@ -13,6 +13,8 @@ import io.mockk.verify
 import java.io.OutputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -46,7 +48,7 @@ class TransferEngineTest {
     }
 
     /** Engine whose coroutines run on the test scheduler (driven by advanceUntilIdle). */
-    private fun createEngine(scope: CoroutineScope) =
+    private fun createEngine(scope: () -> CoroutineScope) =
         TransferEngine(
             scope = scope,
             app = app,
@@ -82,7 +84,7 @@ class TransferEngineTest {
 
     @Test
     fun `startTransfer saves photos and marks them imported`() = runTest {
-        val engine = createEngine(this)
+        val engine = createEngine { this }
         val p = photo(1)
         machine.updateCurrentPhotos(listOf(group(p)))
         machine.selected.add(1)
@@ -106,7 +108,7 @@ class TransferEngineTest {
 
     @Test
     fun `startTransfer downloads both files of a RAW+JPEG pair when ALL is selected`() = runTest {
-        val engine = createEngine(this)
+        val engine = createEngine { this }
         val raw = photo(1, name = "DSC_0001.NEF")
         val jpg = photo(2, name = "DSC_0001.JPG")
         machine.updateCurrentPhotos(listOf(group(raw, jpg)))
@@ -134,14 +136,14 @@ class TransferEngineTest {
 
     @Test
     fun `startTransfer with empty selection is a no-op TransferDone`() = runTest {
-        val engine = createEngine(this)
+        val engine = createEngine { this }
         engine.startTransfer()
         assertEquals(GalleryState.TransferDone(0), machine.state.value)
     }
 
     @Test
     fun `already imported photos are skipped without downloading`() = runTest {
-        val engine = createEngine(this)
+        val engine = createEngine { this }
         val p = photo(1)
         manager.markAsImported(p)
         machine.updateCurrentPhotos(listOf(group(p)))
@@ -154,11 +156,36 @@ class TransferEngineTest {
         coVerify(exactly = 0) { nikon.downloadPhoto(any(), any(), any(), any()) }
     }
 
+    @Test
+    fun `transfer launches on the scope provided at call time, not at construction`() = runTest {
+        val deadScope = CoroutineScope(SupervisorJob())
+        deadScope.cancel()
+        var scopeProvider: () -> CoroutineScope = { deadScope }
+        val engine = createEngine { scopeProvider() }
+
+        val p = photo(1)
+        machine.updateCurrentPhotos(listOf(group(p)))
+        machine.selected.add(1)
+        val uri = mockk<Uri>(relaxed = true)
+        every { contentResolver.insert(any(), any()) } returns uri
+        every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
+        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } returns p.size
+
+        // Simulate stop()+start(): the scope provider now yields a fresh, active scope.
+        scopeProvider = { this }
+
+        engine.startTransfer()
+        advanceUntilIdle()
+
+        val done = machine.state.value as GalleryState.TransferDone
+        assertEquals(1, done.synced)
+    }
+
     // ── Failure paths ────────────────────────────────────────────────────────
 
     @Test
     fun `insert returning null records the handle as failed`() = runTest {
-        val engine = createEngine(this)
+        val engine = createEngine { this }
         val p = photo(1)
         machine.updateCurrentPhotos(listOf(group(p)))
         machine.selected.add(1)
@@ -175,7 +202,7 @@ class TransferEngineTest {
 
     @Test
     fun `null output stream deletes the pending uri and fails the photo`() = runTest {
-        val engine = createEngine(this)
+        val engine = createEngine { this }
         val p = photo(1)
         machine.updateCurrentPhotos(listOf(group(p)))
         machine.selected.add(1)
@@ -194,7 +221,7 @@ class TransferEngineTest {
 
     @Test
     fun `download throwing deletes the pending uri and fails the photo`() = runTest {
-        val engine = createEngine(this)
+        val engine = createEngine { this }
         val p = photo(1)
         machine.updateCurrentPhotos(listOf(group(p)))
         machine.selected.add(1)
@@ -216,7 +243,7 @@ class TransferEngineTest {
 
     @Test
     fun `retryFailedTransfers retries only the failed handles`() = runTest {
-        val engine = createEngine(this)
+        val engine = createEngine { this }
         val p1 = photo(1)
         val p2 = photo(2)
         machine.updateCurrentPhotos(listOf(group(p1), group(p2)))
@@ -245,7 +272,7 @@ class TransferEngineTest {
 
     @Test
     fun `deletePhotos returns count of successfully deleted handles`() = runTest {
-        val engine = createEngine(this)
+        val engine = createEngine { this }
         every { nikon.deletePhoto(any(), 1) } returns true
         every { nikon.deletePhoto(any(), 2) } returns false
         assertEquals(1, engine.deletePhotos(listOf(1, 2)))

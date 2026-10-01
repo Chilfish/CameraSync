@@ -36,7 +36,7 @@ class ConnectionManager(
     private val app: Application,
     private val usbManager: UsbManager,
     private val nikon: NikonUsbManager,
-    private val scope: CoroutineScope,
+    private val scope: () -> CoroutineScope,
     private val prefs: UsbSyncPreferences,
     private val stateMachine: GalleryStateMachine,
     private val thumbnails: ThumbnailProvider,
@@ -178,7 +178,7 @@ class ConnectionManager(
         syncJob?.cancel()
         stateMachine.setState(GalleryState.Loading(app.getString(R.string.usb_status_connecting)))
         syncJob =
-            scope.launch {
+            scope().launch {
                 try {
                     val device =
                         usbManager.deviceList.values.firstOrNull { it.vendorId == 0x04B0 }
@@ -466,14 +466,14 @@ class ConnectionManager(
 
     /** Pull-to-refresh: reload current level without jumping to root. */
     fun refresh() {
-        scope.launch {
+        scope().launch {
             val folder = currentFolder
             if (folder != null) loadFolder(folder.first, folder.second) else loadRoot()
         }
     }
 
     fun dismissTransferDone() {
-        scope.launch { loadRoot() }
+        scope().launch { loadRoot() }
     }
 
     /** Closes MTP and clears the full-photo download cache. Called on USB detach. */

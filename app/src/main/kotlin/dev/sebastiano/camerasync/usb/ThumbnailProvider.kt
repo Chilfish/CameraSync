@@ -31,7 +31,7 @@ private const val FULL_PHOTO_CACHE_MAX = 3
  * lifecycle; the ViewModel wires them to its own state.
  */
 class ThumbnailProvider(
-    private val scope: CoroutineScope,
+    private val scope: () -> CoroutineScope,
     private val app: Application,
     private val mtp: () -> MtpDevice?,
     private val currentPhotos: () -> List<GalleryEntry.PhotoGroup>,
@@ -114,7 +114,7 @@ class ThumbnailProvider(
      */
     fun preloadThumbnails(count: Int = 30) {
         val handles = currentPhotos().take(count).mapNotNull { it.previewHandle }
-        scope.launch {
+        scope().launch {
             try {
                 coroutineScope {
                     handles.map { h ->

@@ -120,12 +120,14 @@ class GalleryViewModel(
     private val stateMachine =
         GalleryStateMachine(photoSyncManager, prefs.photoGrouping, prefs.photoSorting)
 
+    // Collaborators receive the scope as an accessor, not a captured value: stop() replaces the
+    // scope on rotation and they must launch on the fresh one (R20).
     private val thumbnails =
-        ThumbnailProvider(scope, app, { connection.mtp }, { stateMachine.currentPhotos })
+        ThumbnailProvider({ scope }, app, { connection.mtp }, { stateMachine.currentPhotos })
 
     private val transferEngine =
         TransferEngine(
-            scope,
+            { scope },
             app,
             nikon,
             photoSyncManager,
@@ -141,7 +143,7 @@ class GalleryViewModel(
             app,
             usbManager,
             nikon,
-            scope,
+            { scope },
             prefs,
             stateMachine,
             thumbnails,

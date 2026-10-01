@@ -26,7 +26,7 @@ private const val TAG = "TransferEngine"
  * preserves the pre-split "one active operation" guarantee.
  */
 class TransferEngine(
-    private val scope: CoroutineScope,
+    private val scope: () -> CoroutineScope,
     private val app: Application,
     private val nikon: NikonUsbManager,
     private val photoSyncManager: PhotoSyncManager,
@@ -62,7 +62,7 @@ class TransferEngine(
         failedHandles = emptyList()
         cancelPendingWork()
         transferJob?.cancel()
-        transferJob = scope.launch { performTransfer(toTransfer) }
+        transferJob = scope().launch { performTransfer(toTransfer) }
     }
 
     fun retryFailedTransfers() {
@@ -74,7 +74,7 @@ class TransferEngine(
         failedHandles = emptyList()
         cancelPendingWork()
         transferJob?.cancel()
-        transferJob = scope.launch { performTransfer(toRetry) }
+        transferJob = scope().launch { performTransfer(toRetry) }
     }
 
     /**
