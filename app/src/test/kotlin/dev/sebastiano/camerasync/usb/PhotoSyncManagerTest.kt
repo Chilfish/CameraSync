@@ -82,4 +82,28 @@ class PhotoSyncManagerTest {
         assertFalse(manager.isAlreadyImported(photo(handle = 1, storageId = 0)))
         assertTrue(manager.isAlreadyImported(photo(handle = 2, storageId = 1)))
     }
+
+    @Test
+    fun `table is capped by evicting the oldest records`() {
+        val manager = PhotoSyncManager(InMemorySharedPreferences(), maxEntries = 3)
+        (1..5).forEach { h ->
+            manager.markAsImported(photo(handle = h, name = "DSC_%04d.JPG".format(h)))
+        }
+        assertEquals(3, manager.trackedCount)
+        assertFalse(manager.isAlreadyImported(photo(handle = 1, name = "DSC_0001.JPG")))
+        assertFalse(manager.isAlreadyImported(photo(handle = 2, name = "DSC_0002.JPG")))
+        assertTrue(manager.isAlreadyImported(photo(handle = 3, name = "DSC_0003.JPG")))
+        assertTrue(manager.isAlreadyImported(photo(handle = 5, name = "DSC_0005.JPG")))
+    }
+
+    @Test
+    fun `legacy records without a sequence still match on identity`() {
+        val prefs = InMemorySharedPreferences()
+        prefs.edit().putString("s0_h9", "DSC_0009.JPG:5000000").apply()
+        val manager = PhotoSyncManager(prefs)
+        assertTrue(
+            manager.isAlreadyImported(photo(handle = 9, name = "DSC_0009.JPG", size = 5_000_000L))
+        )
+        assertEquals(1, manager.trackedCount)
+    }
 }

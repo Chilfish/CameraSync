@@ -12,20 +12,32 @@ import androidx.core.content.edit
  * that now points to a different photo no longer matches and is treated as not-yet-imported — this
  * is what prevents silently skipping a newly-shot photo that happened to receive a recycled handle,
  * without needing to prune old handles on reconnect.
+ *
+ * Each record also carries a monotonic sequence (appended after [SEQUENCE_SEPARATOR]) so the table
+ * can be capped: once it exceeds [maxEntries] the oldest records are evicted, keeping
+ * SharedPreferences (loaded wholesale at process start) bounded over years of use (R30). The
+ * identity comparison only looks at the part before the separator, so the format stays
+ * backward-compatible with records written before sequences existed.
  */
-class PhotoSyncManager(private val prefs: SharedPreferences) {
+class PhotoSyncManager(
+    private val prefs: SharedPreferences,
+    private val maxEntries: Int = MAX_ENTRIES,
+) {
 
     constructor(
         context: Context
     ) : this(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE))
 
     /** Returns true if this photo was imported in a previous session with the same identity. */
-    fun isAlreadyImported(photo: NikonUsbManager.PhotoInfo): Boolean =
-        prefs.getString(key(photo), null) == identity(photo)
+    fun isAlreadyImported(photo: NikonUsbManager.PhotoInfo): Boolean {
+        val stored = prefs.getString(key(photo), null) ?: return false
+        return stored.substringBefore(SEQUENCE_SEPARATOR) == identity(photo)
+    }
 
-    /** Marks a photo as imported so future syncs skip it. */
+    /** Marks a photo as imported so future syncs skip it, evicting the oldest records if needed. */
     fun markAsImported(photo: NikonUsbManager.PhotoInfo) {
-        prefs.edit { putString(key(photo), identity(photo)) }
+        prefs.edit { putString(key(photo), identity(photo) + SEQUENCE_SEPARATOR + nextSequence()) }
+        pruneOldestIfNeeded()
     }
 
     /** Clears all imported records (e.g., when camera storage is reformatted). */
@@ -41,16 +53,47 @@ class PhotoSyncManager(private val prefs: SharedPreferences) {
         }
     }
 
-    /** Returns the total number of tracked photos. */
+    /** Total number of tracked photos (excludes the internal sequence counter). */
     val trackedCount: Int
-        get() = prefs.all.size
+        get() = prefs.all.keys.count { isPhotoKey(it) }
 
     private fun key(photo: NikonUsbManager.PhotoInfo): String =
         "s${photo.storageId}_h${photo.handle}"
 
     private fun identity(photo: NikonUsbManager.PhotoInfo): String = "${photo.name}:${photo.size}"
 
+    private fun isPhotoKey(key: String): Boolean = PHOTO_KEY.matches(key)
+
+    private fun nextSequence(): Long {
+        val next = prefs.getLong(KEY_SEQUENCE, 0L) + 1
+        prefs.edit { putLong(KEY_SEQUENCE, next) }
+        return next
+    }
+
+    /** Evicts oldest-first once the table grows past [maxEntries] (R30). */
+    private fun pruneOldestIfNeeded() {
+        val allKeys = prefs.all.keys
+        // Cheap on-device check (map size); only do the precise work when the cap is exceeded.
+        if (allKeys.size <= maxEntries) return
+        val photoKeys = allKeys.filter { isPhotoKey(it) }
+        if (photoKeys.size <= maxEntries) return
+        val oldestFirst =
+            photoKeys.map { k -> k to sequenceOf(prefs.getString(k, null)) }.sortedBy { it.second }
+        val toRemove = oldestFirst.take(photoKeys.size - maxEntries).map { it.first }
+        prefs.edit { toRemove.forEach { remove(it) } }
+    }
+
+    private fun sequenceOf(stored: String?): Long =
+        stored?.substringAfter(SEQUENCE_SEPARATOR, "")?.toLongOrNull() ?: 0L
+
     companion object {
         private const val PREFS_NAME = "camera_sync_usb_imports"
+        private const val KEY_SEQUENCE = "__sequence"
+        private const val SEQUENCE_SEPARATOR = "|"
+
+        /** Upper bound on tracked records before the oldest are evicted. */
+        private const val MAX_ENTRIES = 10_000
+
+        private val PHOTO_KEY = Regex("^s\\d+_h\\d+$")
     }
 }
