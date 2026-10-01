@@ -9,7 +9,6 @@ import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.mtp.MtpDevice
-import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -97,11 +96,8 @@ class ConnectionManager(
             }
         }
 
-    @Suppress("DEPRECATION")
-    private fun getDevice(i: Intent) =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-            i.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
-        else i.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+    private fun getDevice(i: Intent): UsbDevice? =
+        i.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
 
     fun start() {
         if (started) return
@@ -336,7 +332,10 @@ class ConnectionManager(
                     } else if (!enteredBrowsing) {
                         stateMachine.setState(
                             GalleryState.Loading(
-                                app.getString(R.string.usb_status_scanning, globalScanned)
+                                app.getString(
+                                    R.string.usb_status_scanning_count,
+                                    globalScanned.toString(),
+                                )
                             )
                         )
                     } else if (globalScanned - lastPublished >= SCAN_PUBLISH_EVERY) {

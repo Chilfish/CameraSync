@@ -651,7 +651,7 @@ private fun BrowsingContent(
         state.scanProgress?.let { scanned ->
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(2.dp))
             Text(
-                stringResource(R.string.usb_status_scanning, scanned),
+                stringResource(R.string.usb_status_scanning_count, scanned.toString()),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),

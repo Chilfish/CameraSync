@@ -34,7 +34,7 @@
     <!-- USB Sync Screen -->
     <string name="usb_status_connecting">正在连接…</string>
     <string name="usb_status_permission_denied">USB 权限被拒绝</string>
-    <string name="usb_status_scanning">正在扫描… %1$d 张</string>
+    <string name="usb_status_scanning_count">正在扫描… %1$s 张</string>
     <string name="usb_status_loading_folder">正在读取文件夹…</string>
     <string name="usb_error_connect_failed">无法连接相机，请重试</string>
     <string name="usb_error_connect">连接失败</string>
@@ -56,7 +56,7 @@
     <string name="usb_action_continue_browsing">继续浏览</string>
 
     <!-- Sprint 1: Storage -->
-    <string name="usb_storage_used">已用 %s / %s</string>
+    <string name="usb_storage_used">已用 %1$s / %2$s</string>
 
     <!-- Sprint 1: Filter chips -->
     <string name="usb_filter_all">全部</string>
