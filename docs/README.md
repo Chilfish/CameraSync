@@ -16,7 +16,7 @@
 | 文档 | 说明 |
 |---|---|
 | [当前状态 & TODO](planning/todo.md) | 当前状态、已完成功能、未来规划（cloud 备份 / 视频 / 多相机 USB / NEF Coil fetcher） |
-| [行动计划](planning/action-plan.md) | **活跃行动计划**：P0 止血（去重/管线/路径/剪枝）→ P1 核心路径 → P2 工程债 → P3 收尾（2026-08-09 起，Apple 视角评审后重排） |
+| [行动计划](planning/action-plan.md) | **活跃行动计划**：P3 运营收尾 → P6 发布闭环 → **P7 大照片库正确性与性能**（2026-10-01 第三期评审后新增；P0–P5 已完成并归档） |
 | [Float 对标差距分析](planning/benchmark-float.md) | 对照 Float（`I:\dev\Float`）流程与规范的差距清单：CHANGELOG / requirements / ADR / GitHub 模板 / release 脚本 / skills 等 7 类缺口 + 5 处文档漂移，含落地顺序 |
 | [架构决策记录 (ADR)](planning/architecture.md) | 关键架构决策：MTP 方案、单模块、Metro、去重软校验、BLE 移除、质量门禁等 |
 | [发布后观测计划](planning/release-metrics.md) | 对齐 PRD 成功指标的发布后观测：零新增埋点，从 TransferHistory + 日志聚合（P6-4） |
@@ -35,7 +35,9 @@
 | 文档 | 说明 |
 |---|---|
 | [评审索引](review/README.md) | 设计评审索引（与 postmortem 互补） |
-| [Apple 视角设计评审](review/2026-08-09-design-review.md) | 全项目设计评审：R1 双管线 / R2 去重不一致 / R3 假剪枝 / R4 硬编码路径 / R5 功能膨胀 / R6 测试赤字 |
+| [第一期设计评审](review/2026-08-09-design-review.md) | 全项目设计评审：R1 双管线 / R2 去重不一致 / R3 假剪枝 / R4 硬编码路径 / R5 功能膨胀 / R6 测试赤字（✅ 已闭环） |
+| [第二期设计评审](review/2026-08-15-design-review-2.md) | P2-1 之后复查：R8 生命周期 / R9 文档漂移 / R12 幽灵权限 / R16 测试赤字等（✅ 已闭环） |
+| [第三期设计评审](review/2026-10-01-design-review-3.md) | **大库场景专项**：R20 scope 所有权 / R21 RAW+JPEG 丢片 / R23 同名合并丢片 / R24–R30 大库性能（🔴 行动项见 action-plan P7） |
 
 ## 技术参考（活动）
 
@@ -51,6 +53,7 @@
 
 | 文档 | 说明 |
 |---|---|
+| [行动计划 P0–P5](archive/ACTION_PLAN_P0-P5.md) | 已完成阶段原文归档（止血 / 核心路径 / 工程债 / 生命周期 / 深水，2026-08-09 → 08-15） |
 | [PRD](archive/PRD.md) | v2 产品需求文档（✅ 2026-08-02 完成） |
 | [Sprint 1 Plan](archive/SPRINT_1_PLAN.md) | Sprint 1「Delight & Closure」计划（✅ 完成） |
 | [Bug Fix Plan](archive/BUG_FIX_PLAN.md) | 2026-05 布局/显示/下载 Bug 修复计划（✅ 全部修复） |

@@ -6,6 +6,8 @@
 
 | 日期 | 主题 |
 |---|---|
+| [2026-10-01](2026-10-01.md) | 第三期评审（大库专项，R20–R35）+ 文档维护（归档 P0–P5、修正三处索引）+ 构建验证 |
+| [2026-08-15](2026-08-15.md) | Apple 视角第二期评审（R8–R19）+ P2-2 测试全绿 / P2-3 detekt 归零 / P4 信任与生命周期 / P5 工程债深水 / P6 store listing |
 | [2026-08-09](2026-08-09.md) | 对标 Float 重构 agent 引导与文档体系：CLAUDE.md 真实化、AGENTS.md 弃用、docs 体系搭建（engineering / postmortem / development-log / archive） |
 
 ## 记录约定

@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 - 版本单源迁至 `gradle.properties`（`VERSION_NAME` / `VERSION_CODE`）+ 新增 `scripts/release.sh`（门禁 → commit → tag → push）；新增 `docs/engineering/release-checklist.md`、`adb-commands.md`
 - 文档漂移修复：README「Background Sync」条目删除（自动同步已移除）、code-style「postmortem 003」悬空引用改指本仓「设计/建模」节、删除 BLE 残留 workflow
 
+### 文档与评审（2026-10-01）
+
+- 新增第三期设计评审（大库场景专项，R20–R41）：`docs/review/2026-10-01-design-review-3.md`——含 2 项丢片级缺陷（RAW+JPEG 未成对传输、同名跨存储照片被合并）与 7 项大库性能发现
+- 行动计划重排：新增 **P7 大照片库正确性与性能**；已完成阶段 P0–P5 归档至 `docs/archive/ACTION_PLAN_P0-P5.md`
+- 文档维护：补 `development-log/README.md` 与 `review/README.md` 遗漏索引；`todo.md` 状态真实化（撤回生产就绪）并将已移除的 BLE 条目移出「已完成功能」
+- 构建验证（clean 全量）：`assembleDebug` / `bundleRelease` / 43 单测 / detekt / ktfmt 通过；lint 0 errors
+
+> ⚠️ 已知问题（未修复）：第三期评审 P7-A 的 R21/R23 为丢片级缺陷，发布前必须修复，详见 `docs/planning/action-plan.md`（P7 节）与 `docs/review/2026-10-01-design-review-3.md`。
+
 ### Added — USB 照片同步（核心）
 
 - USB MTP 连接、照片枚举、文件夹导航、3 列网格画廊、渐进式照片加载（先 30 张，后台继续）
