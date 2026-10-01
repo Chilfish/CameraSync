@@ -22,6 +22,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 private const val TAG = "ConnectionManager"
+
+/** Publish incremental scan results to the grid every N enumerated photos (R29). */
+private const val SCAN_PUBLISH_EVERY = 50
 private const val ACTION_USB_PERMISSION = "dev.sebastiano.camerasync.USB_PERMISSION"
 
 /**
@@ -298,6 +301,7 @@ class ConnectionManager(
     ) {
         val accumPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
         var globalScanned = 0
+        var lastPublished = 0
         var enteredBrowsing = false
 
         for (s in storages) {
@@ -319,6 +323,7 @@ class ConnectionManager(
                                 cameraInfo,
                                 storages,
                                 buildEntries(partial, accumPhotos.toList()),
+                                scanProgress = globalScanned,
                             )
                         )
                         // Kick off background thumbnail preloading — orientation extraction
@@ -330,6 +335,20 @@ class ConnectionManager(
                                 app.getString(R.string.usb_status_scanning, globalScanned)
                             )
                         )
+                    } else if (globalScanned - lastPublished >= SCAN_PUBLISH_EVERY) {
+                        // Keep the grid growing while the rest of the card is still being
+                        // enumerated, so the view never looks stuck (R29).
+                        lastPublished = globalScanned
+                        val partial = GalleryViewModel.groupByBaseFilename(accumPhotos.toList())
+                        stateMachine.updateCurrentPhotos(partial)
+                        (stateMachine.state.value as? GalleryState.Browsing)?.let { old ->
+                            stateMachine.setState(
+                                old.copy(
+                                    entries = buildEntries(partial, accumPhotos.toList()),
+                                    scanProgress = globalScanned,
+                                )
+                            )
+                        }
                     }
                 },
             )
@@ -348,7 +367,7 @@ class ConnectionManager(
             // creating a new state object that would trigger a full recomposition.
             stateMachine.setState(
                 (stateMachine.state.value as GalleryState.Browsing).let { old ->
-                    old.copy(entries = entries)
+                    old.copy(entries = entries, scanProgress = null)
                 }
             )
         }

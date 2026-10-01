@@ -28,6 +28,8 @@ sealed interface GalleryState {
         val cameraInfo: NikonUsbManager.CameraInfo?,
         val storages: List<NikonUsbManager.StorageInfo>,
         val entries: List<GalleryEntry>,
+        /** Photos enumerated so far while the card is still being scanned; null once complete. */
+        val scanProgress: Int? = null,
     ) : GalleryState
 
     data object Empty : GalleryState

@@ -646,6 +646,17 @@ private fun BrowsingContent(
             }
         }
 
+        // Ongoing scan indicator — the grid keeps growing while the card is enumerated (R29).
+        state.scanProgress?.let { scanned ->
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(2.dp))
+            Text(
+                stringResource(R.string.usb_status_scanning, scanned),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+        }
+
         PullToRefreshBox(
             isRefreshing = false,
             onRefresh = { host.refresh() },
