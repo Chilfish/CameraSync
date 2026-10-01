@@ -107,8 +107,9 @@
 
 ```
 app/src/main/kotlin/dev/sebastiano/camerasync/
+├── camera/                       # 传输抽象（CameraSource 接口 + 传输无关模型，ADR-011）
 ├── usb/                          # ★ USB 照片同步 (主功能)
-│   ├── NikonUsbManager.kt        # MTP 设备操作（枚举/读取/删除）
+│   ├── UsbCameraSource.kt        # CameraSource 的 USB 实现（枚举/读取/删除）
 │   ├── GalleryViewModel.kt       # 门面（P2-1 拆分后保留公共 API）
 │   ├── GalleryStateMachine.kt    # 状态机 + 筛选/排序/分组/选择纯逻辑
 │   ├── ConnectionManager.kt      # USB 生命周期 + 浏览/枚举

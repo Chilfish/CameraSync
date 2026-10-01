@@ -44,7 +44,7 @@ USB wired photo sync for Nikon series cameras — quickly transfer photos from y
 
 ## Architecture
 
-The app uses Android's built-in `android.mtp.MtpDevice` API — no protocol reverse-engineering is required. The `usb/` package handles MTP connection, photo enumeration, and download.
+The app uses Android's built-in `android.mtp.MtpDevice` API — no protocol reverse-engineering is required. The `usb/` package implements `UsbCameraSource`, and everything above it (browsing, thumbnails, transfer, UI) talks to the camera only through the transport-agnostic `CameraSource` interface in `camera/` ([ADR-011](docs/planning/architecture.md)) — so a future WiFi/PTP-IP transport can be added without touching the UI.
 
 > The original BLE GPS sync subsystem for Ricoh/Sony was **removed in 2026-08-02** (commit `a385378`). USB/MTP photo sync is the only feature path; BLE protocol docs remain in `docs/ricoh/` and `docs/sony/` for historical reference.
 
@@ -98,7 +98,7 @@ compatible JDK (JDK 11+).
 ## Project Structure
 
 - `app/src/main/kotlin/dev/sebastiano/camerasync/usb/` — USB photo sync (Nikon series)
-    - `NikonUsbManager.kt` — MTP device operations and photo enumeration
+    - `UsbCameraSource.kt` — MTP device operations and photo enumeration (`CameraSource` implementation)
     - `GalleryViewModel.kt` — Connection lifecycle and transfer state management
     - `GalleryScreen.kt` + `GalleryBrowsing.kt` / `GalleryTransferUi.kt` / `GalleryLocalTab.kt` / `GalleryPreviews.kt` — Primary UI (grid, folder browsing, selection, transfer, local tab, previews)
     - `ExifValue.kt` — EXIF value model and extraction

@@ -44,7 +44,8 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 
 | 目录 | 职责 |
 |---|---|
-| `usb/` | 主功能：USB/MTP 照片同步管线（Nikon 相机） |
+| `usb/` | 主功能：USB/MTP 照片同步管线（Nikon 相机）+ `UsbCameraSource` 实现 |
+| `camera/` | 传输抽象：`CameraSource` 接口 + 传输无关模型（ADR-011，为无线接入留接缝） |
 | `logging/` | Khronicle 日志仓库（`LogcatLogRepository`）+ 日志查看器（`LogViewer*`） |
 | `settings/` | 设置页（主题、RAW/JPEG 分组、排序、下载格式、网格列数） |
 | `ui/theme/` | Material 3 主题（`Color.kt` / `Type.kt` / `Theme.kt`） |
@@ -53,7 +54,9 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 
 ### USB Photo Sync Pipeline（`usb/`）
 
-- `NikonUsbManager` — `android.mtp.MtpDevice` 封装：USB 权限（PendingIntent + BroadcastReceiver）、存储/文件夹 BFS 遍历、对象读取
+- `UsbCameraSource` — `CameraSource` 的 USB 实现（`android.mtp.MtpDevice`）：会话开/关、相机信息/存储、存储/文件夹 BFS 遍历、缩略图、下载、删除
+- `camera/CameraSource` — 传输抽象接缝（ADR-011）；上层只依赖接口，无线（WiFi/PTP-IP）后续接入
+- `ConnectionManager` — USB 发现/权限（BroadcastReceiver + PendingIntent）+ 浏览编排，持一个 `CameraSource`
 - `GalleryViewModel` — 核心状态机（sealed interface `GalleryState`）：`Disconnected → Connecting → Loading → Browsing / Empty / Error → Transferring → TransferDone`
 - `PhotoSyncManager` — SharedPreferences 去重（`storageId + handle` 键 + `name:size` 身份软校验，跨会话，身份不匹配视为未导入）
 - `LocalPhotosViewModel` — Coil 3 + MediaStore 加载本地照片
@@ -95,6 +98,7 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 - USB/MTP 照片同步是**唯一**功能路径；BLE GPS 子系统已于 2026-08-02 移除（commit `a385378`，Ricoh/Sony 文档归档于 `docs/ricoh/`、`docs/sony/` 供历史查阅）
 - 活跃文档：`docs/README.md`（索引）、`docs/development-log/`（按天开发日志）、`docs/planning/`（规划 + ADR）、`docs/engineering/`（工程规范）、`docs/requirements/`（需求）
 - 测试设备：Nikon Z30（USB）
+- **新里程碑（2026-10-01 起）**：无线传输方向立项（ADR-011）——传输抽象 `CameraSource`（Phase 0）已落地；后续 Phase 1 手动 WiFi（PTP/IP）、Phase 2 自动传（事件驱动）。方案见 [`docs/planning/wireless-transfer.md`](docs/planning/wireless-transfer.md)
 
 ## Git Hooks
 

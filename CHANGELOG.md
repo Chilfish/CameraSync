@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 
 ## [Unreleased]
 
+### 架构 — 传输抽象 `CameraSource`（Phase 0，纯重构）
+
+- 新增 `camera/` 包：`CameraSource` 接口 + 传输无关模型（`CameraInfo` / `StorageInfo` / `PhotoInfo` / `FolderInfo`），来自 [ADR-011](docs/planning/architecture.md)
+- `NikonUsbManager` → `UsbCameraSource`（实现 `CameraSource`）；`ConnectionManager` / `ThumbnailProvider` / `TransferEngine` / `GalleryViewModel` 不再传 `android.mtp.MtpDevice`，只依赖接口
+- 新增测试 fake `FakeCameraSource`（Fakes over Mocks）；USB 全链路行为不变
+- 立项无线方向（WiFi/PTP-IP 事件驱动）：[`docs/planning/wireless-transfer.md`](docs/planning/wireless-transfer.md)
+
 ## [1.0.0] - 2026-10-01
 
 ### 发布闭环与发行渠道（2026-10-01）
