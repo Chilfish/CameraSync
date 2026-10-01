@@ -403,20 +403,13 @@ class ConnectionManager(
     /** Build date-section entries from grouped photos. */
     private fun buildDateSections(groups: List<GalleryEntry.PhotoGroup>): List<GalleryEntry> {
         val entries = mutableListOf<GalleryEntry>()
-        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
         val dateGroups =
             groups.groupBy { group ->
                 val ts = maxOf(group.raw?.dateModified ?: 0L, group.jpg?.dateModified ?: 0L)
-                dateFormat.format(java.util.Date(ts))
+                dateKey(ts)
             }
-        val sortedDates =
-            dateGroups.entries.sortedByDescending { (date, _) ->
-                try {
-                    dateFormat.parse(date)?.time ?: 0L
-                } catch (_: Exception) {
-                    0L
-                }
-            }
+        // ISO "yyyy-MM-dd" keys sort lexicographically === chronologically (newest first).
+        val sortedDates = dateGroups.entries.sortedByDescending { (date, _) -> date }
         for ((date, gs) in sortedDates) {
             entries.add(GalleryEntry.DateSection(date, gs.size))
             entries.addAll(gs)

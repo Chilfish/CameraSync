@@ -562,6 +562,15 @@ private fun BrowsingContent(
     val filteredPhotos = host.getFilteredGroups()
     val isFlatMode = host.groupingMode != UsbSyncPreferences.PhotoGrouping.BY_FOLDER
 
+    // Pre-bucket by date once instead of re-filtering the whole list per section with a fresh
+    // SimpleDateFormat per photo (R25).
+    val photosByDate =
+        remember(filteredPhotos) {
+            filteredPhotos.groupBy { group ->
+                dateKey(maxOf(group.raw?.dateModified ?: 0L, group.jpg?.dateModified ?: 0L))
+            }
+        }
+
     var detailGroup by remember { mutableStateOf<GalleryEntry.PhotoGroup?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -639,22 +648,7 @@ private fun BrowsingContent(
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                         }
-                        // Find photos for this date section
-                        val datePhotos =
-                            filteredPhotos.filter { group ->
-                                val ts =
-                                    maxOf(
-                                        group.raw?.dateModified ?: 0L,
-                                        group.jpg?.dateModified ?: 0L,
-                                    )
-                                val dateFmt =
-                                    java.text.SimpleDateFormat(
-                                        "yyyy-MM-dd",
-                                        java.util.Locale.getDefault(),
-                                    )
-                                dateFmt.format(java.util.Date(ts)) == section.date
-                            }
-                        items(datePhotos, key = { it.key }) { group ->
+                        items(photosByDate[section.date].orEmpty(), key = { it.key }) { group ->
                             PhotoCell(
                                 group = group,
                                 isSelected = { host.isGroupSelected(group) },
