@@ -21,7 +21,7 @@
 **已完成：P0–P5 工程阶段 → P7 大照片库正确性与性能（P7-A 正确性 / P7-B 性能 / P7-C 打磨）✅ 2026-10-01；真机回归（Nikon Z30，含双卡 / 大库）✅ 2026-10-01（用户确认）。**
 **待办：仅剩发行收尾——签名 keystore + Secrets ✅（2026-10-01），推 tag 首发 `v1.0.0` 即可触发 `release.yml` 自动建 GitHub Release。Play 上架不做。**
 
-> **P7 进度（2026-10-01）**：R20–R35、R36、R40 全部落地（R21/R23 两项丢片级缺陷闭环，发布阻断解除）；`testDebugUnitTest` **54 全绿**、detekt 0、lint **0 errors / 74 warnings**。**真机（Nikon Z30，含双卡 / 大库）回归已通过——可发行。**
+> **P7 进度（2026-10-01）**：R20–R35、R36、R40 全部落地（R21/R23 两项丢片级缺陷闭环，发布阻断解除）；`testDebugUnitTest` **61 全绿**、detekt 0、lint **0 errors / 26 warnings**。**真机（Nikon Z30，含双卡 / 大库）回归已通过——可发行。**
 
 ---
 

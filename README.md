@@ -9,6 +9,7 @@ USB wired photo sync for Nikon series cameras — quickly transfer photos from y
 - **USB Wired Photo Sync**: Connect your Nikon camera via USB-C cable, browse photos, and download them directly to your phone.
 - **Gallery Browsing**: 3-column grid with folder navigation on the camera's SD card and live preview thumbnails.
 - **RAW+JPEG Grouping**: NEF and JPEG pairs are shown as a single grouped item so you can transfer both at once.
+- **RAW Preview**: Nikon NEF files render from their embedded JPEG preview instead of a placeholder.
 - **Selective Transfer**: Long-press to pick specific photos, or transfer an entire batch in one tap.
 - **Auto-Detect**: The camera is detected automatically as soon as the USB cable is plugged in — no manual pairing flow.
 - **Deduplication**: Photos already imported during a previous sync are automatically skipped (cross-session, `name:size` identity soft-check).
@@ -47,11 +48,17 @@ The app uses Android's built-in `android.mtp.MtpDevice` API — no protocol reve
 
 > The original BLE GPS sync subsystem for Ricoh/Sony was **removed in 2026-08-02** (commit `a385378`). USB/MTP photo sync is the only feature path; BLE protocol docs remain in `docs/ricoh/` and `docs/sony/` for historical reference.
 
+## Download
+
+Distribution is **GitHub Releases only** (not published on Google Play). Grab the latest signed APK
+from the [Releases page](https://github.com/Chilfish/CameraSync/releases) and install it (you may need
+to allow installing from unknown sources).
+
 ## Setup & Installation
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/CameraSync.git
+   git clone https://github.com/Chilfish/CameraSync.git
    cd CameraSync
    ```
 
@@ -93,9 +100,11 @@ compatible JDK (JDK 11+).
 - `app/src/main/kotlin/dev/sebastiano/camerasync/usb/` — USB photo sync (Nikon series)
     - `NikonUsbManager.kt` — MTP device operations and photo enumeration
     - `GalleryViewModel.kt` — Connection lifecycle and transfer state management
-    - `GalleryScreen.kt` — Primary UI (3-column grid, folder browsing, selection)
+    - `GalleryScreen.kt` + `GalleryBrowsing.kt` / `GalleryTransferUi.kt` / `GalleryLocalTab.kt` / `GalleryPreviews.kt` — Primary UI (grid, folder browsing, selection, transfer, local tab, previews)
+    - `ExifValue.kt` — EXIF value model and extraction
     - `PhotoSyncManager.kt` — Import deduplication
     - `LocalPhotosViewModel.kt` — Local photo browsing via Coil 3 + MediaStore
+    - `NefPreview.kt` / `NefFetcher.kt` — Extract and render NEF embedded JPEG previews
     - `UsbSyncPreferences.kt` — User preferences
 - `app/src/main/kotlin/dev/sebastiano/camerasync/logging/` — Khronicle log repository + log viewer
 - `app/src/main/kotlin/dev/sebastiano/camerasync/settings/` — Settings screen

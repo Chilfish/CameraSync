@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 
 ## [Unreleased]
 
+### 发布闭环与发行渠道（2026-10-01）
+
+- **发行渠道确定为仅 GitHub Release**（不上架 Google Play）：`action-plan` P6-3 标记不做，`docs/legal/store-listing.md` 归档至 `docs/archive/`
+- **`release.yml` 改为推 tag `v*` 触发**：原先监听 `release: published`，而 `scripts/release.sh` 只推 tag、不建 Release，发布工作流永不触发；改为推 tag 即解码 keystore → 构建签名 APK → **自动创建 GitHub Release**（`generate_release_notes`），并去掉多余的 `RELEASE_TOKEN` PAT（改用默认 `GITHUB_TOKEN`）
+- `release-checklist.md` 新增「首次发版准备（keystore + Secrets）」；签名 keystore 与 4 个 Secrets 已配置；真机回归（Nikon Z30，含双卡 / 大库）通过
+
+### 新增 — NEF 内嵌 JPEG 预览（2026-10-01）
+
+- 本地相册的 RAW 不再显示灰色占位：新增 Coil `Fetcher`，从 NEF 提取内嵌的最大 JPEG 预览渲染（`NefPreview` / `NefFetcher`），带 8 条 LRU 缓存；仅接管 `.nef` / `.nrw`，找不到预览时回落原有占位
+
+### 工程（2026-10-01）
+
+- **拆分 `GalleryScreen.kt`**（2518 行 → 6 个文件，最大 736 行），纯移动：`GalleryBrowsing` / `GalleryTransferUi` / `GalleryLocalTab` / `ExifValue` / `GalleryPreviews`
+- **lint 74 → 26 warnings**：删除 4 个未用 drawable、偏好设置改 KTX `edit {}`、`Uri.parse` → `String.toUri()`、按文件抑制 `gms_fonts_certs.xml` 的 Typos 误报
+- 单测 54 → **61 全绿**（新增 NEF 预览提取 7 条）
+
 ### 文档与流程（对标 Float，2026-08-15）
 
 - 完全对标 Float（`I:\dev\Float`）的流程与规范，差距清单见 `docs/planning/benchmark-float.md`

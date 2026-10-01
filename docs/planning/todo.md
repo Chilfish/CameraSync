@@ -9,8 +9,8 @@
 **第三期评审（2026-10-01）发现的丢片级缺陷已由 P7 全部修复；真机回归（Nikon Z30，含双卡 / 大库）于 2026-10-01 通过（用户确认）；签名 keystore + Secrets 已就绪。发行渠道为仅 GitHub Release（不上架 Google Play）。事实状态：
 
 - ✅ 功能层面：P0 正确性止血（去重/路径/管线/剪枝）、P1 核心路径（引导/新照片主路径/传输回看）、P2-1 God Object 拆分、P2-2 核心单测、P2-3 detekt 归零全部落地
-- ✅ `testDebugUnitTest` **54 tests 全绿**（P2-2 的 43 条 + 本期 11 条：P7-A 5 + 日期键 3 + 去重表 2 + 取消语义 1，2026-10-01）
-- ✅ 构建/静态：`assembleDebug` 通过；detekt **0**；lint **0 errors / 74 warnings**（R35 清理 96→78，R40/R36 后 74）
+- ✅ `testDebugUnitTest` **61 tests 全绿**（P2-2 的 43 条 + P7 的 11 条 + NEF 预览提取 7 条，2026-10-01）
+- ✅ 构建/静态：`assembleDebug` 通过；detekt **0**；lint **0 errors / 26 warnings**（R35 96→78，R40/R36 78→74，本轮清理 74→26，余下均为依赖可升级提示）
 - ✅ detekt baseline **0 条**（P2-3，2026-08-15）
 - ✅ R8 旋转双开 MTP、R12 幽灵权限、R11 主题闭环、R13 电量删除（P4-1/2/3/4，2026-08-15）
 - ✅ **P5 工程债深水全部落地**（R10 字符串资源化 / R14 核心路径接 DI / R15 核心屏 Preview / R17 缓存降内存，2026-08-15）
@@ -52,6 +52,7 @@
 - [x] 面包屑导航
 - [x] 本地 EXIF 详情面板
 - [x] 下拉刷新
+- [x] NEF 内嵌 JPEG 预览 (Coil Fetcher，替代 RAW 灰色占位)
 
 #### 已移除子系统（历史，勿列为"已完成功能"）
 - ~~BLE GPS 同步（Ricoh GR / Sony Alpha 系列）~~ —— **已于 2026-08-02 移除**（commit `a385378`）；协议文档归档 `docs/ricoh/`、`docs/sony/`，仅供历史查阅。USB/MTP 是唯一功能路径。
@@ -74,7 +75,6 @@
 | 云备份集成 (Google Photos, Dropbox) | 需要云服务对接 |
 | 视频文件支持 | 大文件 + 不同 MTP 处理 |
 | 多相机并发 USB | Android 仅支持一个 USB 主机设备 |
-| NEF Coil 自定义 Fetcher (提取内嵌 JPEG 预览) | MVP 阶段降级为灰色占位符 |
 
 ---
 
@@ -114,7 +114,14 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 │   ├── ConnectionManager.kt      # USB 生命周期 + 浏览/枚举
 │   ├── ThumbnailProvider.kt      # 四类缓存 + EXIF 方向
 │   ├── TransferEngine.kt         # 传输编排 + MediaStore 保存
-│   ├── GalleryScreen.kt          # 主 UI (网格/文件夹/选择/进度；2248 行，待拆)
+│   ├── GalleryScreen.kt          # 主 UI 根屏 + 状态宿主 + 顶部栏 (拆分后)
+│   ├── GalleryBrowsing.kt        # 浏览网格 / 单元格 / 缩略图 / 旋转换算
+│   ├── GalleryTransferUi.kt      # 传输中 / 完成面板 / 预览 Sheet
+│   ├── GalleryLocalTab.kt        # 本地相册标签页 + 本地详情
+│   ├── ExifValue.kt              # EXIF 取值模型与提取
+│   ├── GalleryPreviews.kt        # @Preview 集合
+│   ├── NefPreview.kt             # NEF 内嵌 JPEG 预览提取
+│   ├── NefFetcher.kt             # Coil Fetcher：NEF → 内嵌 JPEG
 │   ├── PhotoSyncManager.kt       # 导入去重
 │   ├── PhotoDetailSheet.kt       # EXIF 详情面板
 │   ├── TransferHistoryScreen.kt  # 传输历史
