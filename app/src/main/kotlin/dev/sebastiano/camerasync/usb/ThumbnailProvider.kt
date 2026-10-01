@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -74,6 +75,9 @@ class ThumbnailProvider(
     /** Limits concurrent MTP calls (getThumbnail, importFile) to avoid USB bandwidth contention. */
     private val mtpSemaphore = Semaphore(3)
 
+    /** In-flight background preload; cancelled when the visible window shifts (R28). */
+    private var preloadJob: Job? = null
+
     /**
      * LRU cache of decoded [android.graphics.Bitmap] instances keyed by MTP handle. Prevents
      * re-decoding + re-rotation when LazyGrid recycles [PhotoCell] composables. Cleared on
@@ -113,21 +117,31 @@ class ThumbnailProvider(
      * [getThumbnail] call.
      */
     fun preloadThumbnails(count: Int = 30) {
-        val handles = currentPhotos().take(count).mapNotNull { it.previewHandle }
-        scope().launch {
-            try {
-                coroutineScope {
-                    handles.map { h ->
-                        async {
-                            if (!currentCoroutineContext().isActive) return@async
-                            mtpSemaphore.withPermit { getThumbnail(h) }
+        preloadHandles(currentPhotos().take(count).mapNotNull { it.previewHandle })
+    }
+
+    /**
+     * Preloads [handles] (e.g. the currently visible grid window plus a margin). Cancels any
+     * previous preload first so rapid scrolling cannot pile up stale USB requests (R28).
+     */
+    fun preloadHandles(handles: List<Int>) {
+        if (handles.isEmpty()) return
+        preloadJob?.cancel()
+        preloadJob =
+            scope().launch {
+                try {
+                    coroutineScope {
+                        handles.map { h ->
+                            async {
+                                if (!currentCoroutineContext().isActive) return@async
+                                mtpSemaphore.withPermit { getThumbnail(h) }
+                            }
                         }
                     }
+                } catch (_: Exception) {
+                    /* best-effort */
                 }
-            } catch (_: Exception) {
-                /* best-effort */
             }
-        }
     }
 
     fun getThumbnail(handle: Int): ByteArray? {

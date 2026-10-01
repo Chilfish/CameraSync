@@ -254,6 +254,8 @@ class GalleryViewModel(
 
     override fun getThumbnail(handle: Int): ByteArray? = thumbnails.getThumbnail(handle)
 
+    override fun preloadThumbnails(handles: List<Int>) = thumbnails.preloadHandles(handles)
+
     /**
      * Downloads the full photo file (NEF/JPEG/etc) to a temp file for EXIF extraction. See
      * [ThumbnailProvider.downloadFullPhoto].

@@ -124,9 +124,13 @@ fun PhotoDetailSheet(
             else cachedOri
         fullImage =
             decoded
-                ?.let {
+                ?.let { source ->
                     withContext(Dispatchers.IO) {
-                        rotateByDegrees(it, orientationToDegrees(effectiveOrientation))
+                        val rotated =
+                            rotateByDegrees(source, orientationToDegrees(effectiveOrientation))
+                        if (rotated !== source)
+                            source.recycle() // rotation allocated a new bitmap (R28)
+                        rotated
                     }
                 }
                 ?.asImageBitmap()

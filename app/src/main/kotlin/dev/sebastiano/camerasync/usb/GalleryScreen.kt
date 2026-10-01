@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,6 +74,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,6 +104,8 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -529,6 +533,9 @@ internal interface GalleryScreenHost {
 
     fun getThumbnail(handle: Int): ByteArray?
 
+    /** Preloads thumbnails for the given handles (visible grid window; R28). */
+    fun preloadThumbnails(handles: List<Int>)
+
     suspend fun downloadFullPhoto(handle: Int): File?
 }
 
@@ -571,6 +578,51 @@ private fun BrowsingContent(
             }
         }
 
+    val gridState = rememberLazyStaggeredGridState()
+
+    // Preload thumbnails for the visible window (plus a margin) as the user scrolls, instead of
+    // only the first N photos once at load time (R28).
+    val indexToHandle =
+        remember(
+            isRoot,
+            state.cameraInfo,
+            folders,
+            dateSections,
+            photosByDate,
+            filteredPhotos,
+            isFlatMode,
+        ) {
+            buildIndexToHandle(
+                isRoot = isRoot,
+                hasCameraInfo = state.cameraInfo != null,
+                folders = folders,
+                dateSections = dateSections,
+                photosByDate = photosByDate,
+                filteredPhotos = filteredPhotos,
+                isFlatMode = isFlatMode,
+            )
+        }
+
+    LaunchedEffect(gridState, indexToHandle) {
+        snapshotFlow {
+                val visible = gridState.layoutInfo.visibleItemsInfo
+                if (visible.isEmpty()) {
+                    null
+                } else {
+                    val first = (visible.first().index - PRELOAD_MARGIN).coerceAtLeast(0)
+                    val last =
+                        (visible.last().index + PRELOAD_MARGIN).coerceAtMost(
+                            indexToHandle.lastIndex
+                        )
+                    if (first > last) null
+                    else (first..last).mapNotNull { indexToHandle.getOrNull(it) }
+                }
+            }
+            .filterNotNull()
+            .distinctUntilChanged()
+            .collect { host.preloadThumbnails(it) }
+    }
+
     var detailGroup by remember { mutableStateOf<GalleryEntry.PhotoGroup?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -600,6 +652,7 @@ private fun BrowsingContent(
             modifier = Modifier.weight(1f),
         ) {
             LazyVerticalStaggeredGrid(
+                state = gridState,
                 columns = StaggeredGridCells.Fixed(host.gridColumns),
                 contentPadding = PaddingValues(bottom = 80.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -725,6 +778,41 @@ private fun BrowsingContent(
             onDismiss = { detailGroup = null },
         )
     }
+}
+
+/** Extra grid items preloaded on each side of the visible window (R28). */
+private const val PRELOAD_MARGIN = 12
+
+/**
+ * Flattens the browsing grid's item order into index → preview handle (null for headers, folders
+ * and the device card), so the visible window's indices map back to handles without duplicating the
+ * item-building logic. Must mirror the item order in [BrowsingContent] (R28).
+ */
+private fun buildIndexToHandle(
+    isRoot: Boolean,
+    hasCameraInfo: Boolean,
+    folders: List<GalleryEntry.Folder>,
+    dateSections: List<GalleryEntry.DateSection>,
+    photosByDate: Map<String, List<GalleryEntry.PhotoGroup>>,
+    filteredPhotos: List<GalleryEntry.PhotoGroup>,
+    isFlatMode: Boolean,
+): List<Int?> {
+    val handles = mutableListOf<Int?>()
+    if (isRoot && hasCameraInfo) handles.add(null)
+    if (folders.isNotEmpty() && !isFlatMode) {
+        handles.add(null)
+        folders.forEach { handles.add(null) }
+    }
+    if (dateSections.isNotEmpty()) {
+        for (section in dateSections) {
+            handles.add(null)
+            photosByDate[section.date].orEmpty().forEach { handles.add(it.previewHandle) }
+        }
+    } else {
+        if (filteredPhotos.isNotEmpty()) handles.add(null)
+        filteredPhotos.forEach { handles.add(it.previewHandle) }
+    }
+    return handles
 }
 
 // ── Device Info Card ───────────────────────────────────────────────────────
@@ -896,7 +984,9 @@ private fun ThumbnailImage(
 
         val rotated =
             withContext(Dispatchers.IO) {
-                if (needsRotation) rotateByExif(raw, bytes, fallback) else raw
+                val out = if (needsRotation) rotateByExif(raw, bytes, fallback) else raw
+                if (out !== raw) raw.recycle() // rotation allocated a new bitmap (R28)
+                out
             }
         // Store decoded bitmap for recycling cells.
         bitmapCache[handle] = rotated
@@ -2280,6 +2370,8 @@ private class PreviewGalleryHost(private val photos: List<GalleryEntry.PhotoGrou
     override fun getOrientation(handle: Int): Int? = null
 
     override fun getThumbnail(handle: Int): ByteArray? = null
+
+    override fun preloadThumbnails(handles: List<Int>) {}
 
     override suspend fun downloadFullPhoto(handle: Int): File? = null
 }
