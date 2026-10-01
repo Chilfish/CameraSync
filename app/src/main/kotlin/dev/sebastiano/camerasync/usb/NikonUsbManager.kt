@@ -52,6 +52,10 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         /** Full image pixel dimensions from MtpObjectInfo — may be 0 if unavailable. */
         val imagePixWidth: Int = 0,
         val imagePixHeight: Int = 0,
+        /**
+         * MTP handle of the folder directly containing this photo — part of the group key (R23).
+         */
+        val parentHandle: Int = 0,
     )
 
     private var mtpDevice: MtpDevice? = null
@@ -211,6 +215,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                             thumbPixHeight = info.thumbPixHeight,
                             imagePixWidth = info.imagePixWidth,
                             imagePixHeight = info.imagePixHeight,
+                            parentHandle = parent,
                         )
                     )
                     onProgress?.invoke(fileCount, totalEstimate)
@@ -298,6 +303,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                     thumbPixHeight = info.thumbPixHeight,
                     imagePixWidth = info.imagePixWidth,
                     imagePixHeight = info.imagePixHeight,
+                    parentHandle = parentHandle,
                 )
             }
             .sortedByDescending { it.dateModified }

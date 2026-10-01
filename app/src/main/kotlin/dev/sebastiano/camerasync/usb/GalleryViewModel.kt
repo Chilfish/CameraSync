@@ -70,6 +70,11 @@ sealed interface GalleryEntry {
         val baseName: String,
         val raw: NikonUsbManager.PhotoInfo?,
         val jpg: NikonUsbManager.PhotoInfo?,
+        /**
+         * Stable unique key across storages and folders — use for Lazy `items()` keys. Two photos
+         * sharing a base name but living on different storage/folders are distinct groups (R23).
+         */
+        val key: String = baseName,
     ) : GalleryEntry {
         /**
          * Handle to use for thumbnail preview — JPEG if available, else RAW. null if group is
@@ -340,12 +345,15 @@ class GalleryViewModel(
         ): List<GalleryEntry.PhotoGroup> {
             val map = linkedMapOf<String, MutableList<NikonUsbManager.PhotoInfo>>()
             for (p in photos) {
-                val base = p.name.substringBeforeLast(".")
-                map.getOrPut(base) { mutableListOf() }.add(p)
+                // Key includes storage + folder so same-named photos on a second card / in another
+                // folder stay distinct instead of merging (and losing) one of them (R23).
+                val groupKey = "${p.name.substringBeforeLast(".")}|${p.storageId}|${p.parentHandle}"
+                map.getOrPut(groupKey) { mutableListOf() }.add(p)
             }
-            return map.map { (base, list) ->
+            return map.map { (groupKey, list) ->
                     GalleryEntry.PhotoGroup(
-                        baseName = base,
+                        baseName = list.first().name.substringBeforeLast("."),
+                        key = groupKey,
                         raw =
                             list.find {
                                 it.formatName == "NEF(RAW)" || it.name.endsWith(".NEF", true)

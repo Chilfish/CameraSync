@@ -644,7 +644,7 @@ private fun BrowsingContent(
                                     )
                                 dateFmt.format(java.util.Date(ts)) == section.date
                             }
-                        items(datePhotos, key = { it.baseName }) { group ->
+                        items(datePhotos, key = { it.key }) { group ->
                             PhotoCell(
                                 group = group,
                                 isSelected = host.isGroupSelected(group),
@@ -681,7 +681,7 @@ private fun BrowsingContent(
                         }
                     }
 
-                    items(filteredPhotos, key = { it.baseName }) { group ->
+                    items(filteredPhotos, key = { it.key }) { group ->
                         PhotoCell(
                             group = group,
                             isSelected = host.isGroupSelected(group),

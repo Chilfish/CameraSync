@@ -26,6 +26,7 @@ class GalleryStateMachineTest {
         size: Long = 1_000L * handle,
         isRaw: Boolean = false,
         storageId: Int = 0,
+        parentHandle: Int = 0,
     ) =
         NikonUsbManager.PhotoInfo(
             handle = handle,
@@ -34,6 +35,7 @@ class GalleryStateMachineTest {
             size = size,
             dateModified = dateModified,
             formatName = if (isRaw) "NEF(RAW)" else "JPEG",
+            parentHandle = parentHandle,
         )
 
     private fun group(
@@ -182,5 +184,49 @@ class GalleryStateMachineTest {
         m.updateCurrentPhotos(listOf(group("BOTH", raw = photo(1, isRaw = true), jpg = photo(2))))
         m.selectAll(UsbSyncPreferences.DownloadFormat.JPEG_ONLY)
         assertEquals(listOf(2), m.selected.toList())
+    }
+
+    // ── Grouping (R23) ───────────────────────────────────────────────────────
+
+    @Test
+    fun `same base name on different storages stays in separate groups`() {
+        val groups =
+            GalleryViewModel.groupByBaseFilename(
+                listOf(
+                    photo(1, name = "DSC_0001.JPG", storageId = 1),
+                    photo(2, name = "DSC_0001.JPG", storageId = 2),
+                )
+            )
+        assertEquals(2, groups.size)
+        assertEquals(setOf(1, 2), groups.map { it.jpg?.storageId }.toSet())
+        assertEquals(2, groups.map { it.key }.toSet().size)
+    }
+
+    @Test
+    fun `same base name in different folders stays in separate groups`() {
+        val groups =
+            GalleryViewModel.groupByBaseFilename(
+                listOf(
+                    photo(1, name = "DSC_0001.JPG", storageId = 1, parentHandle = 10),
+                    photo(2, name = "DSC_0001.JPG", storageId = 1, parentHandle = 20),
+                )
+            )
+        assertEquals(2, groups.size)
+        assertEquals(setOf(10, 20), groups.map { it.jpg?.parentHandle }.toSet())
+    }
+
+    @Test
+    fun `RAW and JPEG of the same base name coalesce into one group`() {
+        val groups =
+            GalleryViewModel.groupByBaseFilename(
+                listOf(
+                    photo(1, name = "DSC_0001.NEF", isRaw = true),
+                    photo(2, name = "DSC_0001.JPG"),
+                )
+            )
+        assertEquals(1, groups.size)
+        assertEquals("DSC_0001", groups.single().baseName)
+        assertEquals(1, groups.single().raw?.handle)
+        assertEquals(2, groups.single().jpg?.handle)
     }
 }
