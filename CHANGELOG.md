@@ -33,7 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 - 修复协程作用域所有权：协作对象改为读取 `() -> CoroutineScope`，旋转/停止后重启不再在已取消 scope 上静默失败（R20）
 - 单元测试 43 → **48 全绿**（新增成对传输、跨存储/文件夹分组、scope 契约回归测试）
 
-> P7-A（发布阻断）已闭环；**P7-B 大库性能（R24–R30）与 P7-C 打磨（R31–R35）仍待办**，详见 `docs/planning/action-plan.md`。真机回归（Nikon Z30，含双卡/大库）待做。
+> P7 全部闭环（P7-A 正确性 / P7-B 性能 / P7-C 打磨）；真机回归（Nikon Z30，含双卡/大库）待做。
+
+### 性能与修复（2026-10-01，第三期评审 P7-B / P7-C）
+
+- 大库性能：勾选不再重组整屏，派生计数/导入标记按相机列表记忆化（R24）；BY_DATE 单次分桶 + 线程安全日期格式（R25）；选择集改 `SnapshotStateMap`、全选 O(n)（R26）；去掉枚举前的重复 BFS（R27）；缩略图按可视窗口预载并可取消、旋转后回收源位图（R28）；扫描中每 50 张增量刷新并显示「正在扫描… N 张」（R29）；去重表超 1 万条淘汰最旧（R30）
+- 交互与健壮性：下拉刷新绑定真实状态（R31）；不吞 `CancellationException` 且失败/取消后删除临时文件（R32）；详情页 EXIF 取自 MTP 缩略图、全量下载改为显式「查看原图」（R33）；删死代码 `filterCacheGeneration`、`openMtpDevice` 失败时关闭 USB 连接（R34）；清理 BLE 残留资源、冗余 `-v26` 目录与恒真 SDK 判断（R35）
+- 工程：`gridColumns` 改 `mutableIntStateOf`（R40）；`Recycle` 误报以 `app/lint.xml` 文档化抑制（R36）
+- 单元测试 48 → **54 全绿**；lint 96 → **74 warnings / 0 errors**
 
 ### Added — USB 照片同步（核心）
 

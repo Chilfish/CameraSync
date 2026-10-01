@@ -4,18 +4,18 @@
 
 ---
 
-## 当前状态: 🔴 发布前（P7-B 大库性能修复中；P7-A 正确性已闭环）
+## 当前状态: 🔴 发布前（P7 全部落地，待真机回归）
 
-**撤回"生产就绪 / 0 个已知问题"表述（2026-08-15 第二期评审 R19）；第三期评审（2026-10-01）发现丢片级缺陷后降级为「发布前」——P7-A 已修复这两项缺陷（2026-10-01），发布阻断解除，但 P7-B/C 性能打磨与真机回归未完成。** 事实状态：
+**撤回"生产就绪 / 0 个已知问题"表述（2026-08-15 第二期评审 R19）；第三期评审（2026-10-01）发现丢片级缺陷后降级为「发布前」——P7 已全部修复（2026-10-01），发布阻断解除；**剩余仅真机回归（Nikon Z30，含双卡 / 大库）与 P3/P6 的设备/网络门控项**。事实状态：
 
 - ✅ 功能层面：P0 正确性止血（去重/路径/管线/剪枝）、P1 核心路径（引导/新照片主路径/传输回看）、P2-1 God Object 拆分、P2-2 核心单测、P2-3 detekt 归零全部落地
-- ✅ `testDebugUnitTest` **48 tests 全绿**（P2-2 的 43 条 + 本期 P7-A 新增 5 条，2026-10-01）
+- ✅ `testDebugUnitTest` **54 tests 全绿**（P2-2 的 43 条 + 本期 11 条：P7-A 5 + 日期键 3 + 去重表 2 + 取消语义 1，2026-10-01）
+- ✅ 构建/静态：`assembleDebug` 通过；detekt **0**；lint **0 errors / 74 warnings**（R35 清理 96→78，R40/R36 后 74）
 - ✅ detekt baseline **0 条**（P2-3，2026-08-15）
 - ✅ R8 旋转双开 MTP、R12 幽灵权限、R11 主题闭环、R13 电量删除（P4-1/2/3/4，2026-08-15）
 - ✅ **P5 工程债深水全部落地**（R10 字符串资源化 / R14 核心路径接 DI / R15 核心屏 Preview / R17 缓存降内存，2026-08-15）
-- ✅ 构建层面：`assembleDebug` / `bundleRelease`（R8）本地 clean 全量通过（2026-10-01）；lint **0 errors / 96 warnings**
-- ✅ **第三期评审 P7-A 已闭环**（2026-10-01）：**R21 RAW+JPEG 丢片 / R23 同名跨存储合并丢片**（发布阻断）已修复；R20 旋转后连接静默失效、R22 预览统计失真同步修复（见 [第三期评审](../review/2026-10-01-design-review-3.md)）
-- 🟠 **第三期评审待修**：R24–R30 大库性能（P7-B）、R31–R35 打磨（P7-C），行动项见 [action-plan](action-plan.md) **P7**。**仍需真机（Nikon Z30，含双卡/大库）回归**
+- ✅ **第三期评审 P7 全部闭环**（2026-10-01）：P7-A 正确性（R20–R23，含两项丢片级缺陷）、P7-B 大库性能（R24–R30）、P7-C 打磨（R31–R35 + R36/R40）全部落地（见 [第三期评审](../review/2026-10-01-design-review-3.md) 与 [action-plan](action-plan.md) **P7**）
+- ⏳ **待真机回归**：Nikon Z30（含双卡 / 大库场景）确认同步正确性与大库流畅度；R24/R28/R29 的性能改善需真机体感佐证
 - 完整已知问题清单见下方「已知问题」表 + 三期评审文档
 
 ### 已完成功能总览
@@ -155,27 +155,33 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 | **P0** | **同名照片跨存储/文件夹被合并丢一张（R23）** | ✅ 已修复（`366d36f`，P7-2，分组键 + 稳定 key + 单测） |
 | P1 | 旋转/`stop()` 后协作对象持死 scope，USB 连接静默失效（R20） | ✅ 已修复（`9cbf63d`，P7-4，scope 访问器 + 单测） |
 | P1 | 传输预览组数被 `take(6)` 截断、"+N more" 恒 0（R22） | ✅ 已修复（`e1dc004`，P7-3） |
-| P1 | 勾选触发整屏全量重算 / BY_DATE O(分区×照片) / 选择集线性（R24/R25/R26） | 🟠 待修（action-plan **P7-5/6/7**） |
-| P2 | 枚举两遍 / 缩略图堆积 / 扫描无反馈 / 去重表无上限（R27–R30） | 🟠 待修（action-plan **P7-8/9/10/11**） |
-| P3 | 刷新指示失败 / 取消语义 / 详情下全图 / 死代码 / BLE 残留资源（R31–R35） | 🟡 待修（action-plan **P7-12**） |
+| P1 | 勾选触发整屏全量重算 / BY_DATE O(分区×照片) / 选择集线性（R24/R25/R26） | ✅ 已修复（`b529f2e` `ea852b5` `e7f3395`，P7-5/6/7） |
+| P2 | 枚举两遍 / 缩略图堆积 / 扫描无反馈 / 去重表无上限（R27–R30） | ✅ 已修复（`f0847e3` `c1796dc` `cbff80b` `a616506`，P7-8/9/10/11） |
+| P3 | 刷新指示失败 / 取消语义 / 详情下全图 / 死代码 / BLE 残留资源（R31–R35） | ✅ 已修复（`90a716a` `2dde500` `878a705` `90de7ee` `82e75f7`，P7-12） |
+| P3 | lint 提示：AutoboxingState / Recycle 误报（R40/R36） | ✅ 已处理（`a8c48f1`：`mutableIntStateOf` + `lint.xml` 文档化抑制） |
 
-> 应用功能层面历史 bug 截至 2026-08-02 均已修复；P0/P1/P4/P5 全部闭环（见[归档](../archive/ACTION_PLAN_P0-P5.md)）。但 **2026-10-01 第三期评审（[review](../review/2026-10-01-design-review-3.md)）发现两项丢片级缺陷（R21/R23）尚未修复**——「无已知问题」不成立，「生产就绪」撤回。P7 完成后需真机回归（Nikon Z30，含双卡/大库场景）方可再评估发布。
+> 应用功能层面历史 bug 截至 2026-08-02 均已修复；P0–P5（见[归档](../archive/ACTION_PLAN_P0-P5.md)）与 **P7（R20–R35 + R36/R40）**全部闭环。**发布前仍需真机回归（Nikon Z30，含双卡 / 大库场景）**——「生产就绪」保持撤回直至回归通过。
 
 ---
 
 ## 最近提交 (2026-10-01)
 
-> `master` 领先 `origin/master` **46+ 个 commit**（P2/P4/P5/P6 + 本期第三期评审文档与 P7-A 修复，均未推送；P3-2 待网络环境）。
+> `master` 领先 `origin/master` **61 个 commit**（P2/P4/P5/P6 + 本期第三期评审文档与 P7 全部修复，均未推送；P3-2 待网络环境）。
 
 ```
-9cbf63d fix(usb): keep collaborators on the live scope across stop/start (R20)
-e1dc004 fix(ui): count full selection in transfer preview summary (R22)
-366d36f fix(usb): key photo groups by storage and folder (R23)
-4585770 fix(usb): transfer both files of a RAW+JPEG pair (R21)
-7610ce0 chore: ignore local Command Code agent state
-cd9de3d docs: sync indexes, changelog and state for third review
-e495b96 docs(planning): archive P0-P5 and add P7 large-library plan
-f760545 docs(review): add third large-library design review (R20-R41)
+a8c48f1 chore: use mutableIntStateOf and suppress Recycle false positive (R40/R36)
+82e75f7 chore(res): remove BLE leftovers and simplify SDK check (R35)
+90de7ee fix(usb): drop dead filter-cache state and close USB on failed open (R34)
+878a705 fix(usb): show detail EXIF from the thumbnail, download full on demand (R33)
+2dde500 fix(usb): propagate cancellation and clean up temp files (R32)
+90a716a fix(ui): bind pull-to-refresh to a real refreshing state (R31)
+a616506 perf(usb): cap the dedup table and evict oldest records (R30)
+cbff80b perf(usb): stream scan progress into the grid (R29)
+c1796dc perf(usb): preload the visible thumbnail window and recycle rotated bitmaps (R28)
+f0847e3 perf(usb): drop the pre-count BFS from photo enumeration (R27)
+ea852b5 perf(ui): pre-bucket BY_DATE photos and share the date formatter (R25)
+b529f2e perf(ui): stop selection toggles from recomputing the whole grid (R24)
+e7f3395 perf(usb): back selection with a keyed state map (R26)
 ```
 
-> 下一批：**P7-B 大库性能**（R24 勾选重组 / R25 BY_DATE 预分桶 / R26 选择集结构 / R27 去重复遍历 / R28 缩略图管线 / R29 扫描反馈 / R30 去重表上限）。
+> P7 已全部落地；下一步为**真机回归**（Nikon Z30，含双卡 / 大库），以及 P3/P6 的设备/网络门控项。

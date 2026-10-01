@@ -90,7 +90,7 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 
 ## Current State
 
-**🔴 发布前（P7-B 大库性能修复中）**：`testDebugUnitTest` **48 全绿**、detekt baseline 已归零、`assembleDebug`/`bundleRelease` 本地通过。**第三期评审 P7-A 正确性（R20/R21/R22/R23）已闭环（2026-10-01）**——两项丢片级缺陷（R21 RAW+JPEG 未成对传输、R23 同名跨存储照片被合并）已修复，发布阻断解除，**但需真机（Nikon Z30，含双卡/大库）回归确认**。**P7-B（R24–R30 大库性能）与 P7-C（R31–R35 打磨）仍待办**，行动项见 [`docs/planning/action-plan.md`](docs/planning/action-plan.md) **P7**（见 [`docs/review/2026-10-01-design-review-3.md`](docs/review/2026-10-01-design-review-3.md)）。状态以 [`docs/planning/todo.md`](docs/planning/todo.md)「已知问题」表为准，**不使用"0 known issues"表述**。
+**🔴 发布前（P7 全部落地，待真机回归）**：`testDebugUnitTest` **54 全绿**、detekt **0**、lint **0 errors / 74 warnings**、`assembleDebug` 通过。**第三期评审 P7（R20–R35 + R36/R40）已全部闭环（2026-10-01）**——含两项丢片级缺陷（R21 RAW+JPEG 未成对传输、R23 同名跨存储照片被合并）与大库性能/流畅度（R24–R30）修复，发布阻断解除，**但需真机（Nikon Z30，含双卡/大库）回归确认体感**。行动项见 [`docs/planning/action-plan.md`](docs/planning/action-plan.md) **P7**（见 [`docs/review/2026-10-01-design-review-3.md`](docs/review/2026-10-01-design-review-3.md)）。状态以 [`docs/planning/todo.md`](docs/planning/todo.md)「已知问题」表为准，**不使用"0 known issues"表述**。
 
 - USB/MTP 照片同步是**唯一**功能路径；BLE GPS 子系统已于 2026-08-02 移除（commit `a385378`，Ricoh/Sony 文档归档于 `docs/ricoh/`、`docs/sony/` 供历史查阅）
 - 活跃文档：`docs/README.md`（索引）、`docs/development-log/`（按天开发日志）、`docs/planning/`（规划 + ADR）、`docs/engineering/`（工程规范）、`docs/requirements/`（需求）
