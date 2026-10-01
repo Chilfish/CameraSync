@@ -6,6 +6,7 @@ import android.mtp.MtpDevice
 import android.net.Uri
 import android.provider.MediaStore
 import com.juul.khronicle.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -151,6 +152,7 @@ class TransferEngine(
         stateMachine.setState(GalleryState.TransferDone(ok, savedUris.toList()))
     }
 
+    @Suppress("TooGenericExceptionCaught") // MTP/MediaStore throw mixed unchecked exceptions
     private suspend fun saveToMediaStore(
         m: MtpDevice,
         photo: NikonUsbManager.PhotoInfo,
@@ -173,24 +175,29 @@ class TransferEngine(
         val uri =
             app.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)
                 ?: return null
-        return runCatching {
-                val bytes =
-                    app.contentResolver.openOutputStream(uri)?.use { out ->
-                        nikon.downloadPhoto(m, photo, out, app.cacheDir)
-                    } ?: 0L
-                if (bytes <= 0L) {
-                    app.contentResolver.delete(uri, null, null)
-                    return@runCatching null
-                }
+        return try {
+            val bytes =
+                app.contentResolver.openOutputStream(uri)?.use { out ->
+                    nikon.downloadPhoto(m, photo, out, app.cacheDir)
+                } ?: 0L
+            if (bytes <= 0L) {
+                app.contentResolver.delete(uri, null, null)
+                null
+            } else {
                 cv.clear()
                 cv.put(MediaStore.Images.Media.IS_PENDING, 0)
                 app.contentResolver.update(uri, cv, null, null)
                 uri
             }
-            .getOrElse { e ->
-                Log.error(tag = TAG, throwable = e) { "Transfer failed: ${photo.name}" }
-                app.contentResolver.delete(uri, null, null)
-                null
-            }
+        } catch (e: CancellationException) {
+            // Cancellation must propagate instead of being recorded as a transfer failure; drop the
+            // half-written pending row first (R32).
+            app.contentResolver.delete(uri, null, null)
+            throw e
+        } catch (e: Exception) {
+            Log.error(tag = TAG, throwable = e) { "Transfer failed: ${photo.name}" }
+            app.contentResolver.delete(uri, null, null)
+            null
+        }
     }
 }

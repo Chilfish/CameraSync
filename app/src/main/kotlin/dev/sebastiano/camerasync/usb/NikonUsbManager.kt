@@ -11,6 +11,7 @@ import com.juul.khronicle.Log
 import java.io.File
 import java.io.FileInputStream
 import java.io.OutputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -317,8 +318,8 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         cacheDir: File,
     ): Long? =
         withContext(Dispatchers.IO) {
+            val tempFile = File(cacheDir, "mtp_${photoInfo.handle}")
             try {
-                val tempFile = File(cacheDir, "mtp_${photoInfo.handle}")
                 tempFile.parentFile?.mkdirs()
 
                 val ok = mtpDevice.importFile(photoInfo.handle, tempFile.absolutePath)
@@ -337,15 +338,19 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                         total += n
                     }
                 }
-                tempFile.delete()
 
                 Log.info(tag = TAG) { "Downloaded ${photoInfo.name}: $total bytes" }
                 total
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.error(tag = TAG, throwable = e) {
                     "Download ${photoInfo.name} failed: ${e.message}"
                 }
                 null
+            } finally {
+                // Always drop the staging file — failures/cancellations used to leak it (R32).
+                tempFile.delete()
             }
         }
 }

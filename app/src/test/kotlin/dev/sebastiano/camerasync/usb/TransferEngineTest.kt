@@ -11,10 +11,12 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import java.io.OutputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -237,6 +239,28 @@ class TransferEngineTest {
         assertEquals(listOf(1), engine.failedHandles)
         verify { contentResolver.delete(uri, null, null) }
         assertFalse(manager.isAlreadyImported(p))
+    }
+
+    @Test
+    fun `cancellation during download propagates and is not recorded as a failure`() = runTest {
+        // Own scope so the CancellationException doesn't tear down the test coroutine.
+        val transferScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val engine = createEngine { transferScope }
+        val p = photo(1)
+        machine.updateCurrentPhotos(listOf(group(p)))
+        machine.select(1)
+        val uri = mockk<Uri>(relaxed = true)
+        every { contentResolver.insert(any(), any()) } returns uri
+        every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
+        coEvery { nikon.downloadPhoto(any(), any(), any(), any()) } throws
+            CancellationException("cancelled")
+
+        engine.startTransfer()
+        advanceUntilIdle()
+
+        assertTrue(engine.failedHandles.isEmpty())
+        assertFalse(manager.isAlreadyImported(p))
+        verify { contentResolver.delete(uri, null, null) }
     }
 
     // ── Retry & delete ───────────────────────────────────────────────────────
