@@ -117,3 +117,6 @@ scripts/.venv/
 
 /dumps/
 .alma-snapshots
+
+# Local Command Code agent state (taste learnings, scratch)
+/.commandcode/
