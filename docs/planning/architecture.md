@@ -73,6 +73,22 @@
 - **背景**: 对标 Float 质量流程；detekt 曾迟检测导致「写后重写」循环
 - **后果**: 强制规范入 `CLAUDE.md`：先写 commit message、每 commit 本地跑 gate；存量违规用 `detekt-baseline.xml` 吸收并逐步偿还（17 → 0）
 
+## ADR-011: 抽离传输抽象 `CameraSource`，无线方向定为 WiFi/PTP-IP（事件驱动）
+
+- **日期**: 2026-10-01
+- **决策**:
+  1. **传输抽象先行（Phase 0）**：引入 `camera/` 包与 `CameraSource` 接口，把 `CameraInfo` / `StorageInfo` / `PhotoInfo` / `FolderInfo` 从 `NikonUsbManager` 迁出为传输无关模型；`NikonUsbManager` 更名 `UsbCameraSource` 并实现该接口。协作对象（`ConnectionManager` / `ThumbnailProvider` / `TransferEngine` / `GalleryViewModel`）不再传 `android.mtp.MtpDevice`。
+  2. **无线传输方向为 WiFi + PTP/IP（ISO 15740 over TCP，端口 15740）**，非蓝牙。蓝牙（BLE）只承担握手激活、保活与状态，**不承载照片数据**（带宽不足）。
+  3. **「拍完自动传」采用事件驱动**：保持连接 + 监听相机事件通道的 `ObjectAdded`（0x4002），而非轮询。
+  4. **「相机主动推」降级为后续可选项**：Z30 无 FTP；唯一真·推送路径是冒充 Wireless Transmitter Utility 的接收端（配对 + 认证码）或逆向 SnapBridge，成本高且无先例。
+- **背景**: 2026-10-01 无线方向调研（见 [`wireless-transfer.md`](wireless-transfer.md)）。关键硬事实：Z30 无 FTP（FTP 属 Z8/Z9/Zf）；Z 系列需 **BLE 握手**才能激活 WiFi 的 PTP-IP 服务（NikonLink 实测 Z5）；市面第三方（ZRelay / ZTransfer / N-Link / AeroShutter 等）清一色用 PTP/IP + 事件通道实现自动传图；USB/MTP 之所以简洁是 `android.mtp` 抹平了协议差异（ADR-003），而 PTP/IP 需自行实现。
+- **理由**: 当前所有 USB 逻辑硬编码 `MtpDevice` 类型，无线通道无法接入；先做纯重构把传输边界切开，后续新增 WiFi 实现即可复用整套 UI / 去重 / 传输历史管线，风险最低且收益独立于是否真的走无线。
+- **后果**:
+  - USB 行为完全不变（纯重构）；`camera/` 包成为唯一传输接缝，新增传输只需实现 `CameraSource` + 提供 fake。
+  - 无线接入（Phase 1+）必然引入**网络权限 + 前台服务**，与现行「零网络、不申请前台服务」的隐私承诺冲突——届时**必须另开 ADR 并更新 `docs/legal/privacy-policy.md`**，不得静默添加。
+  - `PhotoInfo.handle/storageId/parentHandle` 仍是 MTP 概念（已进分组键/去重键）；WiFi 的 object id 语义不同，Phase 1 需重新审视这两处键。
+  - 无线时代码需自行处理 Android「智能网络切换」（socket 必须绑定 WiFi `Network`）与相机 10s 空闲断连的心跳。
+
 ## 技术栈总览
 
 | 层 | 技术 |

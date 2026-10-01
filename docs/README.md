@@ -18,7 +18,8 @@
 | [当前状态 & TODO](planning/todo.md) | 当前状态、已完成功能、未来规划（cloud 备份 / 视频 / 多相机 USB / NEF Coil fetcher） |
 | [行动计划](planning/action-plan.md) | **活跃行动计划**：P3 运营收尾 → P6 发布闭环 → **P7 大照片库正确性与性能**（2026-10-01 第三期评审后新增；P0–P5 已完成并归档） |
 | [Float 对标差距分析](planning/benchmark-float.md) | 对照 Float（`I:\dev\Float`）流程与规范的差距清单：CHANGELOG / requirements / ADR / GitHub 模板 / release 脚本 / skills 等 7 类缺口 + 5 处文档漂移，含落地顺序 |
-| [架构决策记录 (ADR)](planning/architecture.md) | 关键架构决策：MTP 方案、单模块、Metro、去重软校验、BLE 移除、质量门禁等 |
+| [架构决策记录 (ADR)](planning/architecture.md) | 关键架构决策：MTP 方案、单模块、Metro、去重软校验、BLE 移除、质量门禁、传输抽象（ADR-011）等 |
+| [无线传输（WiFi/PTP-IP）调研与分期](planning/wireless-transfer.md) | **新里程碑**：Z30 无线能力、PTP/IP 协议要点、竞品速览、Phase 0 抽象 → Phase 1 手动 WiFi → Phase 2 自动传 |
 | [发布后观测计划](planning/release-metrics.md) | 对齐 PRD 成功指标的发布后观测：零新增埋点，从 TransferHistory + 日志聚合（P6-4） |
 
 ## 工程规范（engineering/）
