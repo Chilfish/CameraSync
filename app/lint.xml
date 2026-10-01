@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!--
+      Recycle false positive (R36): every Cursor in LocalPhotosViewModel is closed via `?.use { }`.
+      The helper functions (readPhotoCursor/readFileCursor) return cursors that their callers close,
+      which lint cannot see through. Suppress this check for that file only, rather than disabling it
+      project-wide.
+    -->
+    <issue id="Recycle">
+        <ignore path="src/main/kotlin/dev/sebastiano/camerasync/usb/LocalPhotosViewModel.kt" />
+    </issue>
+</lint>

@@ -82,6 +82,9 @@ android {
     buildFeatures { compose = true }
     installation { installOptions += listOf("--user", "0") }
 
+    // Local lint rules: see app/lint.xml (documented suppressions only).
+    lint { lintConfig = file("lint.xml") }
+
     testOptions {
         // Plain-JVM unit tests: android.jar stub methods return defaults instead of throwing
         // "not mocked" (e.g. ContentValues.put in TransferEngine.saveToMediaStore).

@@ -5,7 +5,7 @@ import android.content.Context
 import android.hardware.usb.UsbManager
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
@@ -177,7 +177,7 @@ class GalleryViewModel(
      * recomposes when columns change. Initialized from [prefs] so the last chosen value survives
      * app restarts.
      */
-    override var gridColumns by mutableStateOf(prefs.getGridColumns())
+    override var gridColumns by mutableIntStateOf(prefs.getGridColumns())
 
     /** Set to true by [requestReload] to signal the UI to reload the gallery. */
     var needsReload: Boolean
