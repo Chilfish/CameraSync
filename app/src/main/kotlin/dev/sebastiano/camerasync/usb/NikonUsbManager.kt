@@ -78,6 +78,9 @@ class NikonUsbManager(private val usbManager: UsbManager) {
             Log.warn(tag = TAG) {
                 "MtpDevice.open() returned false — device=${usbDevice.deviceName}"
             }
+            // Release the USB connection — a failed open used to leak it (R34).
+            runCatching { conn.close() }
+            usbConnection = null
             return null
         }
         mtpDevice = mtp

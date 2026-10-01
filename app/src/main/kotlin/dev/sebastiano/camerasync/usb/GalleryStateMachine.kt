@@ -57,7 +57,6 @@ class GalleryStateMachine(
     var filterMode: PhotoFilter by mutableStateOf(PhotoFilter.NEW)
         private set
 
-    private var filterCacheGeneration by mutableStateOf(0)
     private var cachedFilteredGroups: List<GalleryEntry.PhotoGroup> = emptyList()
 
     fun setState(newState: GalleryState) {
@@ -168,7 +167,6 @@ class GalleryStateMachine(
     }
 
     private fun invalidateFilterCache() {
-        filterCacheGeneration++
         cachedFilteredGroups = computeFiltered()
     }
 
