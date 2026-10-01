@@ -2,6 +2,7 @@ package dev.sebastiano.camerasync.usb
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 /** Persisted preferences for USB photo sync. */
 class UsbSyncPreferences(context: Context) {
@@ -12,7 +13,7 @@ class UsbSyncPreferences(context: Context) {
     /** Whether the first-run MTP guide has been shown. */
     var guideSeen: Boolean
         get() = prefs.getBoolean(KEY_GUIDE_SEEN, false)
-        set(value) = prefs.edit().putBoolean(KEY_GUIDE_SEEN, value).apply()
+        set(value) = prefs.edit { putBoolean(KEY_GUIDE_SEEN, value) }
 
     /** Which photo formats to include when listing photos. */
     var downloadFormat: DownloadFormat
@@ -24,7 +25,7 @@ class UsbSyncPreferences(context: Context) {
                     DownloadFormat.ALL
                 }
             } ?: DownloadFormat.ALL
-        set(value) = prefs.edit().putString(KEY_FORMAT, value.name).apply()
+        set(value) = prefs.edit { putString(KEY_FORMAT, value.name) }
 
     /** How photos are grouped in the gallery view. */
     var photoGrouping: PhotoGrouping
@@ -36,7 +37,7 @@ class UsbSyncPreferences(context: Context) {
                     PhotoGrouping.BY_FOLDER
                 }
             } ?: PhotoGrouping.BY_FOLDER
-        set(value) = prefs.edit().putString(KEY_GROUPING, value.name).apply()
+        set(value) = prefs.edit { putString(KEY_GROUPING, value.name) }
 
     /** How photos are sorted in the gallery view. */
     var photoSorting: PhotoSorting
@@ -48,7 +49,7 @@ class UsbSyncPreferences(context: Context) {
                     PhotoSorting.DATE_DESC
                 }
             } ?: PhotoSorting.DATE_DESC
-        set(value) = prefs.edit().putString(KEY_SORTING, value.name).apply()
+        set(value) = prefs.edit { putString(KEY_SORTING, value.name) }
 
     /** Which image formats to download. */
     enum class DownloadFormat {
@@ -88,14 +89,14 @@ class UsbSyncPreferences(context: Context) {
     fun getThemeMode(): String = prefs.getString("theme_mode", "system") ?: "system"
 
     fun setThemeMode(mode: String) {
-        prefs.edit().putString("theme_mode", mode).apply()
+        prefs.edit { putString("theme_mode", mode) }
     }
 
     /** Grid column count for photo gallery (2, 3, or 4). */
     fun getGridColumns(): Int = prefs.getInt("grid_columns", GRID_COLUMNS_DEFAULT)
 
     fun setGridColumns(columns: Int) {
-        prefs.edit().putInt("grid_columns", columns).apply()
+        prefs.edit { putInt("grid_columns", columns) }
     }
 
     /** Transfer history — persisted as a simple delimited string. */
@@ -123,7 +124,7 @@ class UsbSyncPreferences(context: Context) {
         val newEntry = "$date|$count|$cameraModel"
         val existing = prefs.getString(TRANSFER_HISTORY_KEY, null) ?: ""
         val updated = "$newEntry;$existing".take(5000) // keep last ~50 entries
-        prefs.edit().putString(TRANSFER_HISTORY_KEY, updated).apply()
+        prefs.edit { putString(TRANSFER_HISTORY_KEY, updated) }
     }
 
     companion object {

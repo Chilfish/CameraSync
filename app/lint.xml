@@ -9,4 +9,13 @@
     <issue id="Recycle">
         <ignore path="src/main/kotlin/dev/sebastiano/camerasync/usb/LocalPhotosViewModel.kt" />
     </issue>
+
+    <!--
+      Typos false positives (R37): gms_fonts_certs.xml is the AOSP-bundled Google Fonts
+      certificate file; its base64 DER blobs trip the spell checker. Suppress for that
+      file only (not project-wide).
+    -->
+    <issue id="Typos">
+        <ignore path="src/main/res/values/gms_fonts_certs.xml" />
+    </issue>
 </lint>

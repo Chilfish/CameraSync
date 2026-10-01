@@ -93,6 +93,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.exifinterface.media.ExifInterface
 import coil3.compose.AsyncImage
 import coil3.compose.rememberAsyncImagePainter
@@ -2503,8 +2504,8 @@ private fun GalleryTransferDonePreview() {
                     synced = 3,
                     savedUris =
                         listOf(
-                            Uri.parse("content://media/external/images/media/1"),
-                            Uri.parse("content://media/external/images/media/2"),
+                            "content://media/external/images/media/1".toUri(),
+                            "content://media/external/images/media/2".toUri(),
                         ),
                 ),
             failedHandles = listOf(4),
