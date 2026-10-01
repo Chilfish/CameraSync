@@ -4,17 +4,18 @@
 
 ---
 
-## 当前状态: 🔴 发布前（P7 大库修复中）
+## 当前状态: 🔴 发布前（P7-B 大库性能修复中；P7-A 正确性已闭环）
 
-**撤回"生产就绪 / 0 个已知问题"表述（2026-08-15 第二期评审 R19）；第三期评审（2026-10-01）发现丢片级缺陷后，状态降级为「发布前（P7 修复中）」。** 事实状态：
+**撤回"生产就绪 / 0 个已知问题"表述（2026-08-15 第二期评审 R19）；第三期评审（2026-10-01）发现丢片级缺陷后降级为「发布前」——P7-A 已修复这两项缺陷（2026-10-01），发布阻断解除，但 P7-B/C 性能打磨与真机回归未完成。** 事实状态：
 
 - ✅ 功能层面：P0 正确性止血（去重/路径/管线/剪枝）、P1 核心路径（引导/新照片主路径/传输回看）、P2-1 God Object 拆分、P2-2 核心单测、P2-3 detekt 归零全部落地
-- ✅ `testDebugUnitTest` **43 tests 全绿**（P2-2，2026-08-15；2026-10-01 clean 全量复核仍全绿）
+- ✅ `testDebugUnitTest` **48 tests 全绿**（P2-2 的 43 条 + 本期 P7-A 新增 5 条，2026-10-01）
 - ✅ detekt baseline **0 条**（P2-3，2026-08-15）
 - ✅ R8 旋转双开 MTP、R12 幽灵权限、R11 主题闭环、R13 电量删除（P4-1/2/3/4，2026-08-15）
 - ✅ **P5 工程债深水全部落地**（R10 字符串资源化 / R14 核心路径接 DI / R15 核心屏 Preview / R17 缓存降内存，2026-08-15）
 - ✅ 构建层面：`assembleDebug` / `bundleRelease`（R8）本地 clean 全量通过（2026-10-01）；lint **0 errors / 96 warnings**
-- 🔴 **第三期评审新增待修**：[第三期评审](../review/2026-10-01-design-review-3.md)（R20–R41）——**R21 RAW+JPEG 丢片 / R23 同名跨存储合并丢片**（发布阻断），R20 旋转后连接静默失效，R22 预览统计失真，R24–R30 大库卡顿。行动项见 [action-plan](action-plan.md) **P7**
+- ✅ **第三期评审 P7-A 已闭环**（2026-10-01）：**R21 RAW+JPEG 丢片 / R23 同名跨存储合并丢片**（发布阻断）已修复；R20 旋转后连接静默失效、R22 预览统计失真同步修复（见 [第三期评审](../review/2026-10-01-design-review-3.md)）
+- 🟠 **第三期评审待修**：R24–R30 大库性能（P7-B）、R31–R35 打磨（P7-C），行动项见 [action-plan](action-plan.md) **P7**。**仍需真机（Nikon Z30，含双卡/大库）回归**
 - 完整已知问题清单见下方「已知问题」表 + 三期评审文档
 
 ### 已完成功能总览
@@ -150,10 +151,10 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 | P1 | 电量"宣称已实现"实际恒 null（R13） | ✅ 已删除（`9f373eb`，action-plan P4-3，YAGNI） |
 | P2 | 硬编码字符串、核心屏零 Preview、核心路径未接 DI（R10/R15/R14） | ✅ 已修复（P5-1/2/3，2026-08-15：资源化 + Preview 全覆盖 + AppGraph 注入） |
 | P2 | fullPhotoCache 300MB OOM 风险（R17） | ✅ 已修复（P5-4，2026-08-15：磁盘 LRU 3 + 路径 EXIF） |
-| **P0** | **RAW+JPEG 选「全部」只传 RAW，JPEG 静默丢弃（R21）** | 🔴 待修（action-plan **P7-1**，需先补单测） |
-| **P0** | **同名照片跨存储/文件夹被合并丢一张（R23）** | 🔴 待修（action-plan **P7-2**，需先补单测） |
-| P1 | 旋转/`stop()` 后协作对象持死 scope，USB 连接静默失效（R20） | 🔴 待修（action-plan **P7-4**） |
-| P1 | 传输预览组数被 `take(6)` 截断、"+N more" 恒 0（R22） | 🔴 待修（action-plan **P7-3**） |
+| **P0** | **RAW+JPEG 选「全部」只传 RAW，JPEG 静默丢弃（R21）** | ✅ 已修复（`4585770`，P7-1，含回归单测） |
+| **P0** | **同名照片跨存储/文件夹被合并丢一张（R23）** | ✅ 已修复（`366d36f`，P7-2，分组键 + 稳定 key + 单测） |
+| P1 | 旋转/`stop()` 后协作对象持死 scope，USB 连接静默失效（R20） | ✅ 已修复（`9cbf63d`，P7-4，scope 访问器 + 单测） |
+| P1 | 传输预览组数被 `take(6)` 截断、"+N more" 恒 0（R22） | ✅ 已修复（`e1dc004`，P7-3） |
 | P1 | 勾选触发整屏全量重算 / BY_DATE O(分区×照片) / 选择集线性（R24/R25/R26） | 🟠 待修（action-plan **P7-5/6/7**） |
 | P2 | 枚举两遍 / 缩略图堆积 / 扫描无反馈 / 去重表无上限（R27–R30） | 🟠 待修（action-plan **P7-8/9/10/11**） |
 | P3 | 刷新指示失败 / 取消语义 / 详情下全图 / 死代码 / BLE 残留资源（R31–R35） | 🟡 待修（action-plan **P7-12**） |
@@ -164,18 +165,17 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 ## 最近提交 (2026-10-01)
 
-> `master` 领先 `origin/master` **38 个 commit**（P2/P4/P5/P6 全部落地未推送；P3-2 待网络环境）。
+> `master` 领先 `origin/master` **46+ 个 commit**（P2/P4/P5/P6 + 本期第三期评审文档与 P7-A 修复，均未推送；P3-2 待网络环境）。
 
 ```
-a1e0177 docs: sync P6 store-listing status across changelog and planning
-67f476c docs(legal): add Play store listing material
-c2a17c1 docs: sync status after P5 implementation
-7815abf docs: align privacy policy and add release metrics plan
-173d5c0 chore: remove unused storage and vibration permissions
-6785430 refactor(di): inject gallery view models from AppGraph
-8ee67eb feat(ui): add gallery state and settings screen previews
-35ca39b refactor(usb): decouple gallery screens from view model for previews
-ad54502 fix(usb): cap full-photo cache and use path-based EXIF
+9cbf63d fix(usb): keep collaborators on the live scope across stop/start (R20)
+e1dc004 fix(ui): count full selection in transfer preview summary (R22)
+366d36f fix(usb): key photo groups by storage and folder (R23)
+4585770 fix(usb): transfer both files of a RAW+JPEG pair (R21)
+7610ce0 chore: ignore local Command Code agent state
+cd9de3d docs: sync indexes, changelog and state for third review
+e495b96 docs(planning): archive P0-P5 and add P7 large-library plan
+f760545 docs(review): add third large-library design review (R20-R41)
 ```
 
-> 下一批：`docs: add third design review and P7 plan`（本期）+ P7-A 修复（R21/R23 先行）。
+> 下一批：**P7-B 大库性能**（R24 勾选重组 / R25 BY_DATE 预分桶 / R26 选择集结构 / R27 去重复遍历 / R28 缩略图管线 / R29 扫描反馈 / R30 去重表上限）。

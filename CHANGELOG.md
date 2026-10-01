@@ -25,7 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 - 文档维护：补 `development-log/README.md` 与 `review/README.md` 遗漏索引；`todo.md` 状态真实化（撤回生产就绪）并将已移除的 BLE 条目移出「已完成功能」
 - 构建验证（clean 全量）：`assembleDebug` / `bundleRelease` / 43 单测 / detekt / ktfmt 通过；lint 0 errors
 
-> ⚠️ 已知问题（未修复）：第三期评审 P7-A 的 R21/R23 为丢片级缺陷，发布前必须修复，详见 `docs/planning/action-plan.md`（P7 节）与 `docs/review/2026-10-01-design-review-3.md`。
+### 修复（2026-10-01，第三期评审 P7-A）
+
+- 修复 RAW+JPEG 成对传输：选「全部」时 JPEG 不再被静默丢弃——`buildTransferList` 按选中 handle 展开（R21）
+- 修复同名照片跨存储/文件夹被合并丢一张；分组键改为 `base + storageId + parentFolder`，`PhotoGroup` 增加稳定 `key`（R23）
+- 修复传输预览统计口径：`totalGroups` 在 `.take(6)` 之前取值，「+N more」恢复正常（R22）
+- 修复协程作用域所有权：协作对象改为读取 `() -> CoroutineScope`，旋转/停止后重启不再在已取消 scope 上静默失败（R20）
+- 单元测试 43 → **48 全绿**（新增成对传输、跨存储/文件夹分组、scope 契约回归测试）
+
+> P7-A（发布阻断）已闭环；**P7-B 大库性能（R24–R30）与 P7-C 打磨（R31–R35）仍待办**，详见 `docs/planning/action-plan.md`。真机回归（Nikon Z30，含双卡/大库）待做。
 
 ### Added — USB 照片同步（核心）
 

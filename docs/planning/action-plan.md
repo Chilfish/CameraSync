@@ -19,9 +19,10 @@
 ## 二、排序
 
 **已完成：P0 止血 → P1 核心路径 → P2 工程债 → P4 信任与生命周期 → P5 工程债深水。**
-**待办：P3 运营收尾（设备门控）→ P6 发布闭环（设备/环境门控）→ P7 大库正确性与性能（发布阻断）。**
+**进行中：P7 大库正确性与性能——P7-A 正确性 ✅ 2026-10-01 完成；P7-B 性能、P7-C 打磨待办。**
+**待办：P3 运营收尾（设备门控）→ P6 发布闭环（设备/环境门控）并行等待环境。**
 
-> **P7 优先级说明**：R21/R23 为丢片级缺陷，**排在 P6 剩余项之前**；R20/R22/R24–R26 紧随其后。P3/P6 中依赖真机与网络的部分并行等待环境。
+> **P7 进度（2026-10-01）**：P7-A（R20/R21/R22/R23）已闭环，两项丢片级缺陷修复，发布阻断解除；**仍需真机（Nikon Z30，含双卡/大库）回归确认**。P7-B（R24–R30 大库性能）为下一批。
 
 ---
 
@@ -69,29 +70,31 @@
 > **背景**: 用户反馈「照片很多时不好用顺畅」。过去两期未对大库做专项验证——测试数据均为个位数照片，性能与交互成本从未被评估。本阶段补齐。
 > **纪律**: 每项先写 commit message；**R21/R23 必须先补失败测试再修**（当前测试用单张 group，未覆盖成对传输与同名跨存储）。
 
-### P7-A 正确性（丢片级，最先做）
+### P7-A 正确性（丢片级，最先做）✅ 2026-10-01 完成
 
-#### P7-1 RAW+JPEG 成对传输（R21）🔴
+> R21 `4585770` · R23 `366d36f` · R22 `e1dc004` · R20 `9cbf63d` —— 48 单测全绿；验收记录见 [开发日志 2026-10-01](../development-log/2026-10-01.md)。
+
+#### P7-1 RAW+JPEG 成对传输（R21）✅
 
 - **现状**: `TransferEngine.buildTransferList()` 每 group 只产出 1 个 `photo to handle`（raw 优先），选「全部」时 JPEG 静默丢弃；进度/计数/去重标记与之不匹配
 - **动作**: 改为按 `handlesForFormat` 展开为多对（`flatMap`），`selected` 中所有 handle 都参与；`performTransfer` 的 total/成功计数随之正确
 - **测试**: 先补 `TransferEngineTest`：RAW+JPEG 双选 → 期望两次 `downloadPhoto` + `lastTransferredHandles` 含两个 handle + `TransferDone.synced == 2`
 - **验收**: 选「全部」传输 RAW+JPEG 对，两张都落 MediaStore
 
-#### P7-2 分组键纳入存储/文件夹（R23）🔴
+#### P7-2 分组键纳入存储/文件夹（R23）✅
 
 - **现状**: `GalleryViewModel.groupByBaseFilename()` 仅按文件名聚合 → 双卡同名照片合并丢一张；`items(key = baseName)` 依赖唯一性，修合并后同 key 会崩
 - **动作**: group 键改为 `base + storageId + parentFolder`；`PhotoGroup` 增加稳定 `key`（供 Lazy `items` 使用），`baseName` 仅作显示
 - **测试**: `GalleryStateMachineTest` 加：同 `baseName` 不同 `storageId` → 两个 group
 - **验收**: 双卡/多文件夹同名照片各自独立、均可传输；网格无重复 key
 
-#### P7-3 传输预览统计口径（R22）🔴
+#### P7-3 传输预览统计口径（R22）✅
 
 - **现状**: `totalGroups = selectedGroups.size` 在 `.take(6)` 之后 → 组数封顶 6，「+N more」恒 0
 - **动作**: 先算全量 `allSelectedGroups` 再取前 6；`totalGroups = allSelectedGroups.size`；`remaining = totalGroups - shown.size`
 - **验收**: 选 200 组时摘要显示 200 组，出现「+194」
 
-#### P7-4 生命周期与协程作用域所有权（R20）🔴
+#### P7-4 生命周期与协程作用域所有权（R20）✅
 
 - **现状**: `GalleryViewModel.stop()` 取消并重建 `scope`，但 `ConnectionManager`/`ThumbnailProvider`/`TransferEngine` 构造时按值捕获旧 scope → 旋转后 `connectAndBrowse()` 在死 scope 上 launch，静默失败
 - **动作（择一，实施时定稿）**:
@@ -180,10 +183,10 @@
 | P3-1..3-3 | 设备统一 / CI / 真机回归 | — | 待设备与环境 |
 | P6-1 | CHANGELOG 纪律 | — | PR 更新 Unreleased |
 | P6-3 | 上架材料 | — | 截图 + feature graphic + 托管 URL（待真机） |
-| P7-1 | RAW+JPEG 成对传输 | R21 | 选「全部」两张都落盘 + 新单测绿 |
-| P7-2 | 分组键纳入存储/文件夹 | R23 | 同名不合并 + 网格无重复 key + 新单测绿 |
-| P7-3 | 预览统计口径 | R22 | 组数正确 + 「+N more」显示 |
-| P7-4 | 协程作用域所有权 | R20 | 旋转后重连正常枚举 |
+| ✅ P7-1 | RAW+JPEG 成对传输 | R21 | 选「全部」两张都落盘 + 新单测绿（2026-10-01） |
+| ✅ P7-2 | 分组键纳入存储/文件夹 | R23 | 同名不合并 + 网格无重复 key + 新单测绿（2026-10-01） |
+| ✅ P7-3 | 预览统计口径 | R22 | 组数正确 + 「+N more」显示（2026-10-01） |
+| ✅ P7-4 | 协程作用域所有权 | R20 | 旋转后重连正常枚举（2026-10-01） |
 | P7-5 | 消除勾选全屏重算 | R24 | 大库勾选无卡顿（重组计数佐证） |
 | P7-6 | BY_DATE 预分桶 | R25 | 大库 BY_DATE 不掉帧 |
 | P7-7 | 选择集常量时间 | R26 | 全选 3000 张瞬时 |
