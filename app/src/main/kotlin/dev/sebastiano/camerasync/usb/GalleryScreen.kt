@@ -1614,12 +1614,11 @@ private fun TransferPreviewSheet(
     // Collect selected photo groups for preview.
     // Use currentPhotos (unfiltered) so the preview shows ALL selected
     // photos regardless of the active filter chip (e.g. "仅 RAW").
-    val selectedGroups =
-        viewModel.currentPhotos
-            .filter { viewModel.isGroupSelected(it) }
-            .take(6) // show first 6 thumbnails
+    // Count the full selection first, then cap only the thumbnails (R22).
+    val allSelectedGroups = viewModel.currentPhotos.filter { viewModel.isGroupSelected(it) }
 
-    val totalGroups = selectedGroups.size
+    val totalGroups = allSelectedGroups.size
+    val selectedGroups = allSelectedGroups.take(6) // show first 6 thumbnails
 
     // Compute total size of all selected photos (unfiltered).
     val allSelectedPhotos =
