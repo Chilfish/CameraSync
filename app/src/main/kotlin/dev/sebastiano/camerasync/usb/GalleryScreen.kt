@@ -139,7 +139,6 @@ fun GalleryScreen(
     }
 
     val s = viewModel.state.value
-    val selectionCount = viewModel.selectedCount
     val context = LocalContext.current
     val prefs = remember { UsbSyncPreferences(context) }
 
@@ -164,7 +163,8 @@ fun GalleryScreen(
                 hasBack = inFolder,
                 showSettings = !inFolder,
                 showLogs = !inFolder,
-                selectionCount = selectionCount,
+                // Read inside the top-bar scope so a selection toggle recomposes the bar only.
+                selectionCount = viewModel.selectedCount,
                 onBackClick = {
                     viewModel.deselectAll()
                     onNavigateBack()
@@ -191,7 +191,7 @@ fun GalleryScreen(
         },
         bottomBar = {
             AnimatedVisibility(
-                visible = s is GalleryState.Browsing && selectionCount > 0,
+                visible = s is GalleryState.Browsing && viewModel.selectedCount > 0,
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it },
             ) {
@@ -200,7 +200,12 @@ fun GalleryScreen(
                         onClick = { showPreview = true },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     ) {
-                        Text(stringResource(R.string.usb_action_transfer_count, selectionCount))
+                        Text(
+                            stringResource(
+                                R.string.usb_action_transfer_count,
+                                viewModel.selectedCount,
+                            )
+                        )
                     }
                 }
             }
@@ -536,19 +541,24 @@ private fun BrowsingContent(
     onTransferAllNew: () -> Unit = {},
 ) {
     val entries = state.entries
-    val photos = entries.filterIsInstance<GalleryEntry.PhotoGroup>()
-    val folders = entries.filterIsInstance<GalleryEntry.Folder>()
-    val dateSections = entries.filterIsInstance<GalleryEntry.DateSection>()
 
     if (entries.isEmpty()) {
         EmptyCameraContent()
         return
     }
 
+    // Derive splits, counts and imported flags from the entry list only — recomputed when the list
+    // changes (scan progress, filter/sort refresh), never on a mere selection toggle (R24).
+    val photos = remember(entries) { entries.filterIsInstance<GalleryEntry.PhotoGroup>() }
+    val folders = remember(entries) { entries.filterIsInstance<GalleryEntry.Folder>() }
+    val dateSections = remember(entries) { entries.filterIsInstance<GalleryEntry.DateSection>() }
+    val rawCount = remember(photos) { photos.count { it.hasRaw } }
+    val jpgCount = remember(photos) { photos.count { it.jpg != null } }
+    val newCount = remember(entries) { host.getNewPhotoCount() }
+    val importedByKey =
+        remember(entries) { photos.associate { it.key to host.isGroupImported(it) } }
+
     val haptic = LocalHapticFeedback.current
-    val rawCount = photos.count { it.hasRaw }
-    val jpgCount = photos.count { it.jpg != null }
-    val newCount = host.getNewPhotoCount()
     val filteredPhotos = host.getFilteredGroups()
     val isFlatMode = host.groupingMode != UsbSyncPreferences.PhotoGrouping.BY_FOLDER
 
@@ -647,8 +657,8 @@ private fun BrowsingContent(
                         items(datePhotos, key = { it.key }) { group ->
                             PhotoCell(
                                 group = group,
-                                isSelected = host.isGroupSelected(group),
-                                isImported = host.isGroupImported(group),
+                                isSelected = { host.isGroupSelected(group) },
+                                isImported = importedByKey[group.key] == true,
                                 onToggle = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     host.toggleSelection(group)
@@ -684,8 +694,8 @@ private fun BrowsingContent(
                     items(filteredPhotos, key = { it.key }) { group ->
                         PhotoCell(
                             group = group,
-                            isSelected = host.isGroupSelected(group),
-                            isImported = host.isGroupImported(group),
+                            isSelected = { host.isGroupSelected(group) },
+                            isImported = importedByKey[group.key] == true,
                             onToggle = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 host.toggleSelection(group)
@@ -920,7 +930,7 @@ private fun ThumbnailImage(
 @Composable
 private fun PhotoCell(
     group: GalleryEntry.PhotoGroup,
-    isSelected: Boolean,
+    isSelected: () -> Boolean,
     isImported: Boolean = false,
     onToggle: () -> Unit,
     getThumbnail: suspend (Int) -> ByteArray?,
@@ -929,6 +939,8 @@ private fun PhotoCell(
     onPhotoClick: (() -> Unit)? = null,
 ) {
     val handle = group.previewHandle ?: return
+    // Read selection inside the cell's own scope so only the toggled cell recomposes (R24).
+    val selected = isSelected()
     val cachedOri = getOrientation(handle)
 
     // Compute initial aspect ratio from the actual full-resolution dimensions
@@ -984,7 +996,7 @@ private fun PhotoCell(
             contentScale = ContentScale.Crop,
         )
 
-        if (isSelected) {
+        if (selected) {
             Box(
                 Modifier.fillMaxSize()
                     .border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
@@ -1003,7 +1015,7 @@ private fun PhotoCell(
         }
 
         // Already-imported indicator — subtle green badge at top-right
-        if (isImported && !isSelected) {
+        if (isImported && !selected) {
             Box(
                 Modifier.align(Alignment.TopEnd)
                     .padding(4.dp)
