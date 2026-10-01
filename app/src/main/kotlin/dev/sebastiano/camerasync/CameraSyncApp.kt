@@ -10,6 +10,7 @@ import com.juul.khronicle.ConsoleLogger
 import com.juul.khronicle.Log
 import com.juul.khronicle.Logger
 import dev.sebastiano.camerasync.di.AppGraph
+import dev.sebastiano.camerasync.usb.NefFetcher
 import dev.zacsweers.metro.createGraphFactory
 import kotlin.getValue
 import okio.Path.Companion.toOkioPath
@@ -44,6 +45,7 @@ class CameraSyncApp : Application(), SingletonImageLoader.Factory {
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
+            .components { add(NefFetcher.Factory()) }
             .diskCache {
                 DiskCache.Builder()
                     .directory(context.cacheDir.resolve("coil_disk").toOkioPath())
