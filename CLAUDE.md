@@ -46,6 +46,7 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 |---|---|
 | `usb/` | 主功能：USB/MTP 照片同步管线（Nikon 相机）+ `UsbCameraSource` 实现 |
 | `camera/` | 传输抽象：`CameraSource` 接口 + 传输无关模型（ADR-011，为无线接入留接缝） |
+| `wifi/` | 无线 POC：PTP/IP 协议层 + `WifiCameraSource`（**未接线、无权限**，见 wireless-transfer.md） |
 | `logging/` | Khronicle 日志仓库（`LogcatLogRepository`）+ 日志查看器（`LogViewer*`） |
 | `settings/` | 设置页（主题、RAW/JPEG 分组、排序、下载格式、网格列数） |
 | `ui/theme/` | Material 3 主题（`Color.kt` / `Type.kt` / `Theme.kt`） |

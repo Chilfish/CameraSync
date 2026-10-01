@@ -70,3 +70,41 @@
 
 - 前台服务常驻 + 监听 `ObjectAdded` → 新照片自动入库。
 - 可选：Z8/Z9/Zf 走 FTP；Z30 若要走真·相机推送，需实现 WTU 接收端（配对 + 认证码）。
+
+## 6. POC 实现（已落地，2026-10-01）
+
+**目的**：在不影响 USB 路径与隐私承诺的前提下，验证「`CameraSource` 接缝能否容纳第二个传输」以及「PTP/IP 协议层是否可跑通」。
+
+**范围与隔离**：
+
+- 新包 `wifi/`，**不接入 DI / UI，不新增任何 Manifest 权限**——release 身份、隐私承诺（零网络、不申请前台服务）与 USB 路径完全不变。
+- 全部用**进程内 mock 相机**（localhost）做单测，不需要真机与网络。
+
+**新增文件**：
+
+| 文件 | 职责 |
+|---|---|
+| `wifi/PtpIp.kt` | 协议常量（包类型 / 操作码 / 响应码 / 事件 / 对象格式） |
+| `wifi/PtpIpCodec.kt` | 包编解码（双向对称：请求与响应都能读写） |
+| `wifi/PtpDatasets.kt` | PTP 数据集解析（DeviceInfo / StorageInfo / ObjectInfo / u32 数组） |
+| `wifi/PtpIpClient.kt` | 双 TCP 通道会话：握手、命令/数据阶段、事件通道、8s 保活心跳 |
+| `wifi/WifiCameraSource.kt` | `CameraSource` 的 WiFi 实现（BFS 遍历、缩略图、下载、删除） |
+| `test/.../MockPtpIpCamera.kt` | 进程内 mock 相机（命令 + 事件两通道） |
+| `test/.../PtpIpCodecTest.kt` | 编解码往返 |
+| `test/.../WifiCameraSourceTest.kt` | 端到端：连接、相机信息、存储、遍历、缩略图、下载、删除、`ObjectAdded` 事件 |
+
+**验证结果**：`testDebugUnitTest` **73 全绿**（新增 12 条）、detekt 0、ktfmtCheck 通过、`assembleDebug` 通过。
+
+**结论**：
+
+- ✅ **接缝成立**：`WifiCameraSource` 与 `UsbCameraSource` 实现同一 `CameraSource`，上层无需改动。
+- ✅ **协议层可跑通**：握手（双通道）、命令/响应、数据阶段、保活、事件推送在 mock 相机上端到端验证。
+- ✅ 顺带修掉一个真实解析缺陷（`StorageInfo` 漏读 `FreeSpaceInImages` 导致字符串错位）——说明用 mock 验证数据集解析是有价值的。
+
+**局限（明确未验证）**：
+
+- **未接真实 Z30**：BLE 握手激活、AP/STA 连接、真实机身的数据集差异（Nikon 对 `GetObjectInfo` 的字段/私有扩展）、`Network.bindSocket` 绑定 WiFi 都是真机才能确认的事。
+- 下载目前**整份读入内存**（`GetObject` 一次性），未做流式/分块；后续应改为 `GetPartialObject` 分块 + 断点续传。
+- 保活采用事件通道 Ping（部分实现用命令通道）；事件通道读超时后的分帧风险未处理。
+
+**下一步**：真实设备联调前，先补齐 Phase 1 的前置（网络权限 + 前台服务的产品身份 ADR + 隐私政策更新），并加一个 debug-only 的联调入口（`INTERNET` 权限只进 debug manifest，release 不受影响）。

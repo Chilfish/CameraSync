@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 - 新增测试 fake `FakeCameraSource`（Fakes over Mocks）；USB 全链路行为不变
 - 立项无线方向（WiFi/PTP-IP 事件驱动）：[`docs/planning/wireless-transfer.md`](docs/planning/wireless-transfer.md)
 
+### 无线传输 POC（WiFi/PTP-IP，未接线）
+
+- 新增 `wifi/` 包：PTP/IP 协议层（`PtpIp` 常量 / `PtpIpCodec` 双向编解码 / `PtpDatasets` 数据集解析）、双通道会话 `PtpIpClient`（握手 + 命令/数据 + 事件通道 + 保活）、`WifiCameraSource`（`CameraSource` 的 WiFi 实现）
+- **隔离**：不接入 DI/UI、不新增 Manifest 权限，release 身份与 USB 路径不变
+- 进程内 mock 相机 `MockPtpIpCamera` + 12 条单测（编解码往返、连接/存储/遍历/缩略图/下载/删除/`ObjectAdded` 事件）；单测 **61 → 73 全绿**
+- 顺带修复 PTP `StorageInfo` 解析漏读 `FreeSpaceInImages` 的字段错位
+
 ## [1.0.0] - 2026-10-01
 
 ### 发布闭环与发行渠道（2026-10-01）
