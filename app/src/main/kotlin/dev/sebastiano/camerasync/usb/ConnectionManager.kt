@@ -298,7 +298,6 @@ class ConnectionManager(
     ) {
         val accumPhotos = mutableListOf<NikonUsbManager.PhotoInfo>()
         var globalScanned = 0
-        var globalTotal = 0
         var enteredBrowsing = false
 
         for (s in storages) {
@@ -307,9 +306,8 @@ class ConnectionManager(
                 m,
                 s.id,
                 accumulator = accumPhotos,
-                onProgress = { scanned, total ->
+                onProgress = { scanned ->
                     globalScanned = prevSize + scanned
-                    globalTotal = prevSize + total
 
                     if (!enteredBrowsing && accumPhotos.size >= 30) {
                         enteredBrowsing = true
@@ -329,9 +327,7 @@ class ConnectionManager(
                     } else if (!enteredBrowsing) {
                         stateMachine.setState(
                             GalleryState.Loading(
-                                app.getString(R.string.usb_status_scanning),
-                                globalScanned,
-                                globalTotal,
+                                app.getString(R.string.usb_status_scanning, globalScanned)
                             )
                         )
                     }

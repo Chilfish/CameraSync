@@ -151,8 +151,8 @@ class NikonUsbManager(private val usbManager: UsbManager) {
     }
 
     /**
-     * Recursively enumerates all photo objects via BFS folder traversal, calling [onProgress] after
-     * each photo so callers can update a progress indicator.
+     * Recursively enumerates all photo objects via BFS folder traversal, calling [onProgress] with
+     * the running scanned count after each photo so callers can show an indeterminate progress.
      *
      * `getObjectHandles(storageId, format, parentHandle)` returns only DIRECT children of
      * `parentHandle`. `parentHandle=0` means root. To get everything we must recurse into folders
@@ -162,7 +162,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         mtpDevice: MtpDevice,
         storageId: Int,
         accumulator: MutableList<PhotoInfo>? = null,
-        onProgress: ((scanned: Int, total: Int) -> Unit)? = null,
+        onProgress: ((scanned: Int) -> Unit)? = null,
         onDiagnostic: (String) -> Unit = {},
     ): List<PhotoInfo> {
         val photos = accumulator ?: mutableListOf<PhotoInfo>()
@@ -171,7 +171,6 @@ class NikonUsbManager(private val usbManager: UsbManager) {
 
         var folderCount = 0
         var fileCount = 0
-        val totalEstimate = countObjectsInStorage(mtpDevice, storageId)
 
         while (folderQueue.isNotEmpty()) {
             val parent = folderQueue.removeFirst()
@@ -218,7 +217,7 @@ class NikonUsbManager(private val usbManager: UsbManager) {
                             parentHandle = parent,
                         )
                     )
-                    onProgress?.invoke(fileCount, totalEstimate)
+                    onProgress?.invoke(fileCount)
                 }
             }
         }
@@ -228,31 +227,6 @@ class NikonUsbManager(private val usbManager: UsbManager) {
         }
         photos.sortByDescending { it.dateModified }
         return photos
-    }
-
-    /**
-     * Fast approximate count of photo objects (non-folders) in [storageId]. Avoids calling
-     * [MtpDevice.getObjectInfo] — only uses the cheap [MtpDevice.getObjectHandles]. Used for
-     * progress bar estimates.
-     *
-     * Perfect accuracy would require getObjectInfo() per handle to distinguish files from folders,
-     * which defeats the purpose. In practice folders are <5% of total objects, so the progress bar
-     * gets close enough.
-     */
-    private fun countObjectsInStorage(mtpDevice: MtpDevice, storageId: Int): Int {
-        var count = 0
-        val folderQueue = ArrayDeque<Int>()
-        folderQueue.add(0)
-        while (folderQueue.isNotEmpty()) {
-            val parent = folderQueue.removeFirst()
-            val allHandles = mtpDevice.getObjectHandles(storageId, ALL_FORMATS, parent) ?: continue
-            val folderHandles =
-                mtpDevice.getObjectHandles(storageId, MtpConstants.FORMAT_ASSOCIATION, parent)
-            val folderSet = folderHandles?.toSet() ?: emptySet()
-            count += allHandles.count { it !in folderSet }
-            folderHandles?.forEach { folderQueue.add(it) }
-        }
-        return count
     }
 
     data class FolderInfo(val handle: Int, val name: String, val dateCreated: Long)
