@@ -61,6 +61,7 @@
 | [Session Summary](archive/SESSION_SUMMARY.md) | 历史交接文档（2026-05-06 → 2026-08-02） |
 | [Multi-Device Architecture](archive/MULTI_DEVICE_ARCHITECTURE.md) | BLE 多设备同步架构（BLE 子系统已移除，仅历史） |
 | [Multi-Vendor Support](archive/MULTI_VENDOR_SUPPORT.md) | BLE 多厂商策略（BLE 子系统已移除，仅历史） |
+| [Play 上架材料](archive/store-listing.md) | Play Store listing 文案（**不适用**：发行仅走 GitHub Release，2026-10-01 归档） |
 
 ## 历史协议文档（已归档，只读）
 
@@ -74,7 +75,8 @@ BLE GPS 同步子系统已于 2026-08-02 移除（commit `a385378`）。相关�
 | 文档 | 说明 |
 |---|---|
 | [隐私政策](legal/privacy-policy.md) | 本地优先：照片/EXIF 仅本机、零网络上报、权限说明、卸载即删 |
-| [Play 上架材料](legal/store-listing.md) | Play Store listing 文案（短/长描述、Data Safety、素材与上架清单，P6-3） |
+
+> 发行渠道：**仅 GitHub Release**，不上架 Google Play（Play 上架材料已归档，见下）
 
 ## 项目记录
 

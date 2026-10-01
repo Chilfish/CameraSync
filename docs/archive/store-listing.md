@@ -1,7 +1,9 @@
-# Play 上架材料（P6-3）
+# Play 上架材料（P6-3）— 🗄️ 已归档，不适用
 
+> **⚠️ ARCHIVED（2026-10-01）**：发行渠道确定为**仅 GitHub Release**（不上架 Google Play），本文档不再适用，仅供历史查阅。P6-3 标记为「不做」。
+>
 > 依据：PRD §1（愿景/价值主张/成功指标）+ `docs/legal/privacy-policy.md`（数据安全口径）+ action-plan P6-3。
-> 最后更新：2026-08-15 | 状态：✅ store listing 文案（本文档）；⏳ 截图 / feature graphic 待真机（Nikon Z30）；⏳ 隐私政策托管 URL 待定。
+> 最后更新：2026-08-15（归档 2026-10-01）| 原状态：✅ store listing 文案；⏳ 截图 / feature graphic；⏳ 隐私政策托管 URL。
 > 一致性约束：App 界面语言为中文（`res/values/strings.xml`），零网络请求、零运行时权限（Manifest 仅 `uses-feature usb.host required=false`），文案不得与代码/隐私政策冲突。
 
 ## 一、应用基本信息

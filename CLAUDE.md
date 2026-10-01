@@ -90,7 +90,7 @@ bash .githooks/pre-push                   # 手动运行（CI gate）
 
 ## Current State
 
-**🔴 发布前（P7 全部落地，待真机回归）**：`testDebugUnitTest` **54 全绿**、detekt **0**、lint **0 errors / 74 warnings**、`assembleDebug` 通过。**第三期评审 P7（R20–R35 + R36/R40）已全部闭环（2026-10-01）**——含两项丢片级缺陷（R21 RAW+JPEG 未成对传输、R23 同名跨存储照片被合并）与大库性能/流畅度（R24–R30）修复，发布阻断解除，**但需真机（Nikon Z30，含双卡/大库）回归确认体感**。行动项见 [`docs/planning/action-plan.md`](docs/planning/action-plan.md) **P7**（见 [`docs/review/2026-10-01-design-review-3.md`](docs/review/2026-10-01-design-review-3.md)）。状态以 [`docs/planning/todo.md`](docs/planning/todo.md)「已知问题」表为准，**不使用"0 known issues"表述**。
+**🟢 待首次发行（真机回归通过，仅 GitHub Release）**：`testDebugUnitTest` **54 全绿**、detekt **0**、lint **0 errors / 74 warnings**、`assembleDebug` 通过。**第三期评审 P7（R20–R35 + R36/R40）已全部闭环（2026-10-01）**——含两项丢片级缺陷（R21 RAW+JPEG 未成对传输、R23 同名跨存储照片被合并）与大库性能/流畅度（R24–R30）修复；**真机（Nikon Z30，含双卡/大库）回归于 2026-10-01 通过**。签名 keystore + Secrets 已就绪，发版走 `scripts/release.sh`（推 tag → `release.yml` 自动建 GitHub Release）。**发行渠道为仅 GitHub Release，不上架 Google Play**。行动项见 [`docs/planning/action-plan.md`](docs/planning/action-plan.md)（见 [`docs/review/2026-10-01-design-review-3.md`](docs/review/2026-10-01-design-review-3.md)）。状态以 [`docs/planning/todo.md`](docs/planning/todo.md)「已知问题」表为准，**不使用"0 known issues"表述**。
 
 - USB/MTP 照片同步是**唯一**功能路径；BLE GPS 子系统已于 2026-08-02 移除（commit `a385378`，Ricoh/Sony 文档归档于 `docs/ricoh/`、`docs/sony/` 供历史查阅）
 - 活跃文档：`docs/README.md`（索引）、`docs/development-log/`（按天开发日志）、`docs/planning/`（规划 + ADR）、`docs/engineering/`（工程规范）、`docs/requirements/`（需求）
@@ -107,7 +107,7 @@ Pre-push hook 在 `.githooks/pre-push` → `detekt + ktfmtCheck + lint + test + 
 | 工作流 | 触发 | 作用 |
 |---|---|---|
 | `ci.yml` | push / PR → `master` | 质量门禁：ktfmtCheck + detekt + lint + test + assembleDebug |
-| `release.yml` | release published | 签名 release APK 并上传到 GitHub Release |
+| `release.yml` | push tag `v*` | 解码签名 Secrets → `assembleRelease` → 自动建 GitHub Release 并附签名 APK |
 | `manual-apk.yml` | 手动 `workflow_dispatch` | **只打包 + 上传 artifact**（可选 `run_gate`），用于真机验证；debug 可直接安装，release 走签名 Secrets 顺带验证 R8 |
 
 > 真机验证取包：Actions → **Manual APK** → Run workflow → 选 `build_type` → 下载 artifact（含 `SHA256SUMS.txt`）安装。详见 [`docs/engineering/release-checklist.md`](docs/engineering/release-checklist.md)。

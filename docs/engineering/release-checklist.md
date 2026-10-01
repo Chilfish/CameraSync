@@ -15,10 +15,47 @@
 
 > release 类型需要仓库 Secrets：`RELEASE_KEYSTORE_BASE64` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD` / `RELEASE_STORE_PASSWORD`（与 `release.yml` 同一套）。缺 Secrets 时产物为未签名 APK，仅供功能验证、不可发布。
 
+## 首次发版准备（keystore + Secrets，一次性）
+
+发行渠道为 **GitHub Release**（不上架 Google Play）。发版前需备好签名密钥：
+
+1. 生成 release keystore（**务必离线备份，丢失后无法对已安装版本升级**）：
+
+   ```bash
+   keytool -genkeypair -v -keystore release.jks -alias camerasync \
+     -keyalg RSA -keysize 4096 -validity 10950 -storetype PKCS12 \
+     -storepass <STORE_PASSWORD> -keypass <STORE_PASSWORD> \
+     -dname "CN=CameraSync, OU=Mobile, O=CameraSync, L=Unknown, ST=Unknown, C=CN"
+   ```
+
+   - keystore 放在仓库根 `release.jks`（已被 `.gitignore` 的 `*.jks` 覆盖，**绝不提交**）
+   - 本地另有 `app/keystore.properties`（同样被忽略），供 `assembleRelease` 本机签名
+
+2. 写入仓库 Secrets（`Settings → Secrets and variables → Actions`，或 `gh secret set`）：
+
+   | Secret | 值 |
+   |---|---|
+   | `RELEASE_KEYSTORE_BASE64` | `base64 -w0 release.jks` |
+   | `RELEASE_KEY_ALIAS` | keystore alias（如 `camerasync`） |
+   | `RELEASE_KEY_PASSWORD` | key 密码 |
+   | `RELEASE_STORE_PASSWORD` | store 密码 |
+
+   ```powershell
+   # PowerShell 生成 base64 并写入
+   $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("release.jks"))
+   $b64 | gh secret set RELEASE_KEYSTORE_BASE64 --repo <owner>/<repo>
+   gh secret set RELEASE_KEY_ALIAS --repo <owner>/<repo> --body "camerasync"
+   gh secret set RELEASE_KEY_PASSWORD --repo <owner>/<repo> --body "<KEY_PASSWORD>"
+   gh secret set RELEASE_STORE_PASSWORD --repo <owner>/<repo> --body "<STORE_PASSWORD>"
+   ```
+
+> 无需 `RELEASE_TOKEN`：`release.yml` 使用默认 `GITHUB_TOKEN`（`permissions: contents: write`）创建 Release。
+
 ## 版本纪律（P0）
 
 - 版本**单源**在 `gradle.properties`（`VERSION_NAME` / `VERSION_CODE`），`app/build.gradle.kts` 读取，禁止手改 build 文件
 - 发版走 `bash scripts/release.sh <version>`：versionCode 自动 +1 → 跑全量门禁 → commit `release: vX` → tag `vX` → push（对标 Float：tag 只打在门禁绿的 commit 上）
+- 推 tag 触发 `release.yml` → 自动创建 GitHub Release 并附签名 APK（**无需手动 `gh release create`**）
 - versionCode 严格递增，禁止回退（覆盖安装判定依赖它）
 
 ## 构建与安装

@@ -18,10 +18,10 @@
 
 ## 二、排序
 
-**已完成：P0–P5 工程阶段 → P7 大照片库正确性与性能（P7-A 正确性 / P7-B 性能 / P7-C 打磨）✅ 2026-10-01。**
-**待办：P3 运营收尾（设备门控）→ P6 发布闭环（设备/环境门控）并行等待环境；真机回归（Nikon Z30，含双卡 / 大库）。**
+**已完成：P0–P5 工程阶段 → P7 大照片库正确性与性能（P7-A 正确性 / P7-B 性能 / P7-C 打磨）✅ 2026-10-01；真机回归（Nikon Z30，含双卡 / 大库）✅ 2026-10-01（用户确认）。**
+**待办：仅剩发行收尾——签名 keystore + Secrets ✅（2026-10-01），推 tag 首发 `v1.0.0` 即可触发 `release.yml` 自动建 GitHub Release。Play 上架不做。**
 
-> **P7 进度（2026-10-01）**：R20–R35、R36、R40 全部落地（R21/R23 两项丢片级缺陷闭环，发布阻断解除）；`testDebugUnitTest` **54 全绿**、detekt 0、lint **0 errors / 74 warnings**。**仍需真机（Nikon Z30，含双卡 / 大库）回归确认性能与交互体感。**
+> **P7 进度（2026-10-01）**：R20–R35、R36、R40 全部落地（R21/R23 两项丢片级缺陷闭环，发布阻断解除）；`testDebugUnitTest` **54 全绿**、detekt 0、lint **0 errors / 74 warnings**。**真机（Nikon Z30，含双卡 / 大库）回归已通过——可发行。**
 
 ---
 
@@ -43,9 +43,9 @@
 
 | # | 事项 | 说明 | 状态 |
 |---|---|---|---|
-| 3-1 | 确认测试设备 | `USB_SYNC.md` §9（Xiaomi MIUI）vs README（Nikon Z30）统一回填 | ⏳ 待设备 |
+| 3-1 | 确认测试设备 | Nikon Z30（`USB_SYNC.md` §9 已验证设备） | ✅ |
 | 3-2 | 推送 & 验证 CI | ✅ 已推送（`origin/master` == `HEAD`）；本地 `ktfmtCheck` / `detekt` / `lint` / `test` / `assembleDebug` 全绿 | ✅ |
-| 3-3 | 真机回归 | Nikon Z30 连接验证 MTP 同步链路（每批改动后必做） | ⏳ 待设备 |
+| 3-3 | 真机回归 | Nikon Z30 连接验证 MTP 同步链路（含双卡 / 大库）——用户确认通过 | ✅ 2026-10-01 |
 | 3-4 | README 真实化（R9） | ✅ 已完成 | ✅ |
 
 ---
@@ -56,10 +56,10 @@
 |---|---|---|---|
 | 6-1 | CHANGELOG 制度 | `CHANGELOG.md` 已建；**PR 更新 Unreleased 纪律执行**（CLAUDE.md 已声明） | ◐ 持续 |
 | 6-2 | 状态诚实化（R19） | ✅ `todo.md` 撤回「0 已知问题」；`CLAUDE.md` Current State 改为发布前状态 | ✅ |
-| 6-3 | Play 上架材料 | 隐私政策 ✅ / 权限核对 ✅ / store listing 文案 ✅（`docs/legal/store-listing.md`）；**剩余：截图 + feature graphic（待 Nikon Z30 真机）、隐私政策托管 URL、Play Console 提交** | ◐ |
+| 6-3 | 上架材料 | ❌ **不做**——发行渠道确定为**仅 GitHub Release**，不上架 Google Play；Play listing / 截图 / Data Safety / Play Console 全部无需。`store-listing.md` 归档至 `docs/archive/`。隐私政策（`docs/legal/privacy-policy.md`）保留（GitHub Release 用户可查，如需可挂 GitHub Pages） | ✅ 不做 |
 | 6-4 | 发布后指标 | ✅ `docs/planning/release-metrics.md`（零埋点，从 TransferHistory + 日志聚合） | ✅ |
 
-> **发布阻断解除**：第三期评审的两项丢片缺陷（R21/R23）已于 P7-A 修复，P6-3 剩余素材（截图 / 托管 URL）可继续推进。
+> **发布阻断解除**：第三期评审的两项丢片缺陷（R21/R23）已于 P7-A 修复。发行渠道定为 **仅 GitHub Release**，P6-3（Play 上架材料）不做。
 > **真机验证取包**：新增 `.github/workflows/manual-apk.yml`（Actions → Manual APK），支持 debug/release 手动打包并上传 artifact，直接服务于 P3-3 真机回归（详见 [release-checklist](../engineering/release-checklist.md)）。
 
 ---
@@ -184,9 +184,9 @@
 
 | ID | 主题 | 对应 review | 验收标准 |
 |---|---|---|---|
-| P3-1..3-3 | 设备统一 / CI / 真机回归 | — | 待设备与环境 |
+| ✅ P3-1..3-3 | 设备统一 / CI / 真机回归 | — | Nikon Z30 真机回归通过（2026-10-01） |
 | P6-1 | CHANGELOG 纪律 | — | PR 更新 Unreleased |
-| P6-3 | 上架材料 | — | 截图 + feature graphic + 托管 URL（待真机） |
+| ✅ P6-3 | 上架材料 | — | ❌ 不做：仅 GitHub Release 发行，不上架 Play |
 | ✅ P7-1 | RAW+JPEG 成对传输 | R21 | 选「全部」两张都落盘 + 新单测绿（2026-10-01） |
 | ✅ P7-2 | 分组键纳入存储/文件夹 | R23 | 同名不合并 + 网格无重复 key + 新单测绿（2026-10-01） |
 | ✅ P7-3 | 预览统计口径 | R22 | 组数正确 + 「+N more」显示（2026-10-01） |

@@ -1,8 +1,10 @@
 # Float 对标差距分析（Benchmark Float）
 
 > **依据**: `I:\dev\Float\`（CLAUDE.md + docs/）完整对照阅读
-> **最后更新**: 2026-08-15 | **原则**: 完全对标 Float 的流程与规范；保留 CameraSync 已定架构决策（单模块 / Metro / Khronicle）
+> **最后更新**: 2026-10-01 | **原则**: 完全对标 Float 的流程与规范；保留 CameraSync 已定架构决策（单模块 / Metro / Khronicle）
 > **约定**: `✅` 已对齐 · `🟡` 部分对齐 · `❌` 缺失/悬空
+>
+> **⚠️ 本文是 2026-08-15 的差距快照**：下表多数缺口**已闭环**——A1 CHANGELOG、B1 requirements/、B2 ADR、B3 release-checklist、B4 adb-commands、B5 privacy-policy、C1/C2 GitHub 模板、D1 版本单源 + `release.sh`、F1/F4 CLAUDE.md 章节、G1/G3/G4 均已落地（见 `CHANGELOG.md` Unreleased）。唯一未做的是 P4 可选项（E1 skills、D2 jacoco 覆盖率）。下表的 `❌/🟡` 为**当时状态**，不代表现状。
 
 ---
 

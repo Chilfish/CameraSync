@@ -106,7 +106,7 @@ git commit -m "docs: update development log for settings work"
 | 工作流 | 触发 | 作用 |
 |---|---|---|
 | `ci.yml` | push / PR → `master` | 质量门禁：ktfmtCheck + detekt + lint + testDebugUnitTest + assembleDebug |
-| `release.yml` | release published | 解码签名字段（`RELEASE_*` Secrets）→ `assembleRelease` → 上传 GitHub Release |
+| `release.yml` | push tag `v*` | 解码签名字段（`RELEASE_*` Secrets）→ `assembleRelease` → 自动建 GitHub Release 并上传 APK（附自动 release notes） |
 | `manual-apk.yml` | 手动 `workflow_dispatch` | 只打包 + 上传 artifact（可选 `run_gate`），供**真机验证**；`build_type` 选 debug/release |
 
 - `manual-apk.yml` **不绑定 push/tag**，避免空跑消耗 Actions 额度；默认不跑 gate（只打包）
@@ -144,8 +144,9 @@ gh pr comment 1 --body "LGTM!"
 gh pr checks 1                  # 检查 CI 状态
 gh pr merge 1 --merge --delete-branch   # Create a Merge Commit（保留原子 commit + 合并提交）
 
-# Release
-gh release create v1.0.0 --generate-notes
+# Release（通常走 scripts/release.sh，会自动推 tag 并由 release.yml 建 Release）
+gh release list                            # 查看已发布版本
+gh release view v1.0.0                     # 查看某个 Release
 ```
 
 ### AI Code Review 流程
@@ -199,5 +200,7 @@ AI 辅助判断 PR 是否可合并，基于：
 1. 更新 `gradle.properties`：`VERSION_NAME` / `VERSION_CODE`（单源，不手改 build 文件）
 2. 更新 `CHANGELOG.md`（Unreleased → 版本）
 3. 跑全量门禁（`ktfmtCheck` + `detekt` + `lintDebug` + `testDebugUnitTest` + `assembleDebug`）
-4. Commit `release: vX` → Tag `vX` → Push
-5. GitHub Release 自动构建发布 APK（`release.yml`，需配置 keystore secrets）
+4. Commit `release: vX` → Tag `vX` → Push（`scripts/release.sh` 一条命令完成）
+5. 推 tag 触发 `release.yml`：解码 keystore → 构建签名 APK → **自动创建 GitHub Release** 并附 APK 与自动生成的 release notes（无需手动 `gh release create`）
+
+> **发行渠道**：本项目**仅通过 GitHub Release 分发**，不上架 Google Play。keystore 与 Secrets 为一次性准备，见 [`release-checklist.md`](release-checklist.md)「首次发版准备」。
