@@ -1,19 +1,21 @@
 # CameraSync — 当前状态 & 未来规划
 
-> 最后更新: 2026-08-15 | 分支: `master`
+> 最后更新: 2026-10-01 | 分支: `master`
 
 ---
 
-## 当前状态: ⚠️ 发布前（P6 收尾中）
+## 当前状态: 🔴 发布前（P7 大库修复中）
 
-**撤回"生产就绪 / 0 个已知问题"表述（2026-08-15 第二期评审 R19）**。事实状态：
+**撤回"生产就绪 / 0 个已知问题"表述（2026-08-15 第二期评审 R19）；第三期评审（2026-10-01）发现丢片级缺陷后，状态降级为「发布前（P7 修复中）」。** 事实状态：
 
 - ✅ 功能层面：P0 正确性止血（去重/路径/管线/剪枝）、P1 核心路径（引导/新照片主路径/传输回看）、P2-1 God Object 拆分、P2-2 核心单测、P2-3 detekt 归零全部落地
-- ✅ `testDebugUnitTest` **43 tests 全绿**（P2-2，2026-08-15）
+- ✅ `testDebugUnitTest` **43 tests 全绿**（P2-2，2026-08-15；2026-10-01 clean 全量复核仍全绿）
 - ✅ detekt baseline **0 条**（P2-3，2026-08-15）
 - ✅ R8 旋转双开 MTP、R12 幽灵权限、R11 主题闭环、R13 电量删除（P4-1/2/3/4，2026-08-15）
-- ✅ **P5 工程债深水全部落地**（R10 字符串资源化 / R14 核心路径接 DI / R15 核心屏 Preview / R17 缓存降内存，2026-08-15，见 [action-plan](action-plan.md)）
-- 完整已知问题清单见下方「已知问题」表 + [第二期评审](../review/2026-08-15-design-review-2.md)
+- ✅ **P5 工程债深水全部落地**（R10 字符串资源化 / R14 核心路径接 DI / R15 核心屏 Preview / R17 缓存降内存，2026-08-15）
+- ✅ 构建层面：`assembleDebug` / `bundleRelease`（R8）本地 clean 全量通过（2026-10-01）；lint **0 errors / 96 warnings**
+- 🔴 **第三期评审新增待修**：[第三期评审](../review/2026-10-01-design-review-3.md)（R20–R41）——**R21 RAW+JPEG 丢片 / R23 同名跨存储合并丢片**（发布阻断），R20 旋转后连接静默失效，R22 预览统计失真，R24–R30 大库卡顿。行动项见 [action-plan](action-plan.md) **P7**
+- 完整已知问题清单见下方「已知问题」表 + 三期评审文档
 
 ### 已完成功能总览
 
@@ -49,12 +51,8 @@
 - [x] 本地 EXIF 详情面板
 - [x] 下拉刷新
 
-#### BLE GPS 同步 (次要)
-- [x] Ricoh GR 系列 GPS + 时间同步
-- [x] Sony Alpha 系列 GPS + 时间同步
-- [x] 多设备并发同步
-- [x] BLE 固件更新检查
-- [x] Nikon BLE 死代码已删除
+#### 已移除子系统（历史，勿列为"已完成功能"）
+- ~~BLE GPS 同步（Ricoh GR / Sony Alpha 系列）~~ —— **已于 2026-08-02 移除**（commit `a385378`）；协议文档归档 `docs/ricoh/`、`docs/sony/`，仅供历史查阅。USB/MTP 是唯一功能路径。
 
 #### 基础设施
 - [x] Metro 编译时 DI
@@ -80,24 +78,10 @@
 
 ## 下一步行动计划
 
-> **活跃行动计划已迁移** → [`action-plan.md`](action-plan.md)（2026-08-09，Apple 视角评审后重排：P0 止血 → P1 核心路径 → P2 工程债 → P3 收尾）。
-> 本段只保留旧 P0–P3 的完成记录与去向；新任务一律在 action-plan.md 追踪（docs-first，完成一项勾一项）。
-
-### 旧 P0 — 修复 CI 门禁（ktfmtCheck 红色） ✅
-
-`bcb7bee perf(usb)` 引入 9 个未格式化文件，`e873861 style: apply ktfmtFormat` 已修复；detekt-baseline 同步清理 10 条 UnusedImports（34 → 24）。
-
-### 旧 P1 — 确认测试设备 → 并入 action-plan P3-1
-
-测试设备三处说法矛盾（`USB_SYNC.md` §9 = Xiaomi MIUI；README/CONTRIBUTING = Pixel 9）未闭环，回填见 action-plan P3-1。
-
-### 旧 P2 — 偿还 detekt baseline 债务 ✅（action-plan P2-3）
-
-`9f373eb chore: repay detekt baseline debt`：baseline 17 条 → **0 条**（含删电量死桩 getBatteryLevel、TransferRecord 独立文件、NestedBlockDepth/ComplexCondition 重构、死代码清理）。
-
-### 旧 P3 — 推送 & 验证 CI → action-plan P3-2
-
-推送本地未推送 commit（领先远程 13 个，P2/P4 落地后）+ 确认 GitHub CI 全绿。
+> **活跃行动计划** → [`action-plan.md`](action-plan.md)。
+> 2026-10-01 调整：**已完成阶段 P0–P5 归档**至 [`../archive/ACTION_PLAN_P0-P5.md`](../archive/ACTION_PLAN_P0-P5.md)（历史记录，不主动读取）。
+> 待办：**P3** 运营收尾（设备/网络门控）→ **P6** 发布闭环（设备门控）→ **P7 大照片库正确性与性能**（第三期评审新增，**R21/R23 丢片级，发布阻断**）。
+> 新任务一律在 action-plan.md 追踪（docs-first，完成一项勾一项）。
 
 ---
 
@@ -122,12 +106,17 @@
 ```
 app/src/main/kotlin/dev/sebastiano/camerasync/
 ├── usb/                          # ★ USB 照片同步 (主功能)
-│   ├── NikonUsbManager.kt        # MTP 设备操作
-│   ├── GalleryViewModel.kt       # 连接生命周期 + 传输状态 + 筛选
-│   ├── GalleryScreen.kt          # 主 UI (网格/文件夹/选择/进度)
+│   ├── NikonUsbManager.kt        # MTP 设备操作（枚举/读取/删除）
+│   ├── GalleryViewModel.kt       # 门面（P2-1 拆分后保留公共 API）
+│   ├── GalleryStateMachine.kt    # 状态机 + 筛选/排序/分组/选择纯逻辑
+│   ├── ConnectionManager.kt      # USB 生命周期 + 浏览/枚举
+│   ├── ThumbnailProvider.kt      # 四类缓存 + EXIF 方向
+│   ├── TransferEngine.kt         # 传输编排 + MediaStore 保存
+│   ├── GalleryScreen.kt          # 主 UI (网格/文件夹/选择/进度；2248 行，待拆)
 │   ├── PhotoSyncManager.kt       # 导入去重
 │   ├── PhotoDetailSheet.kt       # EXIF 详情面板
 │   ├── TransferHistoryScreen.kt  # 传输历史
+│   ├── TransferRecord.kt         # 传输历史条目
 │   ├── LocalPhotosViewModel.kt   # 本地相册 ViewModel
 │   ├── FirstRunGuideScreen.kt    # 冷启动引导（设置页可重开）
 │   └── UsbSyncPreferences.kt     # 用户偏好设置
@@ -144,7 +133,7 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 
 ## 已知问题
 
-> 2026-08-15 更新：R8/R12/R11/R13/R18 已闭环（P4）；**R10/R15/R14/R17 已闭环（P5）**；剩余 P6（发布闭环：CHANGELOG 纪律、上架材料、发布后观测）按序推进。**P6-3 store listing 文案已建**（`docs/legal/store-listing.md`）；截图/隐私政策托管待真机环境。
+> 2026-10-01 更新：P0–P5 全部闭环并归档（[归档原文](../archive/ACTION_PLAN_P0-P5.md)）。**第三期评审（大库专项）新增 R20–R41**，行动项见 action-plan **P7**；其中 **R21/R23 为丢片级、发布阻断**。P3/P6 剩余项依赖真机与网络环境。
 
 | 严重度 | 问题 | 状态 |
 |---|---|---|
@@ -161,18 +150,32 @@ app/src/main/kotlin/dev/sebastiano/camerasync/
 | P1 | 电量"宣称已实现"实际恒 null（R13） | ✅ 已删除（`9f373eb`，action-plan P4-3，YAGNI） |
 | P2 | 硬编码字符串、核心屏零 Preview、核心路径未接 DI（R10/R15/R14） | ✅ 已修复（P5-1/2/3，2026-08-15：资源化 + Preview 全覆盖 + AppGraph 注入） |
 | P2 | fullPhotoCache 300MB OOM 风险（R17） | ✅ 已修复（P5-4，2026-08-15：磁盘 LRU 3 + 路径 EXIF） |
+| **P0** | **RAW+JPEG 选「全部」只传 RAW，JPEG 静默丢弃（R21）** | 🔴 待修（action-plan **P7-1**，需先补单测） |
+| **P0** | **同名照片跨存储/文件夹被合并丢一张（R23）** | 🔴 待修（action-plan **P7-2**，需先补单测） |
+| P1 | 旋转/`stop()` 后协作对象持死 scope，USB 连接静默失效（R20） | 🔴 待修（action-plan **P7-4**） |
+| P1 | 传输预览组数被 `take(6)` 截断、"+N more" 恒 0（R22） | 🔴 待修（action-plan **P7-3**） |
+| P1 | 勾选触发整屏全量重算 / BY_DATE O(分区×照片) / 选择集线性（R24/R25/R26） | 🟠 待修（action-plan **P7-5/6/7**） |
+| P2 | 枚举两遍 / 缩略图堆积 / 扫描无反馈 / 去重表无上限（R27–R30） | 🟠 待修（action-plan **P7-8/9/10/11**） |
+| P3 | 刷新指示失败 / 取消语义 / 详情下全图 / 死代码 / BLE 残留资源（R31–R35） | 🟡 待修（action-plan **P7-12**） |
 
-> 应用功能层面历史 bug 均已修复（最后修复 2026-08-02 PhotoCell EXIF 竖构图）。2026-08-09 Apple 视角评审（[review](../review/2026-08-09-design-review.md)）发现的 4 项正确性缺陷 R1–R4 已全部修复（action-plan P0）；R7（自动同步未接线）已按 YAGNI 移除死代码（action-plan P1-4）；R5 三个核心路径项（P1-1/2/3）已全部落地（action-plan P1）。
+> 应用功能层面历史 bug 截至 2026-08-02 均已修复；P0/P1/P4/P5 全部闭环（见[归档](../archive/ACTION_PLAN_P0-P5.md)）。但 **2026-10-01 第三期评审（[review](../review/2026-10-01-design-review-3.md)）发现两项丢片级缺陷（R21/R23）尚未修复**——「无已知问题」不成立，「生产就绪」撤回。P7 完成后需真机回归（Nikon Z30，含双卡/大库场景）方可再评估发布。
 
 ---
 
-## 最近提交 (2026-08-09)
+## 最近提交 (2026-10-01)
+
+> `master` 领先 `origin/master` **38 个 commit**（P2/P4/P5/P6 全部落地未推送；P3-2 待网络环境）。
 
 ```
-e873861 style: apply ktfmtFormat
-9a54205 docs: record pending items in action plan and dev log
-cd756a8 chore: enable detekt gate with baseline and add pre-push hook
-0251bf3 docs: realign agent guidance and docs system to Float
-bcb7bee perf(usb): eliminate blocking thumbnail prefetch, add concurrent preloading
-a385378 refactor: remove BLE GPS sync and companion device subsystems
+a1e0177 docs: sync P6 store-listing status across changelog and planning
+67f476c docs(legal): add Play store listing material
+c2a17c1 docs: sync status after P5 implementation
+7815abf docs: align privacy policy and add release metrics plan
+173d5c0 chore: remove unused storage and vibration permissions
+6785430 refactor(di): inject gallery view models from AppGraph
+8ee67eb feat(ui): add gallery state and settings screen previews
+35ca39b refactor(usb): decouple gallery screens from view model for previews
+ad54502 fix(usb): cap full-photo cache and use path-based EXIF
 ```
+
+> 下一批：`docs: add third design review and P7 plan`（本期）+ P7-A 修复（R21/R23 先行）。

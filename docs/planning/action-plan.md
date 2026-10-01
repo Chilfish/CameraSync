@@ -1,7 +1,7 @@
 # CameraSync 后续行动计划 & 开发步骤
 
-> **依据**: [`docs/review/2026-08-09-design-review.md`](../review/2026-08-09-design-review.md)（第一期 Apple 视角评审）+ [`docs/review/2026-08-15-design-review-2.md`](../review/2026-08-15-design-review-2.md)（第二期，P2-1 之后）
-> **最后更新**: 2026-08-15 | **原则**: docs-first；先修复再新功能；先写 commit message 再写代码；每 commit 本地跑 detekt + ktfmtCheck
+> **依据**: [第一期评审](../review/2026-08-09-design-review.md)（R1–R7）+ [第二期评审](../review/2026-08-15-design-review-2.md)（R8–R19）+ [第三期评审](../review/2026-10-01-design-review-3.md)（R20–R41，大库专项）
+> **最后更新**: 2026-10-01 | **原则**: docs-first；先修复再新功能；先写 commit message 再写代码；每 commit 本地跑 detekt + ktfmtCheck
 
 ---
 
@@ -10,192 +10,153 @@
 把核心使命「插线传照片」做到 99.9% 可靠：
 
 - **绝不错传** — 去重键一致（R2）
-- **绝不丢片** — 剪枝真实化，不留假注释（R3）
-- **单一管线** — 一条数据通路，一个所有者（R1）；**资源有生命周期所有者，旋转不复活双开（R8）**
-- **状态诚实** — 文档、UI 宣称与代码一致；"0 已知问题"只在真的为 0 时写（R9/R13/R19）
+- **绝不丢片** — 剪枝真实化（R3）；**RAW+JPEG 成对必传（R21）；同名单张不合并（R23）**
+- **单一管线** — 一条数据通路，一个所有者（R1）；**资源有生命周期所有者，旋转不复活双开（R8）；生命周期边界不误杀派生协程（R20）**
+- **状态诚实** — 文档、UI 宣称与代码一致（R9/R13/R19/R22）
+- **大库可用** — 「照片很多」是常态：大库下点选/滑动/扫描仍然顺畅（R24–R30）
 - 功能做减法，聚焦冷启动与默认主路径（R5）
 
 ## 二、排序
 
-**P0 止血 → P1 核心路径 → P2 工程债 → P3 运营收尾 → P4 信任与生命周期 → P5 工程债深水 → P6 发布闭环**。P0/P4 阻塞发布，其余按序推进。
+**已完成：P0 止血 → P1 核心路径 → P2 工程债 → P4 信任与生命周期 → P5 工程债深水。**
+**待办：P3 运营收尾（设备门控）→ P6 发布闭环（设备/环境门控）→ P7 大库正确性与性能（发布阻断）。**
+
+> **P7 优先级说明**：R21/R23 为丢片级缺陷，**排在 P6 剩余项之前**；R20/R22/R24–R26 紧随其后。P3/P6 中依赖真机与网络的部分并行等待环境。
 
 ---
 
-## P0 — 正确性止血 ✅（2026-08-09 完成）
+## 三、已完成阶段（P0–P5）✅
 
-> 4 个原子 commit 已落地，每项 gate（ktfmt + detekt + compileDebugKotlin）本地验证通过。
+> 详细原文已归档至 [`../archive/ACTION_PLAN_P0-P5.md`](../archive/ACTION_PLAN_P0-P5.md)（历史记录，不主动读取）。下表为摘要。
 
-### P0-1 统一保存路径 ✅ `2961280`
-
-- **Commit**: `fix(usb): use camera model in MediaStore save path`
-- **证据**: `GalleryViewModel.kt:1034` / `UsbSyncCoordinator.kt:156` 写死 `"Pictures/CameraSync/Nikon Z30"`
-- **动作**: 两处改用 `cameraInfo.model`（fallback "Nikon"）；`strings.xml` 两条写死设备名的文案改通用
-- **结果**: 目录名随模型变化，不再写死 "Nikon Z30"
-
-### P0-2 统一去重键 ✅ `b75e87b`
-
-- **Commit**: `fix(usb): unify dedup key across UI and background pipelines`
-- **证据**: `GalleryViewModel.kt:781, 851, 904, 921, 957` 硬编码 `storageId=0` vs `UsbSyncCoordinator.kt` 用真实 `storage.id`
-- **动作**: `PhotoInfo` 增加 `storageId`；两条管线去重判定一致（顺带清理 1 条 detekt baseline）
-- **结果**: 前台 UI 与后台同步对同一照片判定一致
-
-### P0-3 收敛双 MTP 管线 ✅ `9344686`（阶段1；阶段2 降级至 P2-1）
-
-- **Commit**: `refactor(usb): guard MTP session against concurrent open`
-- **证据**: `GalleryViewModel.kt:142` / `UsbSyncService.kt:60` 各自 new `NikonUsbManager`
-- **动作（实施后调整）**:
-  1. ✅ 护栏：`NikonUsbManager` 进程级 `hasActiveSession`（open 置位 / close 复位）；`UsbSyncCoordinator.syncOnce()` 前台会话期间跳过
-  2. ⏸ 阶段2（共享 `NikonUsbManager` 实例）降级至 P2-1：实施中发现后台管线**当前未接线**（见 P1-4），并发风险为潜在而非实发；共享实例需 DI 改造 + 核心路径重构，收益当前为零，并入拆 God Object 一并处理
-- **结果**: 任一时刻仅一个 `MtpDevice` open；未来接线自动同步默认安全
-
-### P0-4 剪枝真实化 ✅ `220aa12`
-
-- **Commit**: `fix(usb): validate photo identity when checking dedup`
-- **证据**: `PhotoSyncManager` 注释声称自动剪枝，`clearAll()`/`clearStorage()` 零调用
-- **动作**: 假注释的"自动剪枝"改为**软校验**——dedup 存 `name:size` 身份，handle 复用给新照片时身份不匹配 → 视为未导入。比"重连清空"保留跨会话去重，比"全量枚举剪枝"不破坏文件夹渐进浏览
-- **结果**: 不再静默丢片；注释与代码一致（旧 boolean 键升级后失效，触发一次全量重传，dev 阶段可接受）
+| 阶段 | 主题 | 结果 | 关键 commit |
+|---|---|---|---|
+| P0 | 正确性止血（去重键/保存路径/单管线/软校验） | ✅ 2026-08-09 | `2961280` `b75e87b` `9344686` `220aa12` |
+| P1 | 核心路径（引导 / 新照片主路径 / 传输回看 / 移除死代码） | ✅ 2026-08-09 | `61fc9a7` `97f7c8e` `f6d2f9b` `6a1c331` |
+| P2 | 工程债（拆 God Object / 43 单测 / detekt 归零） | ✅ 2026-08-15 | `62f1922` `c75fc72` `22e9f8e` `976fd3f` `9f373eb` |
+| P4 | 信任与生命周期（旋转单开 / 幽灵权限 / 主题电量 / 引导标记） | ✅ 2026-08-15 | `18c3b9b` `f0f12f3` `bb1dc29` |
+| P5 | 工程债深水（字符串资源化 / 接 DI / Preview / 缓存降内存） | ✅ 2026-08-15 | `6785430` `ad54502` `35ca39b` |
 
 ---
 
-## P1 — 核心路径 Apple 级（产品，3–5 天）✅（2026-08-09 完成）
+## P3 — 运营收尾（设备/网络门控）
 
-### P1-1 冷启动一屏引导 ✅ `61fc9a7`
-
-- **Commit**: `feat(usb): add first-run MTP mode guide`
-- **动作**: 首次启动一屏说明 ① 相机需切到 MTP/PTP 模式 ② USB 权限 ③ 插线即同步。不做 3 屏 onboarding；冷启动压栈 `FirstRunGuide`（`prefs.guideSeen` 持久化，不再打扰）；设置页新增「使用说明」入口，落地原先的空 stub（顺带消 baseline `UnusedParameter`）
-- **验收**: ✅ 新用户首次进入看到引导；引导后不再打扰
-
-### P1-2 新照片成为默认主路径 ✅ `97f7c8e`
-
-- **Commit**: `feat(usb): make new-photos the default view`
-- **动作**: `filterMode` 默认 `NEW`（init + 移除 `loadRoot` 里按 downloadFormat 重置）；主 CTA「传输全部新照片 (N)」一键全选新照片 → 预览确认；分组/排序/网格密度收进顶栏溢出菜单（原网格密度图标移除）；downloadFormat 与默认视图解耦（仅控制传输格式，见 `handlesForFormat`）
-- **验收**: ✅ 插线 → CTA → 确认，≤3 次点击
-
-### P1-3 传输完成可回看 ✅ `f6d2f9b`
-
-- **Commit**: `feat(usb): show per-session transfer summary`
-- **动作**: 传输完成面板新增「本次传输清单」——列出本次保存的全部文件（缩略图 + MediaStore 名称），点击在系统相册打开定位；在清单内下拉关闭返回完成面板而非整个 dismiss
-- **验收**: ✅ 传输完成后能追溯到本次传输的文件
-
-### P1-4 自动同步 → 移除死代码 ✅ `6a1c331`
-
-- **Commit**: `refactor(usb): remove unwired auto-sync pipeline`
-- **证据**: `UsbSyncService.createStartIntent`/`ACTION_SYNC` **零调用**；`SettingsScreen` 的 auto-sync 开关写 `prefs.autoSyncEnabled` 但无消费者（评审 R7）
-- **动作**: 产品决策 = **移除（YAGNI）**。删 `UsbSyncService`/`UsbSyncCoordinator`、无效开关、`autoSyncEnabled`/`autoSyncFlow`、同步通知 channel、Manifest service + 3 条前台/通知权限、`NikonUsbManager.hasActiveSession`（唯一读方是 Coordinator，删后成 write-only）、4 条死字符串、5 条 detekt baseline 条目
-- **验收**: ✅ 设置页不再出现无效开关；自动同步彻底移除
+| # | 事项 | 说明 | 状态 |
+|---|---|---|---|
+| 3-1 | 确认测试设备 | `USB_SYNC.md` §9（Xiaomi MIUI）vs README（Nikon Z30）统一回填 | ⏳ 待设备 |
+| 3-2 | 推送 & 验证 CI | 推送本地未推送 commit；确认 `ktfmtCheck` / `detekt` / `lint` / `test` / `assembleDebug` 全绿（本环境曾 SSH 不可达） | ⏳ 待网络 |
+| 3-3 | 真机回归 | Nikon Z30 连接验证 MTP 同步链路（每批改动后必做） | ⏳ 待设备 |
+| 3-4 | README 真实化（R9） | ✅ 已完成 | ✅ |
 
 ---
 
-## P2 — 工程债（2026-08-09 起，P2-1 ✅ / P2-2 ✅ / P2-3 ✅）
+## P6 — 发布闭环（设备/环境门控）
 
-### P2-1 拆分 God Object（R6）✅ `62f1922` `c75fc72` `22e9f8e` `976fd3f`（附 `b1fa3a3` 修复）
+| # | 事项 | 说明 | 状态 |
+|---|---|---|---|
+| 6-1 | CHANGELOG 制度 | `CHANGELOG.md` 已建；**PR 更新 Unreleased 纪律执行**（CLAUDE.md 已声明） | ◐ 持续 |
+| 6-2 | 状态诚实化（R19） | ✅ `todo.md` 撤回「0 已知问题」；`CLAUDE.md` Current State 改为发布前状态 | ✅ |
+| 6-3 | Play 上架材料 | 隐私政策 ✅ / 权限核对 ✅ / store listing 文案 ✅（`docs/legal/store-listing.md`）；**剩余：截图 + feature graphic（待 Nikon Z30 真机）、隐私政策托管 URL、Play Console 提交** | ◐ |
+| 6-4 | 发布后指标 | ✅ `docs/planning/release-metrics.md`（零埋点，从 TransferHistory + 日志聚合） | ✅ |
 
-- **Headline**: `refactor(usb): split GalleryViewModel into focused modules`
-- **动作**: `GalleryViewModel`（1105 行）→ 4 个原子 commit 顺序抽取，**行为不变（纯搬移）**，`GalleryViewModel` 收敛为门面（保留全部公共 API，GalleryScreen/PhotoDetailSheet 零改动）：
-  1. ✅ `62f1922` `refactor(usb): extract GalleryStateMachine from GalleryViewModel` — sealed state + 筛选/排序/分组/选择纯逻辑（最可测）
-  2. ✅ `c75fc72` `refactor(usb): extract ThumbnailProvider from GalleryViewModel` — 四类缓存 + EXIF 方向
-  3. ✅ `22e9f8e` `refactor(usb): extract TransferEngine from GalleryViewModel` — 传输编排（含 MediaStore 保存）
-  4. ✅ `976fd3f` `refactor(usb): extract ConnectionManager from GalleryViewModel` — USB 生命周期 + 浏览/枚举
-  5. ✅ `b1fa3a3` `fix(usb): assign currentPhotos instead of recursing in updateCurrentPhotos`（拆分暴露的既有 bug）
-- **验收**: 行为不变；`LargeClass:GalleryViewModel` baseline 条目随拆分消除（注：`GalleryViewModel` 现 377 行门面，baseline 条目待 P2-3 核实移除）
-
-### P2-2 核心路径补单测（R6/R16）✅（2026-08-15，43 tests 全绿）
-
-- **Headline**: `test(usb): add dedup and state machine tests`
-- 落地（遵循 CLAUDE.md「Fakes over Mocks」+ Dispatcher 注入）:
-  1. ✅ `11d0652` `fix(usb): use injected dispatcher in LocalPhotosViewModel scope` — scope/stop() 用注入 ioDispatcher + 删 baseDir 死代码
-  2. ✅ `32721a2` `fix(usb): return to root state when leaving top-level folder` — goBack 根目录归一化（拆分暴露的真 bug）
-  3. ✅ `d263935` `test(usb): fix LocalPhotosViewModel tests for plain JVM` — package 声明、Uri/ContentUris 静态 mock、mockk Cursor 替代 MatrixCursor
-  4. ✅ `a418d23` `chore: return default values for android.jar stubs` — `unitTests.isReturnDefaultValues`（ContentValues 等桩方法不再抛 not mocked）
-  5. ✅ `b015182` `test(usb): add PhotoSyncManager dedup tests` — 构造注入 SharedPreferences + `InMemorySharedPreferences` fake（6 条）
-  6. ✅ `cf88244` `test(usb): add GalleryStateMachine transition and filter tests`（10 条）
-  7. ✅ `134674b` `test(usb): add TransferEngine failure and retry tests`（8 条）
-- **验收**: ✅ `testDebugUnitTest` 19/6 红 → **43/0 全绿**
-
-### P2-3 还清 detekt baseline（todo.md 原 P2）✅ `9f373eb`
-
-- **Commit**: `chore: repay detekt baseline debt`
-- 动作: 17 条 → 0，`detekt-baseline.xml` 清空：删电量死桩 `getBatteryLevel`（P4-3 决策联动）、`TransferRecord` 独立文件、`extractExif` 委托去重 + 抽 `formatExifDate`、ComplexCondition 提取局部变量、`totalSelected` 死代码、Metro 死 override；MTP/MediaStore 宽 catch 处 `@Suppress` + 注释
-- **验收**: ✅ `detekt` 无 baseline 吸收全绿
+> **发布阻断重排**：第三期评审新增的两项丢片缺陷（R21/R23）**先于** P6-3 剩余素材推进——素材可后补，丢片不可。
 
 ---
 
-## P3 — 运营收尾（半天，2026-08-09 起未完成）
+## P7 — 大照片库正确性与性能（新增，发布阻断）🔴
 
-| # | 事项 | 说明 |
-|---|---|---|
-| 3-1 | 确认测试设备 | `USB_SYNC.md` §9（Xiaomi MIUI）vs README（Nikon Z30）统一回填（todo.md 原 P1） |
-| 3-2 | 推送 & 验证 CI | 推送本地未推送 commit（当前领先远程 2 个：`22e9f8e` `976fd3f`）；确认 `ktfmtCheck` / `detekt` / `lint` / `test` / `assembleDebug` 全绿 |
-| 3-3 | 真机回归 | Nikon Z30 连接验证 MTP 同步链路（P0 改动后必做） |
-| 3-4 | **README 真实化（R9）** ✅ | 删除已删功能描述（Background Sync / UsbSyncService 结构条目 / "Download All"），与代码单一事实源对齐；`18c3b9b` 后 README Permissions/How It Works 同步真实化（并行流已删功能条目） |
+> **依据**: [第三期评审](../review/2026-10-01-design-review-3.md)（R20–R41）
+> **背景**: 用户反馈「照片很多时不好用顺畅」。过去两期未对大库做专项验证——测试数据均为个位数照片，性能与交互成本从未被评估。本阶段补齐。
+> **纪律**: 每项先写 commit message；**R21/R23 必须先补失败测试再修**（当前测试用单张 group，未覆盖成对传输与同名跨存储）。
 
----
+### P7-A 正确性（丢片级，最先做）
 
-## P4 — 信任与生命周期（✅ 2026-08-15 全部落地）
+#### P7-1 RAW+JPEG 成对传输（R21）🔴
 
-> 依据 R8/R12/R11/R13/R18。此阶段是"发布前信任"：用户看到的、系统信任的、进程存活的都要是真的。
+- **现状**: `TransferEngine.buildTransferList()` 每 group 只产出 1 个 `photo to handle`（raw 优先），选「全部」时 JPEG 静默丢弃；进度/计数/去重标记与之不匹配
+- **动作**: 改为按 `handlesForFormat` 展开为多对（`flatMap`），`selected` 中所有 handle 都参与；`performTransfer` 的 total/成功计数随之正确
+- **测试**: 先补 `TransferEngineTest`：RAW+JPEG 双选 → 期望两次 `downloadPhoto` + `lastTransferredHandles` 含两个 handle + `TransferDone.synced == 2`
+- **验收**: 选「全部」传输 RAW+JPEG 对，两张都落 MediaStore
 
-### P4-1 修复 GalleryViewModel 生命周期所有权（R8）✅ `18c3b9b`
+#### P7-2 分组键纳入存储/文件夹（R23）🔴
 
-- **Headline**: `fix(usb): pair MTP lifecycle with composable dispose and defer guide marker`
-- **方案**: B（DisposableEffect 配对）——`MainActivity` 根部 `DisposableEffect(Unit) { start(); onDispose { stop() } }`；`ConnectionManager.stop()` 完整停止（注销 receiver + **关闭 MtpDevice**）；`GalleryScreen` 移除 `LaunchedEffect start`（VM 生命周期上移到根，跨屏导航不断开）
-- **验收**: ✅ 旋转前后仅一个 `MtpDevice` open；receiver 随 dispose 注销。方案 A（DI 保留实例）留待 P5-2
+- **现状**: `GalleryViewModel.groupByBaseFilename()` 仅按文件名聚合 → 双卡同名照片合并丢一张；`items(key = baseName)` 依赖唯一性，修合并后同 key 会崩
+- **动作**: group 键改为 `base + storageId + parentFolder`；`PhotoGroup` 增加稳定 `key`（供 Lazy `items` 使用），`baseName` 仅作显示
+- **测试**: `GalleryStateMachineTest` 加：同 `baseName` 不同 `storageId` → 两个 group
+- **验收**: 双卡/多文件夹同名照片各自独立、均可传输；网格无重复 key
 
-### P4-2 删除幽灵权限（R12）✅ `f0f12f3`
+#### P7-3 传输预览统计口径（R22）🔴
 
-- **Commit**: `chore: remove unused MANAGE_EXTERNAL_STORAGE permission`
-- **验收**: ✅ Manifest 无 MANAGE_EXTERNAL_STORAGE；README Permissions 一节同步真实化
+- **现状**: `totalGroups = selectedGroups.size` 在 `.take(6)` 之后 → 组数封顶 6，「+N more」恒 0
+- **动作**: 先算全量 `allSelectedGroups` 再取前 6；`totalGroups = allSelectedGroups.size`；`remaining = totalGroups - shown.size`
+- **验收**: 选 200 组时摘要显示 200 组，出现「+194」
 
-### P4-3 产品闭环决策：主题 / 电量（R11/R13）✅
+#### P7-4 生命周期与协程作用域所有权（R20）🔴
 
-- **主题（R11）**: ✅ `bb1dc29` `feat(settings): add theme selector card` — 设置页三选一（跟随系统/浅色/深色，复用 `settings_theme_*` strings）；MainActivity 以 Compose 状态承载 themeMode 即时生效
-- **电量（R13）**: ✅ 删除（YAGNI）——`getBatteryLevel` 恒 null 死桩随 P2-3 `9f373eb` 全链路删除（NikonUsbManager / ConnectionManager / GalleryViewModel / GalleryScreen / strings）
-- **决策原则**: 要么用户能用，要么 UI 里不存在。✅ 已执行
+- **现状**: `GalleryViewModel.stop()` 取消并重建 `scope`，但 `ConnectionManager`/`ThumbnailProvider`/`TransferEngine` 构造时按值捕获旧 scope → 旋转后 `connectAndBrowse()` 在死 scope 上 launch，静默失败
+- **动作（择一，实施时定稿）**:
+  - **A（推荐）**: `stop()` 不再重建 scope，改为「取消子 Job 但保留 scope」——用 `SupervisorJob` 的子 Job 作 `stop()`/`start()` 的作用域边界，或
+  - **B**: 让三个协作对象改为读取 `() -> CoroutineScope` 访问器（与现有 `mtp`/`cameraInfo` 一致），`stop()` 替换后自动生效
+- **测试**: 单测覆盖「stop 后再次 start，协作对象在活跃 scope 上执行」
+- **验收**: 旋转后重连正常枚举、无静默失败
 
-### P4-4 引导标记后置（R18）✅ `18c3b9b`
+### P7-B 大库性能（流畅度）
 
-- **动作**: `guideSeen` 置位移到 `onDone`（FirstRunGuideScreen 回调）；压栈前不再前置置位
-- **验收**: ✅ 崩溃后引导不会永久消失；主动返回则下次冷启动再见
+#### P7-5 消除勾选触发的全屏重算（R24）🟠
 
----
+- **现状**: `GalleryScreen` 读 `selectedCount` → 勾选重组整个画廊；`BrowsingContent` 每次重算 `filterIsInstance`×3 + 两次 `count` + `getNewPhotoCount()`（每张一次 SharedPreferences 读）
+- **动作**:
+  1. 选择状态改为**按 key 可观察**（set + 版本），cell 只订阅自身 key，勾选只重绘受影响 cell
+  2. `rawCount` / `jpgCount` / `newCount` / `filteredGroups` 全部改 `derivedStateOf`（仅当 `currentPhotos` / `filter` / `sort` 变化时重算，勾选不触发）
+  3. `BrowsingContent` 依赖收窄/标注稳定性，避免整块重组
+- **验收**: 3000 张下连续勾选无可感知卡顿（可用 `Layout Inspector` recomposition 计数佐证）
 
-## P5 — 工程债深水区（✅ 2026-08-15 全部落地）
+#### P7-6 BY_DATE 预分桶（R25）🟠
 
-### P5-1 硬编码字符串资源化（R10）✅
+- **现状**: 每个 date section 对全量 `filteredPhotos` 扫一遍，且比较时每张新建 `SimpleDateFormat`
+- **动作**: 进入 Browsing 前一次性 `groupBy(日期)` 分桶；`SimpleDateFormat` 提为单例；渲染直接取桶
+- **验收**: BY_DATE 模式大库滚动/勾选不掉帧
 
-- **Headline**: `refactor(ui): move hardcoded strings to resources`
-- **动作**: `SettingsScreen` ~20 处、`GalleryScreen` ~10 处、`FirstRunGuideScreen`、`GalleryViewModel`（"计算中…"）全部改 `stringResource()`；优先复用 `strings.xml` 已定义未使用的 key（`settings_grid_density`/`settings_history`/`settings_theme_*`/`usb_exif_*`），缺的补 key
-- **实施扩展（验收要求"主代码无中文硬编码"）**: 顺带处理 ConnectionManager 状态消息（`app.getString`）、EXIF 标签/取值（纯函数 + `ExifValue` sealed type，渲染时 `stringResource` 解析）、LogViewer/TransferHistory/PhotoDetailSheet；清理 52 条未用字符串
-- **验收**: ✅ 主代码无中文硬编码（仅注释残留）；lint/detekt 全绿
+#### P7-7 选择集改常量时间结构（R26）🟠
 
-### P5-2 核心路径接入 DI + 注入 dispatcher（R14）✅
+- **现状**: `selected: SnapshotStateList<Int>`，`selectAll` O(n²)、`isSelected` O(k)、预览 O(n·k)
+- **动作**: 改为 `Set<Int>`（或 `mutableStateSetOf`）承载；`handlesForFormat` 结果直接批量 `addAll`；预览用集合运算
+- **验收**: 全选 3000 张瞬时完成
 
-- **Headline**: `refactor(di): inject GalleryViewModel dependencies from AppGraph`
-- **动作**: `AppGraph` 增加 `GalleryViewModel`/`LocalPhotosViewModel`/`NikonUsbManager` 提供者；`GalleryViewModel` scope 用注入 `ioDispatcher`；与 P4-1 方案 A 合并实施（`@SingleIn` 保留实例）
-- **验收**: ✅ CLAUDE.md「Dispatcher 注入」在核心路径成立；GalleryViewModel 构造注入 ioDispatcher；旋转 UX 与 P4-1 方案 B 一致（`stop()` 归位状态）
+#### P7-8 去掉重复 MTP 遍历（R27）🟠
 
-### P5-3 核心屏 Preview（R15）✅
+- **现状**: `listPhotos()` 前先 `countObjectsInStorage()` 完整 BFS 一遍仅用于进度估算
+- **动作**: 删除预估遍历；进度改为「已扫描 N 张」不确定态（或复用单次遍历计数）
+- **验收**: 首屏可见照片时间约减半（大卡可感知）
 
-- **Headline**: `feat(ui): add gallery screen previews`
-- **动作**: `GalleryScreen` 各状态（Disconnected/Connecting/Loading/Browsing/Empty/Error/Transferring/TransferDone）各一个 `@Preview`；`SettingsScreen` 一个；为 Preview 可渲染，抽 `GalleryScreenHost` 接口（Browsing/TransferDone 改接接口 + 假 Host）、`TransferDonePanel` 纯渲染、SettingsScreen 无状态化
-- **验收**: ✅ CLAUDE.md 🔴 强制规范全覆盖（Gallery/FirstRunGuide/LogViewer/TransferHistory/Settings 均有 Preview；GalleryFolderScreen 为 GalleryScreen 薄包装，由后者覆盖）
+#### P7-9 缩略图管线优化（R28）🟠
 
-### P5-4 降低 fullPhotoCache OOM 风险（R17）✅
+- **现状**: 预载仅 50、缓存 128/96、请求不可取消且随快速滑动排队、`rotateByDegrees` 未 recycle 源图
+- **动作**: 预载跟随可视窗口（按首/尾可见 index 扩窗）；容量随列数/密度调优；旋转后 recycle 源位图或改 `Matrix` 直绘
+- **验收**: 大目录快速滑动缩略图跟手、无明显 GC 抖动
 
-- **Headline**: `fix(usb): cap full-photo cache and use path-based EXIF`
-- **动作**: `downloadFullPhoto` 改为 temp 文件缓存（磁盘 LRU 3，淘汰/断开即删）+ 路径构造 `ExifInterface`（LocalPhotoDetail 已示范）；不再持有 26MB 字节数组
-- **验收**: ✅ 峰值内存可预测（磁盘缓存上限 3 × 单文件，RAM 仅解码预览）；断连清理无残留
+#### P7-10 扫描进度持续反馈（R29）🟠
 
----
+- **现状**: 满 30 张切 Browsing 后 UI 完全静默，`currentPhotos` 直到枚举结束才替换
+- **动作**: Browsing 后分批（节流）增量更新 `currentPhotos`；顶栏显示「正在扫描… N」持续指示
+- **验收**: 大卡扫描全程有可见进展，「新照片」计数渐进逼近终值
 
-## P6 — 发布闭环（0.5 天）
+#### P7-11 去重表容量治理（R30）🟠
 
-| # | 事项 | 说明 |
-|---|---|---|
-| 6-1 | CHANGELOG 制度落地 | `CHANGELOG.md` 已建（2026-08-15 并行流，Unreleased + 回溯 v1.0.0）；剩余：**PR 更新 Unreleased 纪律执行**（CLAUDE.md 已声明） |
-| 6-2 | 状态诚实化（R19） | ✅ `todo.md` 已撤回"0 已知问题"；`CLAUDE.md` Current State 已改为发布前状态；评审更新后同步（postmortem 001 教训） |
-| 6-3 | Play 上架材料 | `docs/legal/privacy-policy.md` 已建（并行流）；权限核对完成（`173d5c0`，仅 USB 无运行时权限）；**store listing 文案已建**（`docs/legal/store-listing.md`：短/长描述、What's new、Data Safety 口径、素材清单）；剩余：截图/feature graphic 待真机（Nikon Z30）、隐私政策托管 URL、Play Console 提交 |
-| 6-4 | 发布后指标 | 从 Khronicle 日志聚合传输成功率/失败率（现有 TransferHistory 已存会话记录），建立发布后观测，对齐 PRD 成功指标 |
+- **现状**: `PhotoSyncManager` 记录无上限增长，`clearAll`/`clearStorage` 零调用
+- **动作**: 设容量上限（如最近 N 次会话 / M 条 LRU），或「按 storageId+name 去重 + 定期 GC 未复现键」；保留 ADR-008 的 `name:size` 软校验语义
+- **验收**: 长期使用后 prefs 条目有界，冷启动不受影响
+
+### P7-C 打磨（P3）
+
+#### P7-12 交互与健壮性收尾（R31–R35）🟡
+
+- **R31** 相机页 `PullToRefreshBox(isRefreshing = false)` → 绑定真实刷新状态
+- **R32** `runCatching` 不吞 `CancellationException`；`downloadPhoto` 异常路径删除 temp 文件
+- **R33** 详情页优先从 MTP 缩略图解析 EXIF，全量下载降级为显式「查看原图」
+- **R34** 删 `GalleryStateMachine.filterCacheGeneration` 死状态；`openMtpDevice` 失败时关闭 `usbConnection`
+- **R35** 清理 BLE 残留资源（`ic_bluetooth_*` / `ic_location_on_*` / `ic_add_camera_*` / `ic_linked_camera_*` / `avd_syncing_waves` / 模板色）；修 `ObsoleteSdkInt`（`ConnectionManager.kt:95` + `mipmap-anydpi-v26`）
+- **附**: `AutoboxingStateCreation` → `mutableIntStateOf`（R40）；lint `Recycle` 为误报，可在 `lint.xml` 抑制并留注释（R36）
 
 ---
 
@@ -207,7 +168,8 @@
 | 视频文件支持 | 大文件 + 不同 MTP 处理；非核心使命 |
 | 多相机并发 USB | Android 平台硬限制（仅支持一个 USB host 设备） |
 | Wi-Fi 传输 | Z30 缺 infra 模式；有线是差异化卖点 |
-| 通用 MTP 多厂商支持 | 保持 Nikon-only，直至单设备可靠性 99.9%（第二期评审新增） |
+| 通用 MTP 多厂商支持 | 保持 Nikon-only，直至单设备可靠性 99.9%（第二期评审） |
+| Paging / Room 重构 | 先用最小状态与算法修正解决大库卡顿；若 P7 后仍不达标，再另立 ADR 评估 |
 
 ---
 
@@ -215,24 +177,18 @@
 
 | ID | 主题 | 对应 review | 验收标准 |
 |---|---|---|---|
-| P0-1 | 保存路径真实化 | R4 | ✅ 目录名随模型变化（`2961280`） |
-| P0-2 | 去重键一致 | R2 | ✅ 双管线判定一致（`b75e87b`） |
-| P0-3 | 单 MTP 管线 | R1 | ✅ 单 MtpDevice open（`9344686`，构造保证） |
-| P0-4 | 剪枝真实化 | R3 | ✅ 软校验不误判，注释与代码一致（`220aa12`） |
-| P1-1 | 冷启动引导 | R5 | ✅ 新用户看到引导（`61fc9a7`） |
-| P1-2 | 新照片默认主路径 | R5 | ✅ 插线→传输 ≤3 次点击（`97f7c8e`） |
-| P1-3 | 传输回看 | R5 | ✅ 可追溯本次传输（`f6d2f9b`） |
-| P1-4 | 自动同步决策 | R7 | ✅ 移除无效开关 + 死代码（`6a1c331`；README 清理见 P3-4） |
-| P2-1 | 拆 God Object | R6 | ✅ 纯搬移无行为变化（`62f1922` `c75fc72` `22e9f8e` `976fd3f` + `b1fa3a3`） |
-| P2-2 | 核心单测 | R6/R16 | ✅ 43 tests 全绿（`d263935` `b015182` `cf88244` `134674b`，原 19/6 红） |
-| P2-3 | detekt 归零 | R6 | ✅ baseline 空（`9f373eb`，17 → 0） |
-| P3 | 运营收尾 | — | 设备统一 + README 真实化（3-4 ✅）+ CI 全绿 + 真机回归（3-2/3-3 待设备） |
-| P4-1 | MTP 生命周期所有权 | R8 | ✅ 旋转前后仅一个 MtpDevice open（`18c3b9b`，方案 B） |
-| P4-2 | 删幽灵权限 | R12 | ✅ Manifest 无 MANAGE_EXTERNAL_STORAGE（`f0f12f3`） |
-| P4-3 | 主题/电量闭环 | R11/R13 | ✅ 主题接线（`bb1dc29`）+ 电量删除（`9f373eb`） |
-| P4-4 | 引导标记后置 | R18 | ✅ guideSeen 在 onDone 置位（`18c3b9b`） |
-| P5-1 | 字符串资源化 | R10 | ✅ 主代码零中文硬编码（`d3d9c13` `ce74c43` `87f41ae` `34c7113` `3777440` `8252b74` `477115d` `361abc3` `36c21f4`） |
-| P5-2 | 核心路径接 DI | R14 | ✅ GalleryViewModel 构造注入 ioDispatcher + AppGraph @SingleIn（`6785430`） |
-| P5-3 | 核心屏 Preview | R15 | ✅ GalleryScreen 每状态一个 @Preview（`35ca39b` `c30ce08` `8ee67eb`） |
-| P5-4 | 缓存降内存 | R17 | ✅ 磁盘 LRU 3 + 路径 EXIF（`ad54502`） |
-| P6 | 发布闭环 | R19 | CHANGELOG 落地 + todo.md 状态真实 + 上架材料齐（P6-2 ✅ 状态真实；P6-3 权限核对完成 `173d5c0` + store listing 文案 `docs/legal/store-listing.md`；截图/托管待设备） |
+| P3-1..3-3 | 设备统一 / CI / 真机回归 | — | 待设备与环境 |
+| P6-1 | CHANGELOG 纪律 | — | PR 更新 Unreleased |
+| P6-3 | 上架材料 | — | 截图 + feature graphic + 托管 URL（待真机） |
+| P7-1 | RAW+JPEG 成对传输 | R21 | 选「全部」两张都落盘 + 新单测绿 |
+| P7-2 | 分组键纳入存储/文件夹 | R23 | 同名不合并 + 网格无重复 key + 新单测绿 |
+| P7-3 | 预览统计口径 | R22 | 组数正确 + 「+N more」显示 |
+| P7-4 | 协程作用域所有权 | R20 | 旋转后重连正常枚举 |
+| P7-5 | 消除勾选全屏重算 | R24 | 大库勾选无卡顿（重组计数佐证） |
+| P7-6 | BY_DATE 预分桶 | R25 | 大库 BY_DATE 不掉帧 |
+| P7-7 | 选择集常量时间 | R26 | 全选 3000 张瞬时 |
+| P7-8 | 去重复遍历 | R27 | 首屏可见时间约减半 |
+| P7-9 | 缩略图管线 | R28 | 快速滑动跟手、GC 平稳 |
+| P7-10 | 扫描进度反馈 | R29 | 全程有进展、计数渐进 |
+| P7-11 | 去重表容量 | R30 | 条目有界、冷启动不受影响 |
+| P7-12 | 交互/健壮性收尾 | R31–R35 | 刷新指示 / 取消语义 / 详情 EXIF / 死代码 / 残留资源 |
