@@ -145,7 +145,7 @@ class ConnectionManager(
         syncJob?.cancel()
         transferEngine.cancelTransfer()
         closeMtp()
-        stateMachine.selected.clear()
+        stateMachine.deselectAll()
         stateMachine.setState(GalleryState.Disconnected)
         stateMachine.updateCurrentPhotos(emptyList())
         thumbnails.clearAll()
@@ -210,7 +210,7 @@ class ConnectionManager(
                     storages = nikon.getStorages(m)
                     Log.info(tag = TAG) { "Found ${storages.size} storage(s)" }
 
-                    stateMachine.selected.clear()
+                    stateMachine.deselectAll()
                     errorBanner = null
 
                     Log.info(tag = TAG) { "Starting loadRoot..." }

@@ -53,7 +53,7 @@ class TransferEngine(
     }
 
     fun startTransfer() {
-        val toTransfer = buildTransferList { it in stateMachine.selected }
+        val toTransfer = buildTransferList { stateMachine.isSelected(it) }
         if (toTransfer.isEmpty()) {
             stateMachine.setState(GalleryState.TransferDone(0))
             return
@@ -70,7 +70,7 @@ class TransferEngine(
         val toRetry = buildTransferList { it in failedHandles }
         if (toRetry.isEmpty()) return
 
-        stateMachine.selected.clear()
+        stateMachine.deselectAll()
         failedHandles = emptyList()
         cancelPendingWork()
         transferJob?.cancel()
@@ -134,7 +134,7 @@ class TransferEngine(
             val uri = saveToMediaStore(m, p.first)
             if (uri != null) {
                 ok++
-                stateMachine.selected.remove(p.second)
+                stateMachine.deselect(p.second)
                 bytesAcc += p.first.size
                 savedUris.add(uri)
                 transferredHandles.add(p.second)

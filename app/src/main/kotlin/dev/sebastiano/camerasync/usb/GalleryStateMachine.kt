@@ -2,7 +2,7 @@ package dev.sebastiano.camerasync.usb
 
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
@@ -25,10 +25,19 @@ class GalleryStateMachine(
     private val _state = mutableStateOf<GalleryState>(GalleryState.Disconnected)
     val state: State<GalleryState> = _state
 
-    /** SnapshotStateList — any composable reading this list automatically recomposes. */
-    val selected = mutableStateListOf<Int>()
+    /**
+     * Selection keyed by MTP handle. A [androidx.compose.runtime.snapshots.SnapshotStateMap] keeps
+     * `contains`/`add`/`remove` O(1) and — crucially — records reads per key, so a composable
+     * reading one handle only recomposes for that key instead of the whole grid (R24/R26).
+     */
+    private val selectedHandles = mutableStateMapOf<Int, Unit>()
+
+    /** Read-only snapshot of the selected handles (tests, previews, transfer-list building). */
+    val selected: Set<Int>
+        get() = selectedHandles.keys
+
     val selectedCount: Int
-        get() = selected.size
+        get() = selectedHandles.size
 
     /** Photo groups for the current view. Updated via [updateCurrentPhotos]. */
     var currentPhotos by mutableStateOf(emptyList<GalleryEntry.PhotoGroup>())
@@ -114,14 +123,15 @@ class GalleryStateMachine(
     ) {
         val handles = handlesForFormat(group, downloadFormat)
         if (handles.isEmpty()) return
-        if (handles.all { it in selected }) handles.forEach { selected.remove(it) }
-        else handles.forEach { selected.add(it) }
+        if (handles.all { selectedHandles.containsKey(it) })
+            handles.forEach { selectedHandles.remove(it) }
+        else handles.forEach { selectedHandles[it] = Unit }
     }
 
     fun selectAll(downloadFormat: UsbSyncPreferences.DownloadFormat) {
         currentPhotos
             .flatMap { handlesForFormat(it, downloadFormat) }
-            .forEach { if (it !in selected) selected.add(it) }
+            .forEach { selectedHandles[it] = Unit }
     }
 
     /**
@@ -133,18 +143,28 @@ class GalleryStateMachine(
                 listOfNotNull(group.raw, group.jpg).any { !photoSyncManager.isAlreadyImported(it) }
             }
             .flatMap { handlesForFormat(it, downloadFormat) }
-            .forEach { if (it !in selected) selected.add(it) }
+            .forEach { selectedHandles[it] = Unit }
     }
 
     fun deselectAll() {
-        selected.clear()
+        selectedHandles.clear()
     }
 
-    fun isSelected(h: Int) = h in selected
+    /** Selects a single handle (used by tests and direct selection paths). */
+    fun select(handle: Int) {
+        selectedHandles[handle] = Unit
+    }
+
+    /** Deselects a single handle (e.g. after a successful transfer). */
+    fun deselect(handle: Int) {
+        selectedHandles.remove(handle)
+    }
+
+    fun isSelected(h: Int) = selectedHandles.containsKey(h)
 
     fun isGroupSelected(group: GalleryEntry.PhotoGroup): Boolean {
         val handles = listOfNotNull(group.raw?.handle, group.jpg?.handle)
-        return handles.isNotEmpty() && handles.any { it in selected }
+        return handles.isNotEmpty() && handles.any { selectedHandles.containsKey(it) }
     }
 
     private fun invalidateFilterCache() {

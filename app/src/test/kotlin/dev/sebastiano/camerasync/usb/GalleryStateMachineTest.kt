@@ -183,7 +183,7 @@ class GalleryStateMachineTest {
         val m = machine()
         m.updateCurrentPhotos(listOf(group("BOTH", raw = photo(1, isRaw = true), jpg = photo(2))))
         m.selectAll(UsbSyncPreferences.DownloadFormat.JPEG_ONLY)
-        assertEquals(listOf(2), m.selected.toList())
+        assertEquals(setOf(2), m.selected)
     }
 
     // ── Grouping (R23) ───────────────────────────────────────────────────────

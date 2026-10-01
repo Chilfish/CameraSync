@@ -87,7 +87,7 @@ class TransferEngineTest {
         val engine = createEngine { this }
         val p = photo(1)
         machine.updateCurrentPhotos(listOf(group(p)))
-        machine.selected.add(1)
+        machine.select(1)
         val uri = mockk<Uri>(relaxed = true)
         every { contentResolver.insert(any(), any()) } returns uri
         every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
@@ -102,7 +102,7 @@ class TransferEngineTest {
         assertTrue(manager.isAlreadyImported(p))
         assertEquals(listOf(1), engine.lastTransferredHandles)
         assertTrue(engine.failedHandles.isEmpty())
-        assertTrue(machine.selected.isEmpty())
+        assertEquals(0, machine.selectedCount)
         verify { contentResolver.update(uri, any(), any(), any()) }
     }
 
@@ -147,7 +147,7 @@ class TransferEngineTest {
         val p = photo(1)
         manager.markAsImported(p)
         machine.updateCurrentPhotos(listOf(group(p)))
-        machine.selected.add(1)
+        machine.select(1)
 
         engine.startTransfer()
         advanceUntilIdle()
@@ -165,7 +165,7 @@ class TransferEngineTest {
 
         val p = photo(1)
         machine.updateCurrentPhotos(listOf(group(p)))
-        machine.selected.add(1)
+        machine.select(1)
         val uri = mockk<Uri>(relaxed = true)
         every { contentResolver.insert(any(), any()) } returns uri
         every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
@@ -188,7 +188,7 @@ class TransferEngineTest {
         val engine = createEngine { this }
         val p = photo(1)
         machine.updateCurrentPhotos(listOf(group(p)))
-        machine.selected.add(1)
+        machine.select(1)
         every { contentResolver.insert(any(), any()) } returns null
 
         engine.startTransfer()
@@ -205,7 +205,7 @@ class TransferEngineTest {
         val engine = createEngine { this }
         val p = photo(1)
         machine.updateCurrentPhotos(listOf(group(p)))
-        machine.selected.add(1)
+        machine.select(1)
         val uri = mockk<Uri>(relaxed = true)
         every { contentResolver.insert(any(), any()) } returns uri
         every { contentResolver.openOutputStream(uri) } returns null
@@ -224,7 +224,7 @@ class TransferEngineTest {
         val engine = createEngine { this }
         val p = photo(1)
         machine.updateCurrentPhotos(listOf(group(p)))
-        machine.selected.add(1)
+        machine.select(1)
         val uri = mockk<Uri>(relaxed = true)
         every { contentResolver.insert(any(), any()) } returns uri
         every { contentResolver.openOutputStream(uri) } returns mockk<OutputStream>(relaxed = true)
@@ -247,7 +247,7 @@ class TransferEngineTest {
         val p1 = photo(1)
         val p2 = photo(2)
         machine.updateCurrentPhotos(listOf(group(p1), group(p2)))
-        machine.selected.addAll(listOf(1, 2))
+        listOf(1, 2).forEach { machine.select(it) }
         // First pass: both inserts fail.
         every { contentResolver.insert(any(), any()) } returns null
         engine.startTransfer()
